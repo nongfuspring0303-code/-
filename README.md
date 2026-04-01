@@ -36,6 +36,8 @@ pip install pyyaml pytest
 
 ### 2. 统一验收入口（推荐）
 ```bash
+python3 -m pytest -q
+PYTHONPYCACHEPREFIX=/tmp/pycache python3 scripts/system_healthcheck.py
 bash scripts/verify_phase12.sh
 bash scripts/verify_fullchain.sh
 ```

@@ -167,6 +167,28 @@ registry:
     dependencies: [Logger]
     config: edt-modules-config.yaml
 
+  # ========== A层 AI事件智能模块 ==========
+
+  - name: NewsIngestion
+    version: 1.0.0
+    category: AI-Input
+    description: "真实新闻流接入与标准化输出"
+    input_schema: news_ingestion_input.json
+    output_schema: ai_event_intel_input.json
+    dependencies: [Logger, RetryHandler]
+    config: edt-modules-config.yaml
+    test_case: tests/test_ai_event_intel.py
+
+  - name: EventEvidenceScorer
+    version: 1.0.0
+    category: AI-Intel
+    description: "事件证据评分器"
+    input_schema: ai_event_intel_input.json
+    output_schema: ai_event_intel_output.json
+    dependencies: [NewsIngestion, Logger]
+    config: edt-modules-config.yaml
+    test_case: tests/test_ai_event_intel.py
+
 # 模块调用关系图
 dependencies_graph:
   - "EventCapture -> SourceRanker -> SeverityEstimator -> EventObjectifier"

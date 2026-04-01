@@ -463,3 +463,39 @@ modules:
     params:
       # dry_run | paper | live
       mode: "dry_run"
+
+  # ========== A层 AI事件智能模块 ==========
+  NewsIngestion:
+    enabled: true
+    timeout: 8
+    params:
+      timeout: 8
+      retries: 2
+      sources:
+        - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+        - "https://www.marketwatch.com/rss/topstories"
+        - "https://seekingalpha.com/market_currents.xml"
+
+  EventEvidenceScorer:
+    enabled: true
+    timeout: 10
+    params:
+      default_score: 50
+      source_rank_map:
+        A:
+          score: 95
+          domains:
+            - "federalreserve.gov"
+            - "whitehouse.gov"
+            - "sec.gov"
+        B:
+          score: 80
+          domains:
+            - "reuters.com"
+            - "bloomberg.com"
+            - "wsj.com"
+        C:
+          score: 50
+          domains:
+            - "twitter.com"
+            - "telegram"

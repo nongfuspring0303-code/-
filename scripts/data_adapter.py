@@ -13,12 +13,36 @@ except Exception:
 
 
 class DataAdapter:
-    """数据接入适配器（模拟数据）"""
+    """数据接入适配器（真实新闻流优先 + 模拟兜底）"""
 
     def __init__(self):
         self.cache = CacheManager() if CacheManager else None
 
     def fetch_news(self) -> Dict[str, Any]:
+        try:
+            from ai_event_intel import NewsIngestion
+        except Exception:
+            NewsIngestion = None
+
+        if NewsIngestion:
+            out = NewsIngestion().run({"max_items": 1})
+            if out.data.get("items"):
+                item = out.data["items"][0]
+                return {
+                    "headline": item.get("headline", ""),
+                    "source": item.get("source_url", ""),
+                    "source_url": item.get("source_url", ""),
+                    "source_type": item.get("source_type", ""),
+                    "timestamp": item.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+                    "raw_text": item.get("raw_text", ""),
+                    "metadata": {
+                        "keywords": [],
+                        "region": "US",
+                        "asset_class": ["equities", "bonds", "usd"],
+                        "trace_id": item.get("trace_id"),
+                    },
+                }
+
         return {
             "headline": "Federal Reserve announces emergency rate cut of 50bps",
             "source": "https://www.federalreserve.gov/newsevents/2026/march/h1234567a.htm",
@@ -29,7 +53,8 @@ class DataAdapter:
             "metadata": {
                 "keywords": ["Fed", "emergency", "rate cut"],
                 "region": "US",
-                "asset_class": ["equities", "bonds", "usd"]
+                "asset_class": ["equities", "bonds", "usd"],
+                "trace_id": "TRC-FALLBACK-0001",
             }
         }
 

@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "News Ingestion Input Schema",
+  "description": "Input payload for real news ingestion. Supports configured sources and test overrides.",
+  "type": "object",
+  "properties": {
+    "sources": {"type": "array", "items": {"type": "string", "format": "uri"}},
+    "max_items": {"type": "integer", "minimum": 1, "maximum": 50},
+    "items_override": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "headline": {"type": "string"},
+          "source_url": {"type": "string", "format": "uri"},
+          "timestamp": {"type": "string", "format": "date-time"},
+          "raw_text": {"type": "string"},
+          "source_type": {"type": "string"}
+        },
+        "required": ["headline", "source_url", "timestamp"]
+      }
+    }
+  },
+  "additionalProperties": true
+}

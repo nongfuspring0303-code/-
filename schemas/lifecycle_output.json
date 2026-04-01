@@ -1,10 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "LifecycleManager Output",
-  "description": "LifecycleManager 输出契约：生命周期状态、催化状态与交易准入建议。",
+  "description": "LifecycleManager 输出契约：内部统一状态 + 兼容生命周期状态。",
   "type": "object",
   "required": [
     "event_id",
+    "internal_state",
     "lifecycle_state",
     "catalyst_state",
     "trade_eligibility",
@@ -16,7 +17,15 @@
     "event_id": {
       "type": "string"
     },
+    "internal_state": {
+      "type": "string",
+      "enum": ["Detected", "Verified", "Hypothesis", "Validated", "Approved", "Executed", "Monitored", "Closed", "Reviewed"]
+    },
     "lifecycle_state": {
+      "type": "string",
+      "enum": ["Detected", "Verified", "Active", "Continuation", "Exhaustion", "Dead", "Archived"]
+    },
+    "legacy_lifecycle_state": {
       "type": "string",
       "enum": ["Detected", "Verified", "Active", "Continuation", "Exhaustion", "Dead", "Archived"]
     },
@@ -47,19 +56,31 @@
     },
     "reasoning": {
       "type": "string"
+    },
+    "state_mapping": {
+      "type": "object",
+      "required": ["internal_schema", "legacy_schema", "compatible"],
+      "properties": {
+        "internal_schema": { "type": "string" },
+        "legacy_schema": { "type": "string" },
+        "compatible": { "type": "boolean" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
   "examples": [
     {
       "event_id": "ME-C-20260330-001.V1.0",
-      "lifecycle_state": "Detected",
+      "internal_state": "Validated",
+      "lifecycle_state": "Active",
+      "legacy_lifecycle_state": "Active",
       "catalyst_state": "first_impulse",
-      "trade_eligibility": "watch",
-      "holding_horizon": "intraday",
-      "transition_reason": "事件刚发现，尚未完成确认与市场验证",
+      "trade_eligibility": "tradable",
+      "holding_horizon": "overnight",
+      "transition_reason": "通过验证条件",
       "needs_manual_review": false,
-      "state_version": "lifecycle_v1"
+      "state_version": "lifecycle_v1.1"
     }
   ]
 }

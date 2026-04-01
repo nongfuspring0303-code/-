@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "LifecycleManager Input",
-  "description": "LifecycleManager 输入契约：事件对象到生命周期状态判定。",
+  "description": "LifecycleManager 输入契约：事件对象到生命周期状态判定（兼容 C1 内部状态机）。",
   "type": "object",
   "required": [
     "event_id",
@@ -47,6 +47,10 @@
       "type": "string",
       "enum": ["Detected", "Verified", "Active", "Continuation", "Exhaustion", "Dead", "Archived"]
     },
+    "previous_internal_state": {
+      "type": "string",
+      "enum": ["Detected", "Verified", "Hypothesis", "Validated", "Approved", "Executed", "Monitored", "Closed", "Reviewed"]
+    },
     "previous_catalyst_state": {
       "type": "string",
       "enum": ["first_impulse", "continuation", "exhaustion", "dead"]
@@ -66,6 +70,44 @@
     "contradicted_by_new_fact": {
       "type": "boolean",
       "default": false
+    },
+    "ai_hypothesis_ready": {
+      "type": "boolean",
+      "default": false
+    },
+    "validation_passed": {
+      "type": "boolean",
+      "default": false
+    },
+    "risk_approved": {
+      "type": "boolean",
+      "default": false
+    },
+    "execution_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "monitoring_stable": {
+      "type": "boolean",
+      "default": false
+    },
+    "close_conditions_met": {
+      "type": "boolean",
+      "default": false
+    },
+    "review_completed": {
+      "type": "boolean",
+      "default": false
+    },
+    "retry_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "max_retries": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 3
     },
     "elapsed_hours": {
       "type": "number",

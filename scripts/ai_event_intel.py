@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 import time
 import uuid
 import xml.etree.ElementTree as ET
 import urllib.request
+from email.utils import parsedate_to_datetime
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 from pathlib import Path
@@ -30,6 +31,27 @@ def _now_iso() -> str:
 
 def _new_trace_id() -> str:
     return f"TRC-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
+
+
+def _parse_datetime(ts: Optional[str]) -> Optional[datetime]:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except Exception:
+        try:
+            return parsedate_to_datetime(ts)
+        except Exception:
+            return None
+
+
+def _normalize_timestamp(ts: Optional[str]) -> str:
+    dt = _parse_datetime(ts)
+    if not dt:
+        return _now_iso()
+    if not dt.tzinfo:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _parse_rss(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
@@ -69,6 +91,24 @@ def _safe_fetch(url: str, timeout: int) -> Optional[str]:
         return None
 
 
+def _dedupe_items(items: List[Dict[str, Any]], window_minutes: int) -> List[Dict[str, Any]]:
+    seen: Dict[str, datetime] = {}
+    output: List[Dict[str, Any]] = []
+    window_seconds = max(1, window_minutes) * 60
+
+    for item in items:
+        headline = (item.get("headline") or "").strip().lower()
+        host = urlparse(item.get("source_url", "")).netloc.lower().replace("www.", "")
+        key = f"{headline}|{host}"
+        dt = _parse_datetime(item.get("timestamp"))
+        if key in seen and dt and (dt - seen[key]).total_seconds() <= window_seconds:
+            continue
+        if key not in seen and dt:
+            seen[key] = dt
+        output.append(item)
+    return output
+
+
 class NewsIngestion(EDTModule):
     """A0: real news ingestion with fallback and standardization."""
 
@@ -82,6 +122,10 @@ class NewsIngestion(EDTModule):
 
         if items_override:
             normalized = [self._normalize_item(item) for item in items_override]
+            dedupe_on = bool(self._get_config("modules.NewsIngestion.params.dedupe", True))
+            window_minutes = int(self._get_config("modules.NewsIngestion.params.dedupe_window_minutes", 120))
+            if dedupe_on:
+                normalized = _dedupe_items(normalized, window_minutes)
             return ModuleOutput(status=ModuleStatus.SUCCESS, data={"items": normalized[:max_items]})
 
         sources = raw.get("sources") or self._get_config("modules.NewsIngestion.params.sources", [])
@@ -114,14 +158,16 @@ class NewsIngestion(EDTModule):
                 }
             ]
 
-        normalized = [self._normalize_item(item) for item in items][:max_items]
-        return ModuleOutput(status=ModuleStatus.SUCCESS, data={"items": normalized})
+        normalized = [self._normalize_item(item) for item in items]
+        dedupe_on = bool(self._get_config("modules.NewsIngestion.params.dedupe", True))
+        window_minutes = int(self._get_config("modules.NewsIngestion.params.dedupe_window_minutes", 120))
+        if dedupe_on:
+            normalized = _dedupe_items(normalized, window_minutes)
+        return ModuleOutput(status=ModuleStatus.SUCCESS, data={"items": normalized[:max_items]})
 
     def _normalize_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         trace_id = item.get("trace_id") or _new_trace_id()
-        timestamp = item.get("timestamp") or _now_iso()
-        if "GMT" in timestamp and not timestamp.endswith("Z"):
-            timestamp = _now_iso()
+        timestamp = _normalize_timestamp(item.get("timestamp"))
         return {
             "trace_id": trace_id,
             "event_id": item.get("event_id", ""),
@@ -181,18 +227,28 @@ class EventEvidenceScorer(EDTModule):
     def _score_evidence(self, source_url: str, source_type: str) -> float:
         rank_map = self._get_config("modules.EventEvidenceScorer.params.source_rank_map", {})
         default_score = float(self._get_config("modules.EventEvidenceScorer.params.default_score", 50))
+        abnormal_domains = [d.lower() for d in self._get_config("modules.EventEvidenceScorer.params.abnormal_domains", [])]
+        abnormal_types = [t.lower() for t in self._get_config("modules.EventEvidenceScorer.params.abnormal_types", [])]
+        abnormal_penalty = float(self._get_config("modules.EventEvidenceScorer.params.abnormal_penalty", 20))
+
         host = urlparse(source_url).netloc.lower()
         if host.startswith("www."):
             host = host[4:]
-        for label, cfg in rank_map.items():
+
+        score = default_score
+        for _, cfg in rank_map.items():
             domains = [d.lower() for d in cfg.get("domains", [])]
             if any(d in host for d in domains):
-                return float(cfg.get("score", default_score))
+                score = float(cfg.get("score", default_score))
+                break
         if source_type == "official":
-            return 90.0
-        if source_type == "social":
-            return 30.0
-        return default_score
+            score = max(score, 90.0)
+        elif source_type == "social":
+            score = min(score, 30.0)
+
+        if any(d in host for d in abnormal_domains) or source_type in abnormal_types:
+            score = max(0.0, score - abnormal_penalty)
+        return score
 
     def _score_freshness(self, timestamp: Optional[str]) -> float:
         if not timestamp:

@@ -471,6 +471,8 @@ modules:
     params:
       timeout: 8
       retries: 2
+      dedupe: true
+      dedupe_window_minutes: 120
       sources:
         - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
         - "https://www.marketwatch.com/rss/topstories"
@@ -481,6 +483,14 @@ modules:
     timeout: 10
     params:
       default_score: 50
+      abnormal_domains:
+        - "pastebin.com"
+        - "t.me"
+        - "bit.ly"
+      abnormal_types:
+        - "unknown"
+        - "forum"
+      abnormal_penalty: 20
       source_rank_map:
         A:
           score: 95

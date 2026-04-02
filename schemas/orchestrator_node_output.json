@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OrchestratorNodeOutput",
+  "description": "Output schema for AI orchestration node (C2)",
+  "type": "object",
+  "required": ["trace_id", "status", "node_type"],
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "description": "Unique trace ID for tracking across nodes"
+    },
+    "node_type": {
+      "type": "string",
+      "enum": ["ai_event_intel", "signal_scorer", "risk_gatekeeper"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["SUCCESS", "FAILED", "TIMEOUT", "CIRCUIT_OPEN", "FALLBACK"]
+    },
+    "data": {
+      "type": "object",
+      "description": "Output data from the AI node"
+    },
+    "errors": {
+      "type": "array",
+      "items": {"type": "object"},
+      "description": "Error details if any"
+    },
+    "execution_time_ms": {
+      "type": "integer",
+      "description": "Execution time in milliseconds"
+    },
+    "attempts": {
+      "type": "integer",
+      "description": "Number of attempts made"
+    },
+    "circuit_state": {
+      "type": "string",
+      "enum": ["CLOSED", "OPEN", "HALF_OPEN"],
+      "description": "Current circuit breaker state"
+    },
+    "fallback_used": {
+      "type": "boolean",
+      "description": "Whether fallback was triggered"
+    },
+    "fallback_data": {
+      "type": "object",
+      "description": "Fallback response data"
+    }
+  }
+}

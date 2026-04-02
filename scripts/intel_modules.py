@@ -17,6 +17,13 @@ def _default_config_path() -> str:
     return str(Path(__file__).resolve().parent.parent / "configs" / "edt-modules-config.yaml")
 
 
+def _host_matches_domain(host: str, domain: str) -> bool:
+    """Strict domain matching to avoid substring spoofing."""
+    normalized_host = host.lower().strip(".")
+    normalized_domain = domain.lower().strip(".")
+    return normalized_host == normalized_domain or normalized_host.endswith(f".{normalized_domain}")
+
+
 class EventCapture(EDTModule):
     """Capture raw event and provide first-pass category."""
 
@@ -84,7 +91,7 @@ class SourceRankerModule(EDTModule):
         rank_detail = "Unknown source"
         for rk in ("A", "B", "C"):
             domains = [d.lower() for d in ranks.get(rk, [])]
-            if any(d in host for d in domains):
+            if any(_host_matches_domain(host, d) for d in domains):
                 rank = rk
                 rank_detail = f"Matched {rk}-rank list"
                 break

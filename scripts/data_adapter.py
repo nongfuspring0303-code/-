@@ -3,12 +3,14 @@
 Data Adapter - 模拟新闻与市场数据接入
 """
 
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 try:
     from edt_module_base import CacheManager
-except Exception:
+except ImportError:
+    logging.warning("CacheManager import failed; DataAdapter cache is disabled.")
     CacheManager = None
 
 
@@ -24,7 +26,7 @@ class DataAdapter:
             "source": "https://www.federalreserve.gov/newsevents/2026/march/h1234567a.htm",
             "source_url": "https://www.federalreserve.gov/newsevents/2026/march/h1234567a.htm",
             "source_type": "official",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "raw_text": "The Federal Reserve has announced an emergency rate cut...",
             "metadata": {
                 "keywords": ["Fed", "emergency", "rate cut"],

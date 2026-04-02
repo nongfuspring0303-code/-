@@ -15,7 +15,7 @@ import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -79,7 +79,7 @@ class EDTModule(ABC):
     def _log(self, level: str, message: str, **kwargs):
         """标准化日志"""
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "module": self.name,
             "version": self.version,
             "level": level,
@@ -100,7 +100,7 @@ class EDTModule(ABC):
     
     def run(self, input_data: Dict[str, Any]) -> ModuleOutput:
         """运行模块（带错误处理）"""
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
         self.status = ModuleStatus.RUNNING
         
         # 验证输入
@@ -139,7 +139,7 @@ class EDTModule(ABC):
             )
             
         finally:
-            self.end_time = datetime.utcnow()
+            self.end_time = datetime.now(timezone.utc)
             self._log("INFO", f"Module completed in {(self.end_time - self.start_time).total_seconds():.2f}s")
 
 

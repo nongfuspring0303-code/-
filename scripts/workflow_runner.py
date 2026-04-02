@@ -7,6 +7,8 @@ Chain: SignalScorer -> LiquidityChecker -> RiskGatekeeper -> PositionSizer -> Ex
 from __future__ import annotations
 
 import json
+import logging
+import threading
 from pathlib import Path
 from typing import Any, Dict
 
@@ -34,6 +36,7 @@ class WorkflowRunner:
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.request_store_path = Path(request_store_path) if request_store_path else self.logs_dir / "seen_request_ids.txt"
         self.request_store_path.parent.mkdir(parents=True, exist_ok=True)
+        self._request_lock = threading.Lock()
         self._seen_request_ids = self._load_seen_request_ids()
 
         self.scorer = SignalScorer()
@@ -50,7 +53,8 @@ class WorkflowRunner:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
             return str(cfg.get("modules", {}).get("ExecutionAdapter", {}).get("params", {}).get("mode", "dry_run"))
-        except Exception:
+        except (OSError, yaml.YAMLError, TypeError, ValueError) as exc:
+            logging.warning("Failed to read execution mode from config; fallback to dry_run: %s", exc)
             return "dry_run"
 
     def _risk_params_from_config(self) -> Dict[str, Any]:
@@ -58,7 +62,8 @@ class WorkflowRunner:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
             return dict(cfg.get("modules", {}).get("RiskGatekeeper", {}).get("params", {}))
-        except Exception:
+        except (OSError, yaml.YAMLError, TypeError, ValueError) as exc:
+            logging.warning("Failed to read risk params from config; fallback to empty params: %s", exc)
             return {}
 
     def _safe_defaults(self, mode: str) -> Dict[str, Any]:
@@ -170,24 +175,32 @@ class WorkflowRunner:
         if not self.request_store_path.exists():
             return set()
         ids: set[str] = set()
-        with open(self.request_store_path, "r", encoding="utf-8") as f:
-            for line in f:
-                req = line.strip()
-                if req:
-                    ids.add(req)
+        with self._request_lock:
+            with open(self.request_store_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    req = line.strip()
+                    if req:
+                        ids.add(req)
         return ids
 
     def _persist_request_id(self, request_id: str) -> None:
         with open(self.request_store_path, "a", encoding="utf-8") as f:
             f.write(request_id + "\n")
 
+    def _is_request_processed(self, request_id: str | None) -> bool:
+        if not request_id:
+            return False
+        with self._request_lock:
+            return request_id in self._seen_request_ids
+
     def _mark_request_processed(self, request_id: str | None) -> None:
         if not request_id:
             return
-        if request_id in self._seen_request_ids:
-            return
-        self._seen_request_ids.add(request_id)
-        self._persist_request_id(request_id)
+        with self._request_lock:
+            if request_id in self._seen_request_ids:
+                return
+            self._seen_request_ids.add(request_id)
+            self._persist_request_id(request_id)
 
     @staticmethod
     def _run_with_retry(module: Any, payload: Dict[str, Any], retries: int = 2) -> Any:
@@ -228,7 +241,7 @@ class WorkflowRunner:
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         result: Dict[str, Any] = {"input": payload, "steps": []}
         request_id = payload.get("request_id")
-        if request_id and request_id in self._seen_request_ids:
+        if self._is_request_processed(request_id):
             result["final"] = {"action": "DUPLICATE_IGNORED", "reason": f"request_id={request_id} already processed"}
             return result
 
@@ -320,7 +333,6 @@ class WorkflowRunner:
                 "required": True,
                 "confirmed": False,
             }
-            self._mark_request_processed(request_id)
             return result
 
         size_in = {

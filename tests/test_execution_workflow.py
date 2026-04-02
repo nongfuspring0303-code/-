@@ -286,3 +286,39 @@ def test_workflow_runner_consumes_ai_signal_adapter(tmp_path):
     assert "ai_factors" in out
     assert out["ai_factors"]["A0"] == 82
     assert out["ai_factors"]["mapping_version"] == "factor_map_v1"
+
+
+def test_workflow_runner_pending_confirm_then_execute_same_request_id(tmp_path):
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_confirm.txt"),
+        audit_dir=str(tmp_path / "logs_confirm"),
+    )
+    base_payload = {
+        "request_id": "REQ-CONFIRM-001",
+        "A0": 30,
+        "A-1": 70,
+        "A1": 78,
+        "A1.5": 60,
+        "A0.5": 0,
+        "severity": "E3",
+        "fatigue_index": 45,
+        "event_state": "Active",
+        "correlation": 0.5,
+        "vix": 18,
+        "ted": 40,
+        "spread_pct": 0.002,
+        "account_equity": 100000,
+        "entry_price": 100.0,
+        "risk_per_share": 2.0,
+        "direction": "long",
+        "require_human_confirm": True,
+        "human_confirmed": False,
+    }
+    pending = runner.run(base_payload)
+    assert pending["final"]["action"] == "PENDING_CONFIRM"
+
+    confirmed_payload = dict(base_payload)
+    confirmed_payload["human_confirmed"] = True
+    executed = runner.run(confirmed_payload)
+    assert executed["final"]["action"] in ("EXECUTE", "WATCH", "BLOCK", "FORCE_CLOSE")
+    assert executed["final"]["action"] != "DUPLICATE_IGNORED"

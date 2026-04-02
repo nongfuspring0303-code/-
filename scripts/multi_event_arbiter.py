@@ -10,6 +10,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from urllib.parse import urlparse
 
 import yaml
 
@@ -33,7 +34,15 @@ class MultiEventArbiter:
 
     @staticmethod
     def _event_key(event: Dict[str, Any]) -> str:
-        return f"{event.get('headline','')}|{event.get('source','')}"
+        headline = str(event.get("headline", "")).strip().lower()
+        source = str(event.get("source", "")).strip()
+        parsed = urlparse(source)
+        host = parsed.netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        path = parsed.path.rstrip("/").lower()
+        normalized_source = f"{host}{path}" if host else source.lower()
+        return f"{headline}|{normalized_source}"
 
     @staticmethod
     def _severity_weight(event: Dict[str, Any]) -> int:

@@ -56,7 +56,7 @@ class AuditCenter:
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
-        except Exception:
+        except (OSError, yaml.YAMLError, TypeError, ValueError):
             return {}
 
     def _get_config(self, key: str, default: Any = None) -> Any:
@@ -94,7 +94,7 @@ class AuditCenter:
             try:
                 with open(self.trace_index_file, "r", encoding="utf-8") as f:
                     index = json.load(f)
-            except Exception:
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 index = {}
 
         if trace_id not in index:
@@ -118,7 +118,7 @@ class AuditCenter:
                     record = json.loads(line.strip())
                     if record.get("trace_id") == trace_id:
                         records.append(record)
-                except Exception:
+                except json.JSONDecodeError:
                     continue
         return records
 
@@ -185,7 +185,7 @@ class AuditCenter:
             traces = list(index.keys())
             traces.sort(reverse=True)
             return traces[:limit]
-        except Exception:
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return []
 
     def query_by_trace_id(self, trace_id: str) -> Dict[str, Any]:

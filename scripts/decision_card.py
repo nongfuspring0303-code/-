@@ -70,7 +70,7 @@ class DecisionCardGenerator:
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
-        except Exception:
+        except (OSError, yaml.YAMLError, TypeError, ValueError):
             return {}
 
     def _get_config(self, key: str, default: Any = None) -> Any:
@@ -118,7 +118,7 @@ class DecisionCardGenerator:
             try:
                 with open(self.index_file, "r", encoding="utf-8") as f:
                     index = json.load(f)
-            except Exception:
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 index = {}
 
         index[trace_id] = {
@@ -148,7 +148,7 @@ class DecisionCardGenerator:
             cards = list(index.keys())
             cards.sort(reverse=True)
             return cards[:limit]
-        except Exception:
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return []
 
     def search_by_event_id(self, event_id: str) -> List[Dict[str, Any]]:

@@ -15,6 +15,7 @@ import time
 import uuid
 import xml.etree.ElementTree as ET
 import urllib.request
+import urllib.error
 from email.utils import parsedate_to_datetime
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
@@ -39,10 +40,10 @@ def _parse_datetime(ts: Optional[str]) -> Optional[datetime]:
         return None
     try:
         return datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    except Exception:
+    except (TypeError, ValueError):
         try:
             return parsedate_to_datetime(ts)
-        except Exception:
+        except (TypeError, ValueError):
             return None
 
 
@@ -88,7 +89,7 @@ def _safe_fetch(url: str, timeout: int) -> Optional[str]:
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
-    except Exception:
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
         return None
 
 
@@ -119,7 +120,7 @@ class NewsIngestion(EDTModule):
         if bool(self._get_config("modules.NewsIngestion.params.enable_source_rank", True)):
             try:
                 self._ranker = SourceRankerModule(config_path or _default_config_path())
-            except Exception:
+            except (TypeError, ValueError):
                 self._ranker = None
 
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
@@ -151,7 +152,7 @@ class NewsIngestion(EDTModule):
                 continue
             try:
                 items.extend(_parse_rss(xml_text, src))
-            except Exception:
+            except ET.ParseError:
                 continue
 
         if not items:
@@ -182,7 +183,7 @@ class NewsIngestion(EDTModule):
             try:
                 rank_out = self._ranker.run({"source_url": source_url})
                 source_rank = rank_out.data.get("rank", source_rank)
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 pass
         return {
             "trace_id": trace_id,
@@ -288,7 +289,7 @@ class EventEvidenceScorer(EDTModule):
             return 50.0
         try:
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        except Exception:
+        except (TypeError, ValueError):
             return 50.0
         hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
         if hours <= 1:

@@ -463,6 +463,13 @@ modules:
     params:
       # dry_run | paper | live
       mode: "dry_run"
+      # paper | live_stub
+      broker: "paper"
+      risk_controls:
+        max_notional_per_order: 250000
+        max_daily_notional: 1000000
+        max_open_orders: 100
+        blocked_symbols: []
 
   # ========== A层 AI事件智能模块 ==========
   NewsIngestion:
@@ -509,3 +516,35 @@ modules:
           domains:
             - "twitter.com"
             - "telegram"
+
+  # ========== C层编排与审计模块 ==========
+  OrchestratorNode:
+    enabled: true
+    timeout: 10
+    params:
+      timeout_ms: 10000
+      retry:
+        max_attempts: 3
+        backoff_factor: 2.0
+        retry_on:
+          - "TIMEOUT"
+          - "NETWORK_ERROR"
+      circuit_breaker:
+        failure_threshold: 5
+        recovery_timeout_ms: 60000
+      fallback:
+        enabled: true
+        default_action: "WATCH"
+
+  AuditCenter:
+    enabled: true
+    params:
+      recommendation:
+        high_error_threshold: 3
+        high_warning_threshold: 5
+
+  DecisionCardGenerator:
+    enabled: true
+    params:
+      schema_version: "1.0.0"
+      producer: "EDT-System"

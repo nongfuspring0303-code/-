@@ -8,11 +8,12 @@ Decision Card module for C4 - Decision card generation and archival.
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
+
+import yaml
 
 
 def _default_config_path() -> str:
@@ -63,11 +64,32 @@ class DecisionCardGenerator:
         self.config_path = Path(config_path) if config_path else Path(_default_config_path())
         self.archive_dir.mkdir(parents=True, exist_ok=True)
         self.index_file = self.archive_dir / "index.json"
+        self._config = self._load_config()
+
+    def _load_config(self) -> Dict[str, Any]:
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            return {}
+
+    def _get_config(self, key: str, default: Any = None) -> Any:
+        keys = key.split(".")
+        val = self._config
+        for k in keys:
+            if isinstance(val, dict):
+                val = val.get(k)
+            else:
+                return default
+        return val if val is not None else default
 
     def generate(self, trace_id: str, event_id: str, summary: str,
                  evidence: List[str] = None, counter_evidence: List[str] = None,
                  risk_notes: List[str] = None, trigger_conditions: List[str] = None,
                  invalid_conditions: List[str] = None, producer: str = "EDT-System") -> DecisionCard:
+        default_producer = self._get_config("modules.DecisionCardGenerator.params.producer", "EDT-System")
+        schema_version = self._get_config("modules.DecisionCardGenerator.params.schema_version", "1.0.0")
+
         card = DecisionCard(
             trace_id=trace_id,
             event_id=event_id,
@@ -77,7 +99,8 @@ class DecisionCardGenerator:
             risk_notes=risk_notes or [],
             trigger_conditions=trigger_conditions or [],
             invalid_conditions=invalid_conditions or [],
-            producer=producer,
+            producer=producer or default_producer,
+            schema_version=schema_version,
             generated_at=_now_iso(),
         )
         self._archive(card)

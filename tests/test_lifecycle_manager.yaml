@@ -142,3 +142,27 @@ cases:
       detected_at: "2026-03-30T13:30:00Z"
     expected_error:
       code: "INVALID_INPUT"
+
+  - id: LM-008
+    name: internal_state_machine_compatibility
+    type: normal
+    description: C1内部状态机输出应保持对外兼容字段不变
+    input:
+      event_id: "ME-A-20260402-001.V1.0"
+      category: "A"
+      severity: "E4"
+      source_rank: "A"
+      headline: "央行紧急政策声明"
+      detected_at: "2026-04-02T01:00:00Z"
+      ai_hypothesis_ready: true
+      validation_passed: true
+      risk_approved: true
+      execution_confirmed: false
+      elapsed_hours: 2
+    expected:
+      internal_state: "Approved"
+      lifecycle_state: "Active"
+      legacy_lifecycle_state: "Active"
+      catalyst_state: "first_impulse"
+      trade_eligibility: "tradable"
+      needs_manual_review: false

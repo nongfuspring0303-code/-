@@ -8,7 +8,9 @@
     "final_action",
     "position_multiplier",
     "direction",
-    "human_confirm_required"
+    "human_confirm_required",
+    "reasoning",
+    "decision_summary"
   ],
   "properties": {
     "gate_decisions": {
@@ -47,6 +49,40 @@
     "warnings": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "reasoning": {
+      "type": "string"
+    },
+    "decision_summary": {
+      "type": "object",
+      "required": ["triggered_gates", "threshold_snapshot", "final_action", "rejection_reason", "model_version", "prompt_version", "mapping_version"],
+      "properties": {
+        "triggered_gates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "threshold_snapshot": {
+          "type": "object"
+        },
+        "final_action": {
+          "type": "string"
+        },
+        "rejection_reason": {
+          "type": "string"
+        },
+        "model_version": {
+          "type": "string"
+        },
+        "prompt_version": {
+          "type": "string"
+        },
+        "mapping_version": {
+          "type": "string"
+        },
+        "temperature": {},
+        "timeout_ms": {}
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

@@ -108,6 +108,53 @@ class RiskGatekeeper(EDTModule):
         params_cfg = self._get_config("modules.RiskGatekeeper.params", {})
         gates_cfg = params_cfg.get("gates", {})
 
+        def finalize(
+            *,
+            final_action: str,
+            position_multiplier: float,
+            direction: str,
+            first_triggered_gate: str | None,
+            human_confirm_required: bool,
+            warnings: list[str] | None = None,
+            rejection_reason: str = "",
+        ) -> ModuleOutput:
+            warnings_final = warnings or []
+            triggered = [item["gate"] for item in decisions if item.get("triggered")]
+            summary = {
+                "triggered_gates": triggered,
+                "threshold_snapshot": {
+                    "g1_spread_multiplier_threshold": float(params_cfg.get("g1_liquidity", {}).get("spread_multiplier_threshold", 5)),
+                    "g3_fatigue_threshold": float(params_cfg.get("g3_fatigue", {}).get("threshold", 85)),
+                    "g4_correlation_threshold": float(params_cfg.get("g4_correlation", {}).get("threshold", 0.8)),
+                    "g6_a1_threshold": float(params_cfg.get("g6_policy", {}).get("a1_threshold", 60)),
+                },
+                "final_action": final_action,
+                "rejection_reason": rejection_reason,
+                "model_version": str(raw.get("model_id", "unknown")),
+                "prompt_version": str(raw.get("prompt_version", "unknown")),
+                "mapping_version": str(raw.get("mapping_version", "factor_map_v1")),
+                "temperature": raw.get("temperature"),
+                "timeout_ms": raw.get("timeout_ms"),
+            }
+            reasoning = (
+                f"final_action={final_action}; triggered={triggered}; "
+                f"rejection_reason={rejection_reason or 'none'}; mapping={summary['mapping_version']}"
+            )
+            return ModuleOutput(
+                status=ModuleStatus.SUCCESS,
+                data={
+                    "gate_decisions": decisions,
+                    "final_action": final_action,
+                    "position_multiplier": position_multiplier,
+                    "direction": direction,
+                    "first_triggered_gate": first_triggered_gate,
+                    "human_confirm_required": human_confirm_required,
+                    "warnings": warnings_final,
+                    "reasoning": reasoning,
+                    "decision_summary": summary,
+                },
+            )
+
         # G1: Liquidity blackhole (config-driven)
         spread = float(raw.get("spread_multiplier", 1.0))
         liquidity_state = raw["liquidity_state"]
@@ -120,16 +167,13 @@ class RiskGatekeeper(EDTModule):
 
         if spread > g1_spread_th or liquidity_state == g1_red_state:
             decisions.append({"gate": "G1", "triggered": True, "action": g1_action, "reason": "Liquidity blackhole"})
-            return ModuleOutput(
-                status=ModuleStatus.SUCCESS,
-                data={
-                    "gate_decisions": decisions,
-                    "final_action": g1_final_action,
-                    "position_multiplier": 0.0,
-                    "direction": "no_change",
-                    "first_triggered_gate": "G1",
-                    "human_confirm_required": g1_human_confirm,
-                },
+            return finalize(
+                final_action=g1_final_action,
+                position_multiplier=0.0,
+                direction="no_change",
+                first_triggered_gate="G1",
+                human_confirm_required=g1_human_confirm,
+                rejection_reason="liquidity_blackhole",
             )
         decisions.append({"gate": "G1", "triggered": False, "action": "PASS"})
 
@@ -142,16 +186,13 @@ class RiskGatekeeper(EDTModule):
 
         if raw["event_state"] in g2_blocked_states:
             decisions.append({"gate": "G2", "triggered": True, "action": g2_action, "reason": "Event dead"})
-            return ModuleOutput(
-                status=ModuleStatus.SUCCESS,
-                data={
-                    "gate_decisions": decisions,
-                    "final_action": g2_final_action,
-                    "position_multiplier": 0.0,
-                    "direction": "no_change",
-                    "first_triggered_gate": "G2",
-                    "human_confirm_required": g2_human_confirm,
-                },
+            return finalize(
+                final_action=g2_final_action,
+                position_multiplier=0.0,
+                direction="no_change",
+                first_triggered_gate="G2",
+                human_confirm_required=g2_human_confirm,
+                rejection_reason="lifecycle_blocked_state",
             )
         decisions.append({"gate": "G2", "triggered": False, "action": "PASS"})
 
@@ -165,18 +206,56 @@ class RiskGatekeeper(EDTModule):
 
         if fatigue > g3_threshold:
             decisions.append({"gate": "G3", "triggered": True, "action": g3_action, "reason": f"Fatigue > {g3_threshold}"})
-            return ModuleOutput(
-                status=ModuleStatus.SUCCESS,
-                data={
-                    "gate_decisions": decisions,
-                    "final_action": g3_final_action,
-                    "position_multiplier": 0.0,
-                    "direction": "no_change",
-                    "first_triggered_gate": "G3",
-                    "human_confirm_required": g3_human_confirm,
-                },
+            return finalize(
+                final_action=g3_final_action,
+                position_multiplier=0.0,
+                direction="no_change",
+                first_triggered_gate="G3",
+                human_confirm_required=g3_human_confirm,
+                rejection_reason="fatigue_exceeded",
             )
         decisions.append({"gate": "G3", "triggered": False, "action": "PASS"})
+
+        # G7: AI safety fallback and review gate (optional)
+        g7_cfg = params_cfg.get("g7_ai_review", {})
+        g7_enabled = bool(g7_cfg.get("enabled", False))
+        safe_cfg = params_cfg.get("ai_safe_defaults", {})
+        ai_failure_mode = str(raw.get("ai_failure_mode", "none")).strip().lower()
+        if bool(safe_cfg.get("enabled", False)) and ai_failure_mode in {"timeout", "error"}:
+            selected = dict(safe_cfg.get("on_ai_timeout" if ai_failure_mode == "timeout" else "on_ai_error", {}))
+            action = str(selected.get("action", "WATCH"))
+            reason = str(selected.get("reason", f"ai_{ai_failure_mode}_safe_default"))
+            decisions.append({"gate": "G7", "triggered": True, "action": "AI_SAFE_DEFAULT", "reason": reason})
+            return finalize(
+                final_action=action,
+                position_multiplier=0.0,
+                direction="no_change",
+                first_triggered_gate="G7",
+                human_confirm_required=False,
+                rejection_reason=reason,
+            )
+
+        ai_review_required = bool(raw.get("ai_review_required", g7_cfg.get("required", False)))
+        ai_review_passed = bool(raw.get("ai_review_passed", not ai_review_required))
+        if g7_enabled and ai_review_required and not ai_review_passed:
+            reject_action = str(g7_cfg.get("action_on_reject", "WATCH"))
+            decisions.append(
+                {
+                    "gate": "G7",
+                    "triggered": True,
+                    "action": "AI_REVIEW_REJECT",
+                    "reason": "AI review required but not passed",
+                }
+            )
+            return finalize(
+                final_action=reject_action,
+                position_multiplier=0.0,
+                direction="no_change",
+                first_triggered_gate="G7",
+                human_confirm_required=bool(g7_cfg.get("human_confirm_required", False)),
+                rejection_reason="ai_review_rejected",
+            )
+        decisions.append({"gate": "G7", "triggered": False, "action": "PASS"})
 
         # G4: correlation collapse (config-driven)
         corr = float(raw["correlation"])
@@ -241,17 +320,14 @@ class RiskGatekeeper(EDTModule):
 
         final_multiplier = round(position_multiplier * tier_multiplier, 4)
         final_action = "EXECUTE" if final_multiplier > 0 else "WATCH"
-        return ModuleOutput(
-            status=ModuleStatus.SUCCESS,
-            data={
-                "gate_decisions": decisions,
-                "final_action": final_action,
-                "position_multiplier": final_multiplier,
-                "direction": direction,
-                "first_triggered_gate": None,
-                "human_confirm_required": False,
-                "warnings": warnings,
-            },
+        return finalize(
+            final_action=final_action,
+            position_multiplier=final_multiplier,
+            direction=direction,
+            first_triggered_gate=None,
+            human_confirm_required=False,
+            warnings=warnings,
+            rejection_reason="" if final_action == "EXECUTE" else "score_or_multiplier_below_threshold",
         )
 
 

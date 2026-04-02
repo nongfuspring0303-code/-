@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OrchestratorNodeInput",
+  "description": "Input schema for AI orchestration node (C2)",
+  "type": "object",
+  "required": ["trace_id", "node_type", "payload"],
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "description": "Unique trace ID for tracking across nodes"
+    },
+    "node_type": {
+      "type": "string",
+      "enum": ["ai_event_intel", "signal_scorer", "risk_gatekeeper"],
+      "description": "Type of AI node to execute"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Input payload for the AI node"
+    },
+    "retry": {
+      "type": "object",
+      "description": "Retry configuration",
+      "properties": {
+        "max_attempts": {"type": "integer", "minimum": 1, "maximum": 5, "default": 3},
+        "backoff_factor": {"type": "number", "minimum": 0, "default": 2.0},
+        "retry_on": {"type": "array", "items": {"type": "string"}, "default": ["TIMEOUT", "NETWORK_ERROR"]}
+      }
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "description": "Timeout in milliseconds",
+      "minimum": 1000,
+      "maximum": 30000,
+      "default": 10000
+    },
+    "circuit_breaker": {
+      "type": "object",
+      "description": "Circuit breaker configuration",
+      "properties": {
+        "failure_threshold": {"type": "integer", "minimum": 1, "default": 5},
+        "recovery_timeout_ms": {"type": "integer", "minimum": 1000, "default": 60000}
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "description": "Fallback configuration when AI node fails",
+      "properties": {
+        "enabled": {"type": "boolean", "default": true},
+        "default_action": {
+          "type": "string",
+          "enum": ["WATCH", "BLOCK", "NEUTRAL"],
+          "default": "WATCH"
+        }
+      }
+    }
+  }
+}

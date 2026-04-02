@@ -96,6 +96,26 @@ registry:
     config: edt-modules-config.yaml
     test_case: tests/test_signal_scorer.yaml
 
+  - name: NarrativeStateRecognizer
+    version: 1.0.0
+    category: 分析
+    description: "AI叙事状态识别（initial/continuation/decay/invalid）"
+    input_schema: narrative_state_input.json
+    output_schema: narrative_state_output.json
+    dependencies: [Logger]
+    config: edt-modules-config.yaml
+    test_case: tests/test_narrative_state_recognizer.py
+
+  - name: AISignalAdapter
+    version: 1.0.0
+    category: 分析
+    description: "AI信号适配器（A输出映射到A0/A-1/A1/A1.5/A0.5）"
+    input_schema: ai_signal_adapter_input.json
+    output_schema: ai_signal_adapter_output.json
+    dependencies: [NarrativeStateRecognizer, Logger]
+    config: edt-modules-config.yaml
+    test_case: tests/test_ai_signal_adapter.py
+
   # ========== 执行层模块 ==========
   
   - name: LiquidityChecker
@@ -194,8 +214,9 @@ dependencies_graph:
   - "EventCapture -> SourceRanker -> SeverityEstimator -> EventObjectifier"
   - "EventObjectifier -> LifecycleManager -> FatigueCalculator"
   - "EventObjectifier -> ConductionMapper -> MarketValidator"
+  - "AIEventIntelOutput -> NarrativeStateRecognizer -> AISignalAdapter"
   - "MarketValidator + FatigueCalculator -> SignalScorer"
-  - "SignalScorer -> LiquidityChecker -> RiskGatekeeper -> PositionSizer -> ExitManager"
+  - "SignalScorer + AISignalAdapter -> LiquidityChecker -> RiskGatekeeper -> PositionSizer -> ExitManager"
   
 # 版本兼容规则
 version_compatibility:

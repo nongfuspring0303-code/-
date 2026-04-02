@@ -55,6 +55,39 @@
         "enum": ["NONE", "WEAK", "MEDIUM", "STRONG"],
         "description": "政策干预强度"
       },
+      "ai_failure_mode": {
+        "type": "string",
+        "enum": ["none", "timeout", "error"],
+        "description": "AI状态，用于安全降级闸门"
+      },
+      "ai_review_required": {
+        "type": "boolean",
+        "description": "是否需要AI复核通过"
+      },
+      "ai_review_passed": {
+        "type": "boolean",
+        "description": "AI复核是否通过"
+      },
+      "model_id": {
+        "type": "string",
+        "description": "AI模型版本"
+      },
+      "prompt_version": {
+        "type": "string",
+        "description": "AI提示词版本"
+      },
+      "mapping_version": {
+        "type": "string",
+        "description": "因子映射版本"
+      },
+      "temperature": {
+        "type": "number",
+        "description": "AI调用温度"
+      },
+      "timeout_ms": {
+        "type": "number",
+        "description": "AI调用超时阈值"
+      },
       "is_crowded": {
         "type": "boolean",
         "description": "是否拥挤交易"
@@ -113,6 +146,21 @@
       "reasoning": {
         "type": "string",
         "description": "决策推理"
+      },
+      "decision_summary": {
+        "type": "object",
+        "description": "决策解释摘要（B3）",
+        "properties": {
+          "triggered_gates": {"type": "array", "items": {"type": "string"}},
+          "threshold_snapshot": {"type": "object"},
+          "final_action": {"type": "string"},
+          "rejection_reason": {"type": "string"},
+          "model_version": {"type": "string"},
+          "prompt_version": {"type": "string"},
+          "mapping_version": {"type": "string"},
+          "temperature": {},
+          "timeout_ms": {}
+        }
       }
     }
   },

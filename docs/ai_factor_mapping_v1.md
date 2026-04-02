@@ -21,3 +21,5 @@
 
 1. 映射关系变更必须升级 `mapping_version`。
 2. 变更必须同次更新：schema + tests/mocks + module-registry + 任务清单。
+3. 运行时映射从 `configs/edt-modules-config.yaml` 的 `modules.AISignalAdapter.params.mapping_versions` 读取。
+4. 若请求版本不存在，且 `allow_version_rollback=true`，自动回退到 `active_mapping_version`。

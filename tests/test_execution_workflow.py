@@ -244,3 +244,45 @@ def test_workflow_runner_normalizes_flip_short_direction(tmp_path):
     assert out["direction"]["normalized_from_flip"] is True
     if out["final"]["action"] == "EXECUTE":
         assert out["execution_receipt"]["order"]["action"] == "OPEN_SHORT"
+
+
+def test_workflow_runner_consumes_ai_signal_adapter(tmp_path):
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_ai.txt"),
+        audit_dir=str(tmp_path / "logs_ai"),
+    )
+    out = runner.run(
+        {
+            "request_id": "REQ-AI-001",
+            "event_id": "ME-C-20260402-001.V1.0",
+            "severity": "E3",
+            "fatigue_index": 30,
+            "event_state": "Active",
+            "correlation": 0.5,
+            "vix": 18,
+            "ted": 40,
+            "spread_pct": 0.002,
+            "account_equity": 100000,
+            "entry_price": 100.0,
+            "risk_per_share": 2.0,
+            "direction": "long",
+            "ai_intel_output": {
+                "trace_id": "TRC-20260402-0001",
+                "event_id": "ME-C-20260402-001.V1.0",
+                "evidence_score": 82,
+                "consistency_score": 76,
+                "freshness_score": 88,
+                "confidence": 81,
+                "schema_version": "ai_intel_v1",
+                "producer": "member-a",
+                "generated_at": "2026-04-02T09:30:00Z",
+                "model_id": "gpt-x",
+                "prompt_version": "p1",
+                "temperature": 0.1,
+                "timeout_ms": 10000,
+            },
+        }
+    )
+    assert "ai_factors" in out
+    assert out["ai_factors"]["A0"] == 82
+    assert out["ai_factors"]["mapping_version"] == "factor_map_v1"

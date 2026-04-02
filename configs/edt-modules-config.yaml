@@ -226,6 +226,29 @@ modules:
       score_min: -100
       score_max: 100
 
+  AISignalAdapter:
+    enabled: true
+    timeout: 10
+    params:
+      active_mapping_version: "factor_map_v1"
+      allow_version_rollback: true
+      review_threshold: 60
+      mapping_versions:
+        factor_map_v1:
+          A0: "evidence_score"
+          A-1: "consistency_score"
+          A1: "freshness_score"
+          A1.5: "confidence"
+          A0.5: "counter_signal_penalty"
+
+  NarrativeStateRecognizer:
+    enabled: true
+    timeout: 5
+    params:
+      states: ["initial", "continuation", "decay", "invalid"]
+      transition_guard:
+        min_confidence_to_recover_from_invalid: 70
+
   # ========== 执行层模块 ==========
   LiquidityChecker:
     enabled: true
@@ -287,6 +310,10 @@ modules:
           enabled: true
           trigger: "intervention = STRONG AND A1 >= 60"
           action: "DIRECTION_FLIP"
+        G7_ai_review:
+          enabled: true
+          trigger: "ai_review_required = true AND ai_review_passed = false"
+          action: "WATCH"
       # 一票否决优先级
       priority_order:
         - G1_liquidity
@@ -318,6 +345,11 @@ modules:
         intervention_value: "STRONG"
         a1_threshold: 60
         direction_on_trigger: "flip"
+      g7_ai_review:
+        enabled: true
+        required: true
+        action_on_reject: "WATCH"
+        human_confirm_required: false
       # B1.1 安全降级因子（AI超时/失败时使用）
       ai_safe_defaults:
         enabled: true
@@ -463,6 +495,13 @@ modules:
     params:
       # dry_run | paper | live
       mode: "dry_run"
+      # paper | live_stub
+      broker: "paper"
+      risk_controls:
+        max_notional_per_order: 250000
+        max_daily_notional: 1000000
+        max_open_orders: 100
+        blocked_symbols: []
 
   # ========== A层 AI事件智能模块 ==========
   NewsIngestion:
@@ -509,3 +548,35 @@ modules:
           domains:
             - "twitter.com"
             - "telegram"
+
+  # ========== C层编排与审计模块 ==========
+  OrchestratorNode:
+    enabled: true
+    timeout: 10
+    params:
+      timeout_ms: 10000
+      retry:
+        max_attempts: 3
+        backoff_factor: 2.0
+        retry_on:
+          - "TIMEOUT"
+          - "NETWORK_ERROR"
+      circuit_breaker:
+        failure_threshold: 5
+        recovery_timeout_ms: 60000
+      fallback:
+        enabled: true
+        default_action: "WATCH"
+
+  AuditCenter:
+    enabled: true
+    params:
+      recommendation:
+        high_error_threshold: 3
+        high_warning_threshold: 5
+
+  DecisionCardGenerator:
+    enabled: true
+    params:
+      schema_version: "1.0.0"
+      producer: "EDT-System"

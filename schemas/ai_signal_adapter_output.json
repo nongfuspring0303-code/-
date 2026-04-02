@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI Signal Adapter Output",
+  "type": "object",
+  "required": [
+    "trace_id",
+    "event_id",
+    "A0",
+    "A-1",
+    "A1",
+    "A1.5",
+    "A0.5",
+    "mapping_version",
+    "base_direction",
+    "narrative_state"
+  ],
+  "properties": {
+    "trace_id": { "type": "string" },
+    "event_id": { "type": "string" },
+    "A0": { "type": "number", "minimum": 0, "maximum": 100 },
+    "A-1": { "type": "number", "minimum": 0, "maximum": 100 },
+    "A1": { "type": "number", "minimum": 0, "maximum": 100 },
+    "A1.5": { "type": "number", "minimum": 0, "maximum": 100 },
+    "A0.5": { "type": "number", "minimum": 0, "maximum": 100 },
+    "base_direction": { "type": "string", "enum": ["long", "short", "neutral"] },
+    "narrative_state": { "type": "string", "enum": ["initial", "continuation", "decay", "invalid"] },
+    "mapping_version": { "type": "string" },
+    "schema_version": { "type": "string" },
+    "producer": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "model_id": { "type": "string" },
+    "prompt_version": { "type": "string" },
+    "temperature": { "type": "number" },
+    "timeout_ms": { "type": "number" },
+    "ai_review_required": { "type": "boolean" },
+    "ai_review_passed": { "type": "boolean" },
+    "reasoning": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}
+

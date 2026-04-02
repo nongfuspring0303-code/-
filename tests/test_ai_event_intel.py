@@ -23,6 +23,7 @@ def test_news_ingestion_override():
     assert out.status == ModuleStatus.SUCCESS
     assert len(out.data["items"]) == 1
     assert out.data["items"][0]["trace_id"]
+    assert "source_rank" in out.data["items"][0]
 
 
 def test_event_evidence_scorer_basic():
@@ -85,3 +86,43 @@ def test_event_evidence_scorer_abnormal_penalty():
     out = EventEvidenceScorer().run(payload)
     assert out.status == ModuleStatus.SUCCESS
     assert out.data["evidence_score"] <= 30
+
+
+def test_event_evidence_scorer_domain_suffix_match():
+    payload = {
+        "trace_id": "TRC-TEST-0003",
+        "event_id": "",
+        "headline": "Fake Reuters",
+        "source_url": "https://evil-reuters.com/markets",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "raw_text": "fake",
+        "source_type": "rss",
+        "schema_version": "ai_intel_v1",
+        "producer": "member-a",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    out = EventEvidenceScorer().run(payload)
+    assert out.status == ModuleStatus.SUCCESS
+    assert out.data["evidence_score"] < 80
+
+
+def test_event_evidence_scorer_consistency_weighted():
+    payload = {
+        "trace_id": "TRC-TEST-0004",
+        "event_id": "",
+        "headline": "Multi-source event",
+        "source_url": "https://www.sec.gov/",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "raw_text": "event",
+        "source_type": "official",
+        "corroborating_sources": [
+            {"source_rank": "A"},
+            {"source_rank": "C"},
+        ],
+        "schema_version": "ai_intel_v1",
+        "producer": "member-a",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    out = EventEvidenceScorer().run(payload)
+    assert out.status == ModuleStatus.SUCCESS
+    assert out.data["consistency_score"] > 50

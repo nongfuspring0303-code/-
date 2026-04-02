@@ -1,0 +1,18 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest/temp artifacts
+.pytest_cache/
+.pytest_tmp/
+
+# Local runtime outputs
+logs/*.out.txt
+logs/execution_state.json
+
+# Local tooling/session files
+.gh-config/
+tools/
+gh.cmd
+

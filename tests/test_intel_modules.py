@@ -32,6 +32,11 @@ def test_source_ranker_b_rank():
     assert out.data["rank"] == "B"
 
 
+def test_source_ranker_rejects_substring_spoof_domain():
+    out = SourceRankerModule().run({"source_url": "https://evil-reuters.com/markets/us/example"})
+    assert out.data["rank"] == "C"
+
+
 def test_severity_estimator_e3_or_higher():
     out = SeverityEstimator().run(_raw_event())
     assert out.data["severity"] in ("E3", "E4")

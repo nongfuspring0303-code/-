@@ -6,6 +6,7 @@ Execution adapter with broker abstraction, risk gates, and state recovery.
 from __future__ import annotations
 
 import json
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,6 +39,7 @@ class ExecutionAdapter:
         self.audit_dir = Path(audit_dir) if audit_dir else Path(__file__).resolve().parent.parent / "logs"
         self.audit_dir.mkdir(parents=True, exist_ok=True)
         self.audit_file = self.audit_dir / "execution_audit.jsonl"
+        self._audit_lock = threading.Lock()
         self.state_file = self.audit_dir / "execution_state.json"
         self.config_path = Path(config_path) if config_path else Path(__file__).resolve().parent.parent / "configs" / "edt-modules-config.yaml"
 
@@ -170,8 +172,9 @@ class ExecutionAdapter:
         return None
 
     def _write_audit(self, record: Dict[str, Any]) -> None:
-        with open(self.audit_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        with self._audit_lock:
+            with open(self.audit_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def execute(self, order: Dict[str, Any]) -> Dict[str, Any]:
         self._roll_daily_state_if_needed()

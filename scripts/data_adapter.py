@@ -3,12 +3,14 @@
 Data Adapter - 模拟新闻与市场数据接入
 """
 
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 try:
     from edt_module_base import CacheManager
-except Exception:
+except ImportError:
+    logging.warning("CacheManager import failed; DataAdapter cache is disabled.")
     CacheManager = None
 
 
@@ -21,7 +23,8 @@ class DataAdapter:
     def fetch_news(self) -> Dict[str, Any]:
         try:
             from ai_event_intel import NewsIngestion
-        except Exception:
+        except ImportError as exc:
+            logging.warning("NewsIngestion import failed; fallback news will be used: %s", exc)
             NewsIngestion = None
 
         if NewsIngestion:
@@ -33,7 +36,7 @@ class DataAdapter:
                     "source": item.get("source_url", ""),
                     "source_url": item.get("source_url", ""),
                     "source_type": item.get("source_type", ""),
-                    "timestamp": item.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+                    "timestamp": item.get("timestamp", datetime.now(timezone.utc).isoformat()),
                     "raw_text": item.get("raw_text", ""),
                     "metadata": {
                         "keywords": [],
@@ -48,7 +51,7 @@ class DataAdapter:
             "source": "https://www.federalreserve.gov/newsevents/2026/march/h1234567a.htm",
             "source_url": "https://www.federalreserve.gov/newsevents/2026/march/h1234567a.htm",
             "source_type": "official",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "raw_text": "The Federal Reserve has announced an emergency rate cut...",
             "metadata": {
                 "keywords": ["Fed", "emergency", "rate cut"],

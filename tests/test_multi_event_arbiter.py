@@ -50,3 +50,15 @@ def test_multi_event_respects_max_open_events():
     assert out["total_input"] == 8
     assert out["executed"] <= arb.max_open_events
 
+
+def test_multi_event_dedup_normalizes_case_and_trailing_slash():
+    arb = MultiEventArbiter()
+    events = [
+        _event("Fed Action", "https://www.REUTERS.com/a1/", "XLF", 30),
+        _event("  fed action  ", "https://reuters.com/a1", "XLF", 30),
+    ]
+    out = arb.run_batch(events)
+    assert out["total_input"] == 2
+    assert out["processed"] == 1
+    assert out["dropped_dedup"] == 1
+

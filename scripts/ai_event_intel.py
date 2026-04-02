@@ -19,6 +19,7 @@ from email.utils import parsedate_to_datetime
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 from pathlib import Path
+from intel_modules import SourceRankerModule
 
 
 def _default_config_path() -> str:
@@ -103,7 +104,7 @@ def _dedupe_items(items: List[Dict[str, Any]], window_minutes: int) -> List[Dict
         dt = _parse_datetime(item.get("timestamp"))
         if key in seen and dt and (dt - seen[key]).total_seconds() <= window_seconds:
             continue
-        if key not in seen and dt:
+        if dt:
             seen[key] = dt
         output.append(item)
     return output
@@ -114,6 +115,12 @@ class NewsIngestion(EDTModule):
 
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("NewsIngestion", "1.0.0", config_path or _default_config_path())
+        self._ranker = None
+        if bool(self._get_config("modules.NewsIngestion.params.enable_source_rank", True)):
+            try:
+                self._ranker = SourceRankerModule(config_path or _default_config_path())
+            except Exception:
+                self._ranker = None
 
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
@@ -154,7 +161,8 @@ class NewsIngestion(EDTModule):
                     "source_url": "https://www.federalreserve.gov/",
                     "timestamp": _now_iso(),
                     "raw_text": "Fallback news item used when sources fail.",
-                    "source_type": "official",
+                    "source_type": "fallback",
+                    "is_fallback": True,
                 }
             ]
 
@@ -168,14 +176,23 @@ class NewsIngestion(EDTModule):
     def _normalize_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         trace_id = item.get("trace_id") or _new_trace_id()
         timestamp = _normalize_timestamp(item.get("timestamp"))
+        source_url = item.get("source_url", "")
+        source_rank = item.get("source_rank", "")
+        if self._ranker and source_url:
+            try:
+                rank_out = self._ranker.run({"source_url": source_url})
+                source_rank = rank_out.data.get("rank", source_rank)
+            except Exception:
+                pass
         return {
             "trace_id": trace_id,
             "event_id": item.get("event_id", ""),
             "headline": item.get("headline", ""),
-            "source_url": item.get("source_url", ""),
+            "source_url": source_url,
             "timestamp": timestamp,
             "raw_text": item.get("raw_text", ""),
             "source_type": item.get("source_type", ""),
+            "source_rank": source_rank,
             "schema_version": item.get("schema_version", "ai_intel_v1"),
             "producer": item.get("producer", "member-a"),
             "generated_at": item.get("generated_at", _now_iso()),
@@ -196,7 +213,7 @@ class EventEvidenceScorer(EDTModule):
         corroborating_sources = raw.get("corroborating_sources", [])
 
         evidence_score = self._score_evidence(source_url, source_type)
-        consistency_score = min(100, 50 + 10 * len(corroborating_sources))
+        consistency_score = self._score_consistency(corroborating_sources)
         freshness_score = self._score_freshness(timestamp)
         confidence = round(0.4 * evidence_score + 0.3 * consistency_score + 0.3 * freshness_score, 2)
 
@@ -238,7 +255,7 @@ class EventEvidenceScorer(EDTModule):
         score = default_score
         for _, cfg in rank_map.items():
             domains = [d.lower() for d in cfg.get("domains", [])]
-            if any(d in host for d in domains):
+            if any(host == d or host.endswith("." + d) for d in domains):
                 score = float(cfg.get("score", default_score))
                 break
         if source_type == "official":
@@ -246,9 +263,25 @@ class EventEvidenceScorer(EDTModule):
         elif source_type == "social":
             score = min(score, 30.0)
 
-        if any(d in host for d in abnormal_domains) or source_type in abnormal_types:
+        if any(host == d or host.endswith("." + d) for d in abnormal_domains) or source_type in abnormal_types:
             score = max(0.0, score - abnormal_penalty)
         return score
+
+    def _score_consistency(self, corroborating_sources: Any) -> float:
+        if not corroborating_sources:
+            return 50.0
+        weights = self._get_config("modules.EventEvidenceScorer.params.consistency_rank_weights", {})
+        weights = {k.lower(): float(v) for k, v in weights.items()}
+        default_weight = float(weights.get("unknown", 0.5))
+
+        if isinstance(corroborating_sources, list) and corroborating_sources and isinstance(corroborating_sources[0], dict):
+            total = 0.0
+            for src in corroborating_sources:
+                rank = str(src.get("source_rank", "unknown")).lower()
+                total += float(weights.get(rank, default_weight))
+            return min(100.0, 50.0 + 10.0 * total)
+
+        return min(100.0, 50.0 + 10.0 * len(corroborating_sources))
 
     def _score_freshness(self, timestamp: Optional[str]) -> float:
         if not timestamp:

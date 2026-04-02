@@ -44,6 +44,8 @@ git config --global user.email "你的GitHub注册邮箱"
 1. Git 仓库主目录是唯一真源。
 2. 禁止用“交接包目录”覆盖主项目。
 3. 历史材料只放 `archive/`，不参与运行入口。
+4. 进入阶段三后，任务执行口径以 `阶段三-指挥中心全链条联动蓝图.md` 为准。
+5. 若阶段三蓝图与历史任务清单存在冲突，以阶段三蓝图为准。
 
 ## 4. Git 分支模型（强制）
 
@@ -57,6 +59,13 @@ git config --global user.email "你的GitHub注册邮箱"
 feature/A-<task-id>-<short-name>
 feature/B-<task-id>-<short-name>
 feature/C-<task-id>-<short-name>
+```
+
+阶段三命名示例：
+```bash
+feature/A-S3-A1-sector-map
+feature/B-S3-B1-premium-pool
+feature/C-S3-C2-visual-linkage
 ```
 
 ## 5. 开发启动流程（每人每天）
@@ -91,6 +100,15 @@ git commit -m "T4.2: make risk gate thresholds config-driven"
 
 缺任意一项，PR 驳回。
 
+阶段三补充（实时联动场景）：
+1. 涉及 `event_update` / `sector_update` / `opportunity_update` 任一消息字段变更时，执行五联动：
+   - `schemas/*.json`
+   - `tests/*`
+   - `module-registry.yaml`
+   - 文档（README 或计划文档）
+   - 前端消费契约说明（`canvas/` 或对应联动文档）
+2. 若字段变更未同步前端消费契约，禁止合并。
+
 ## 7. 合并门禁（PR 前必跑）
 
 ```bash
@@ -101,6 +119,12 @@ PYTHONPYCACHEPREFIX=/tmp/pycache python3 scripts/system_healthcheck.py
 规则：
 1. 任一命令失败，禁止发起合并。
 2. 健康检查非 `OVERALL: GREEN`，禁止合并。
+
+阶段三补充门禁：
+3. 涉及联动链路变更（新闻/板块/机会池）时，必须附“联动冒烟证据”：
+   - 同一 `trace_id` 的 `event_update -> sector_update -> opportunity_update` 样例输出
+   - 或等效的联动截图/回放记录
+4. 未提供联动冒烟证据的 PR 不得合并。
 
 ## 8. PR 与合并流程
 
@@ -116,6 +140,12 @@ PYTHONPYCACHEPREFIX=/tmp/pycache python3 scripts/system_healthcheck.py
 2. 必须附两份证据：
    - `pytest` 结果
    - `logs/system_health_report.json`（GREEN）
+
+### 8.3 阶段三跨层联调附加规则
+
+1. 若 PR 影响 A/B/C 任一层且涉及实时消息契约，必须 @C 主审。
+2. PR 描述需包含契约 diff 说明：字段新增/删除/语义变更。
+3. 合并前必须完成一次 A->B->C 联调回放并附结论（通过/失败与原因）。
 
 ## 9. 冲突处理规则（只在 integration 解决）
 
@@ -172,6 +202,13 @@ git push origin main
 1. `python3 -m pytest -q` 通过记录。
 2. `logs/system_health_report.json` 且 `overall_status = GREEN`。
 
+阶段三交付附加指标（指挥中心联动）：
+3. 新闻到板块渲染延迟 <= 1s。
+4. 板块到机会池刷新延迟 <= 1s。
+5. 利好/利空场景决策差异化率 >= 80%。
+6. 高风险拦截率 = 100%，AI 故障降级正确率 = 100%。
+7. `trace_id` 贯穿率 = 100%，可按 `trace_id` 回放全链路。
+
 无证据，不交付。
 
 ## 14. 标准PR模板（AI可直接填充）
@@ -196,6 +233,14 @@ git push origin main
 ## 验证证据
 - python3 -m pytest -q:
 - PYTHONPYCACHEPREFIX=/tmp/pycache python3 scripts/system_healthcheck.py:
+- 联动冒烟证据（trace_id 串联）:
+- （如涉及前端）三栏联动截图/回放:
+
+## 实时契约影响（阶段三）
+- event_update:
+- sector_update:
+- opportunity_update:
+- 兼容性说明（向后兼容/破坏性变更）:
 
 ## 风险与回滚
 - 风险：

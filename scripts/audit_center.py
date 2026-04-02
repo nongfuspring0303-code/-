@@ -9,11 +9,12 @@ Audit Center for C3 - Enhanced audit and review system.
 from __future__ import annotations
 
 import json
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from dataclasses import dataclass, field
+
+import yaml
 
 
 def _default_audit_dir() -> str:
@@ -44,11 +45,29 @@ class AuditRecord:
 
 class AuditCenter:
     def __init__(self, audit_dir: str | None = None, config_path: str | None = None):
-        self.audit_dir = Path(audit_dir) if audit_dir else _default_audit_dir()
-        self.config_path = Path(config_path) if config_path else _default_config_path()
+        self.audit_dir = Path(audit_dir) if audit_dir else Path(_default_audit_dir())
+        self.config_path = Path(config_path) if config_path else Path(_default_config_path())
         self.audit_dir.mkdir(parents=True, exist_ok=True)
         self.audit_file = self.audit_dir / "execution_audit.jsonl"
         self.trace_index_file = self.audit_dir / "trace_index.json"
+        self._config = self._load_config()
+
+    def _load_config(self) -> Dict[str, Any]:
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            return {}
+
+    def _get_config(self, key: str, default: Any = None) -> Any:
+        keys = key.split(".")
+        val = self._config
+        for k in keys:
+            if isinstance(val, dict):
+                val = val.get(k)
+            else:
+                return default
+        return val if val is not None else default
 
     def record(self, trace_id: str, module: str, action: str, input_data: Dict[str, Any],
                output_data: Dict[str, Any], status: str, errors: List[Dict] = None,
@@ -145,14 +164,16 @@ class AuditCenter:
         error_count = sum(1 for r in records if r.get("errors"))
         warning_count = sum(1 for r in records if r.get("warnings"))
 
-        if error_count > 3:
+        high_error_threshold = int(self._get_config("modules.AuditCenter.params.recommendation.high_error_threshold", 3))
+        high_warning_threshold = int(self._get_config("modules.AuditCenter.params.recommendation.high_warning_threshold", 5))
+
+        if error_count > high_error_threshold:
             return "High error rate detected. Consider reviewing module configurations and timeout settings."
-        elif warning_count > 5:
+        if warning_count > high_warning_threshold:
             return "Multiple warnings detected. Review logic and consider adding fallback handlers."
-        elif error_count > 0:
+        if error_count > 0:
             return "Errors detected in execution. Review error details and fix underlying issues."
-        else:
-            return "Execution completed successfully with no critical issues."
+        return "Execution completed successfully with no critical issues."
 
     def list_traces(self, limit: int = 50) -> List[str]:
         if not self.trace_index_file.exists():

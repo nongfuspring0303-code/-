@@ -512,6 +512,7 @@ modules:
       retries: 2
       dedupe: true
       dedupe_window_minutes: 120
+      enable_source_rank: true
       sources:
         - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
         - "https://www.marketwatch.com/rss/topstories"
@@ -530,6 +531,11 @@ modules:
         - "unknown"
         - "forum"
       abnormal_penalty: 20
+      consistency_rank_weights:
+        A: 1.0
+        B: 0.8
+        C: 0.4
+        unknown: 0.5
       source_rank_map:
         A:
           score: 95

@@ -44,8 +44,8 @@ git config --global user.email "你的GitHub注册邮箱"
 1. Git 仓库主目录是唯一真源。
 2. 禁止用“交接包目录”覆盖主项目。
 3. 历史材料只放 `archive/`，不参与运行入口。
-4. 进入阶段三后，任务执行口径以 `阶段三-指挥中心全链条联动蓝图.md` 为准。
-5. 若阶段三蓝图与历史任务清单存在冲突，以阶段三蓝图为准。
+4. 进入阶段三后，任务执行口径以 `阶段三任务分工说明.md` 为准。
+5. 若阶段三任务分工说明与历史任务清单存在冲突，以阶段三任务分工说明为准。
 
 ## 4. Git 分支模型（强制）
 
@@ -63,9 +63,9 @@ feature/C-<task-id>-<short-name>
 
 阶段三命名示例：
 ```bash
-feature/A-S3-A1-sector-map
-feature/B-S3-B1-premium-pool
-feature/C-S3-C2-visual-linkage
+feature/A-A1-sector-mapping
+feature/B-B1-premium-pool
+feature/C-C2-visualization
 ```
 
 ## 5. 开发启动流程（每人每天）

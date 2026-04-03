@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>EDT指挥中心 - Phase 3</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e; 
+      color: #dfe6e9;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #app { display: flex; height: 100vh; }
+    
+    /* 左栏：新闻雷达 */
+    .panel { padding: 16px; overflow-y: auto; }
+    .left-panel { 
+      width: 320px; 
+      background: #16213e; 
+      border-right: 1px solid #2d3436;
+    }
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #dfe6e9;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #2d3436;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge { 
+      padding: 2px 8px; 
+      border-radius: 4px; 
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-high { background: #ff4757; }
+    .badge-medium { background: #feca57; color: #1a1a2e; }
+    .badge-low { background: #00d26a; }
+    
+    /* 新闻卡片 */
+    .news-card {
+      background: #0f0f1a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .news-card:hover { border-color: #feca57; }
+    .news-card.active { border-color: #00d26a; background: #0f1a0f; }
+    .news-time { font-size: 11px; color: #636e72; margin-bottom: 4px; }
+    .news-source { font-size: 11px; color: #636e72; }
+    .news-headline { font-size: 13px; line-height: 1.4; margin-top: 6px; }
+    .trace-id { font-size: 10px; color: #feca57; font-family: monospace; margin-top: 8px; }
+    
+    /* 中栏：板块热力图 */
+    .center-panel { 
+      flex: 1; 
+      background: #1a1a2e;
+      border-right: 1px solid #2d3436;
+    }
+    .sector-card {
+      background: linear-gradient(135deg, rgba(0,210,106,0.1), rgba(0,210,106,0.05));
+      border: 1px solid #00d26a;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sector-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,210,106,0.2); }
+    .sector-card.bearish {
+      background: linear-gradient(135deg, rgba(255,71,87,0.1), rgba(255,71,87,0.05));
+      border-color: #ff4757;
+    }
+    .sector-card.bearish:hover { box-shadow: 0 4px 15px rgba(255,71,87,0.2); }
+    .sector-name { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .sector-impact { 
+      font-size: 24px; 
+      font-weight: 700;
+      color: #00d26a;
+    }
+    .sector-card.bearish .sector-impact { color: #ff4757; }
+    .sector-dir { font-size: 12px; margin-left: 8px; }
+    .sector-confidence { font-size: 11px; color: #636e72; margin-top: 8px; }
+    
+    /* 传导链 */
+    .conduction-chain {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed #2d3436;
+    }
+    .chain-item {
+      font-size: 11px;
+      padding: 4px 8px;
+      background: #0f0f1a;
+      border-radius: 4px;
+      color: #636e72;
+    }
+    .chain-arrow { color: #636e72; }
+    
+    /* 右栏：机会池 */
+    .right-panel { 
+      width: 400px; 
+      background: #16213e;
+    }
+    .opp-card {
+      background: #0f0f1a;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid #00d26a;
+      transition: all 0.2s;
+    }
+    .opp-card:hover { transform: translateX(-3px); }
+    .opp-card.short { border-left-color: #ff4757; }
+    .opp-card.short:hover { transform: translateX(-3px); box-shadow: -4px 0 15px rgba(255,71,87,0.2); }
+    .opp-card.watch { border-left-color: #feca57; }
+    .opp-header { display: flex; justify-content: space-between; align-items: center; }
+    .opp-symbol { font-size: 16px; font-weight: 700; }
+    .opp-signal {
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .signal-long { background: #00d26a; color: #1a1a2e; }
+    .signal-short { background: #ff4757; }
+    .signal-watch { background: #feca57; color: #1a1a2e; }
+    .opp-name { font-size: 12px; color: #636e72; margin-top: 4px; }
+    .opp-entry { 
+      margin-top: 12px; 
+      padding: 8px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .entry-zone { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .entry-label { color: #636e72; }
+    .entry-value { font-weight: 600; }
+    .opp-risk { margin-top: 8px; font-size: 11px; color: #feca57; }
+    .opp-reason { margin-top: 12px; font-size: 12px; line-height: 1.4; color: #b2bec3; }
+    .opp-action {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+    .action-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-execute { background: #00d26a; color: #1a1a2e; }
+    .btn-execute:hover { background: #00b359; }
+    .btn-pending { background: #feca57; color: #1a1a2e; }
+    .btn-pending:hover { background: #f9b528; }
+    .btn-block { background: #ff4757; color: #fff; }
+    .btn-block:hover { background: #e8404f; }
+    
+    /* 底部时间线 */
+    .timeline {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: #0f0f1a;
+      border-top: 1px solid #2d3436;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+    }
+    .timeline-track {
+      flex: 1;
+      height: 4px;
+      background: #2d3436;
+      border-radius: 2px;
+      position: relative;
+      margin: 0 20px;
+    }
+    .timeline-thumb {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: #feca57;
+      border-radius: 50%;
+      top: -4px;
+      left: 30%;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(254,202,87,0.5);
+    }
+    .timeline-label {
+      font-size: 11px;
+      color: #636e72;
+      width: 100px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- 左栏：新闻雷达 -->
+    <div class="panel left-panel">
+      <div class="panel-title">
+        <span>📰</span> 新闻雷达
+      </div>
+      
+      <div class="news-card active">
+        <div class="news-time">10:32</div>
+        <div class="news-source">路透 · E3</div>
+        <div class="news-headline">美联储暗示降息预期放缓，科技股承压</div>
+        <div class="trace-id">trace: evt_20260403_1032</div>
+      </div>
+      
+      <div class="news-card">
+        <div class="news-time">10:28</div>
+        <div class="news-source">华尔街见闻 · E2</div>
+        <div class="news-headline">英伟达财报超预期，AI芯片需求强劲</div>
+        <div class="trace-id">trace: evt_20260403_1028</div>
+      </div>
+      
+      <div class="news-card">
+        <div class="news-time">10:15</div>
+        <div class="news-source">新浪 · E4</div>
+        <div class="news-headline">原油价格大涨，能源板块受益</div>
+        <div class="trace-id">trace: evt_20260403_1015</div>
+      </div>
+    </div>
+    
+    <!-- 中栏：板块热力图 -->
+    <div class="panel center-panel">
+      <div class="panel-title">
+        <span>🟢</span> 板块传导
+      </div>
+      
+      <div class="sector-card">
+        <div class="sector-name">科技</div>
+        <div>
+          <span class="sector-impact">+85%</span>
+          <span class="sector-dir">强利好</span>
+        </div>
+        <div class="sector-confidence">置信度 90% · 叙事阶段: initial</div>
+        <div class="conduction-chain">
+          <span class="chain-item">利率 →</span>
+          <span class="chain-arrow">→</span>
+          <span class="chain-item">科技 →</span>
+          <span class="chain-arrow">→</span>
+          <span class="chain-item">AI芯片</span>
+        </div>
+      </div>
+      
+      <div class="sector-card bearish">
+        <div class="sector-name">新能源</div>
+        <div>
+          <span class="sector-impact">-40%</span>
+          <span class="sector-dir">中利空</span>
+        </div>
+        <div class="sector-confidence">置信度 70% · 叙事阶段: continuation</div>
+        <div class="conduction-chain">
+          <span class="chain-item">利率 →</span>
+          <span class="chain-arrow">→</span>
+          <span class="chain-item">新能源 →</span>
+          <span class="chain-arrow">→</span>
+          <span class="chain-item">电动车</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 右栏：机会池 -->
+    <div class="panel right-panel">
+      <div class="panel-title">
+        <span>🎯</span> 优质股机会
+      </div>
+      
+      <div class="opp-card">
+        <div class="opp-header">
+          <div>
+            <div class="opp-symbol">NVDA</div>
+            <div class="opp-name">英伟达 · 科技</div>
+          </div>
+          <span class="opp-signal signal-long">LONG</span>
+        </div>
+        <div class="opp-entry">
+          <div class="entry-zone">
+            <span class="entry-label">支撑</span>
+            <span class="entry-value">$450</span>
+          </div>
+          <div class="entry-zone">
+            <span class="entry-label">阻力</span>
+            <span class="entry-value">$480</span>
+          </div>
+        </div>
+        <div class="opp-risk">⚠️ 风险: 波动较大</div>
+        <div class="opp-reason">科技板块强利好，AI芯片需求旺盛，财报超预期，入场区间合理</div>
+        <div class="opp-action">
+          <button class="action-btn btn-execute">EXECUTE</button>
+          <button class="action-btn btn-pending">WATCH</button>
+        </div>
+      </div>
+      
+      <div class="opp-card short">
+        <div class="opp-header">
+          <div>
+            <div class="opp-symbol">TSLA</div>
+            <div class="opp-name">特斯拉 · 新能源</div>
+          </div>
+          <span class="opp-signal signal-short">SHORT</span>
+        </div>
+        <div class="opp-entry">
+          <div class="entry-zone">
+            <span class="entry-label">支撑</span>
+            <span class="entry-value">$165</span>
+          </div>
+          <div class="entry-zone">
+            <span class="entry-label">阻力</span>
+            <span class="entry-value">$180</span>
+          </div>
+        </div>
+        <div class="opp-risk">⚠️ 风险: 关联板块波动大</div>
+        <div class="opp-reason">新能源板块利空，原材料成本上涨，需求疲软</div>
+        <div class="opp-action">
+          <button class="action-btn btn-block">BLOCK</button>
+        </div>
+      </div>
+      
+      <div class="opp-card watch">
+        <div class="opp-header">
+          <div>
+            <div class="opp-symbol">AAPL</div>
+            <div class="opp-name">苹果 · 科技</div>
+          </div>
+          <span class="opp-signal signal-watch">WATCH</span>
+        </div>
+        <div class="opp-entry">
+          <div class="entry-zone">
+            <span class="entry-label">支撑</span>
+            <span class="entry-value">$168</span>
+          </div>
+          <div class="entry-zone">
+            <span class="entry-label">阻力</span>
+            <span class="entry-value">$175</span>
+          </div>
+        </div>
+        <div class="opp-risk">⚠️ 风险: 流动性偏低</div>
+        <div class="opp-reason">评分0.65，需观察等待更明确信号</div>
+        <div class="opp-action">
+          <button class="action-btn btn-pending">PENDING</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 底部时间线 -->
+  <div class="timeline">
+    <span class="timeline-label">回放模式</span>
+    <div class="timeline-track">
+      <div class="timeline-thumb"></div>
+    </div>
+    <span class="timeline-label" style="text-align: right;">10:32</span>
+  </div>
+</body>
+</html>

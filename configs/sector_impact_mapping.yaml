@@ -1,0 +1,28 @@
+schema_version: v1.0
+updated_at: "2026-04-03T00:00:00Z"
+mappings:
+  - event_keyword: "降息"
+    sector: "科技"
+    direction: "LONG"
+    impact_score: 0.82
+    confidence: 0.9
+  - event_keyword: "降息"
+    sector: "公用事业"
+    direction: "LONG"
+    impact_score: 0.64
+    confidence: 0.85
+  - event_keyword: "通胀高于预期"
+    sector: "成长股"
+    direction: "SHORT"
+    impact_score: 0.74
+    confidence: 0.88
+  - event_keyword: "原油大涨"
+    sector: "航空"
+    direction: "SHORT"
+    impact_score: 0.67
+    confidence: 0.86
+  - event_keyword: "AI算力扩容"
+    sector: "半导体"
+    direction: "LONG"
+    impact_score: 0.91
+    confidence: 0.93

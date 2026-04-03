@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDT 配置中心</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #141c2f;
+      --panel-2: #1d2740;
+      --text: #dbe7ff;
+      --muted: #8fa3cc;
+      --line: #2a3658;
+      --ok: #2bb673;
+      --warn: #f2a43b;
+      --bad: #e25555;
+      --accent: #4f8cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 20% 10%, #1e2c4d 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .tab.active {
+      border-color: var(--accent);
+      background: #1a315f;
+    }
+    .card {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .row3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    input, select, textarea {
+      width: 100%;
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+    }
+    textarea { min-height: 100px; resize: vertical; }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: #18233f;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+    button.primary { background: #1f4eb5; border-color: #2c63d6; }
+    button.ok { background: #176843; border-color: #2bb673; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      margin-left: 8px;
+    }
+    .tag.ok { background: rgba(43, 182, 115, 0.15); color: var(--ok); }
+    .tag.warn { background: rgba(242, 164, 59, 0.15); color: var(--warn); }
+    .list { display: grid; gap: 10px; }
+    .footnote { color: var(--muted); font-size: 12px; }
+    .hide { display: none; }
+    @media (max-width: 900px) {
+      .row, .row3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <div class="title">EDT 配置中心 <span class="tag ok">C-6</span></div>
+      <div class="meta" id="lastSync">最后同步: --</div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="sector">板块映射</button>
+      <button class="tab" data-tab="stock">优质股票池</button>
+      <button class="tab" data-tab="feedback">人工纠错</button>
+    </div>
+
+    <section id="tab-sector" class="card">
+      <h3>sector_impact_mapping.yaml</h3>
+      <div id="sectorList" class="list"></div>
+      <div class="toolbar">
+        <button onclick="addSectorRow()">新增映射</button>
+        <button class="primary" onclick="saveSectorMapping()">保存映射</button>
+      </div>
+    </section>
+
+    <section id="tab-stock" class="card hide">
+      <h3>premium_stock_pool.yaml</h3>
+      <div id="stockList" class="list"></div>
+      <div class="toolbar">
+        <button onclick="addStockRow()">新增股票</button>
+        <button class="primary" onclick="saveStockPool()">保存股票池</button>
+      </div>
+    </section>
+
+    <section id="tab-feedback" class="card hide">
+      <h3>人工纠错反馈接口 <span class="tag warn">回传 A/B</span></h3>
+      <div class="row3">
+        <div>
+          <label>trace_id</label>
+          <input id="fbTrace" placeholder="evt_xxx">
+        </div>
+        <div>
+          <label>目标模块</label>
+          <select id="fbTarget">
+            <option value="A">A 模块</option>
+            <option value="B">B 模块</option>
+          </select>
+        </div>
+        <div>
+          <label>纠错类型</label>
+          <select id="fbType">
+            <option value="sector_direction_correction">板块方向纠错</option>
+            <option value="impact_score_correction">影响分数纠错</option>
+            <option value="signal_correction">机会信号纠错</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>原值</label>
+          <input id="fbOriginal" placeholder="LONG">
+        </div>
+        <div>
+          <label>修正值</label>
+          <input id="fbCorrected" placeholder="SHORT">
+        </div>
+      </div>
+      <div>
+        <label>纠错原因</label>
+        <textarea id="fbReason" placeholder="说明判断依据..."></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="ok" onclick="submitFeedback()">提交纠错</button>
+      </div>
+      <p class="footnote">提交后会记录到 `logs/human_feedback.jsonl`，并可按目标模块导出反馈包。</p>
+    </section>
+  </div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:8787';
+
+    const state = {
+      sector: { schema_version: 'v1.0', mappings: [] },
+      stock: { schema_version: 'v1.0', stocks: [] }
+    };
+
+    const sectorTemplate = () => ({
+      event_keyword: '', sector: '', direction: 'LONG', impact_score: 0.6, confidence: 0.8
+    });
+
+    const stockTemplate = () => ({
+      symbol: '', name: '', sector: '', roe_pct: 15, market_cap_usd_billion: 50, liquidity_score: 0.6
+    });
+
+    function setLastSync() {
+      document.getElementById('lastSync').textContent = '最后同步: ' + new Date().toLocaleString();
+    }
+
+    function bindTabs() {
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          ['sector','stock','feedback'].forEach(k => {
+            document.getElementById('tab-' + k).classList.toggle('hide', k !== btn.dataset.tab);
+          });
+        });
+      });
+    }
+
+    async function boot() {
+      bindTabs();
+      await loadSectorMapping();
+      await loadStockPool();
+      setLastSync();
+    }
+
+    function renderSector() {
+      const container = document.getElementById('sectorList');
+      container.innerHTML = state.sector.mappings.map((m, i) => `
+        <div class="card">
+          <div class="row3">
+            <input value="${m.event_keyword || ''}" onchange="updateSector(${i}, 'event_keyword', this.value)" placeholder="事件关键词">
+            <input value="${m.sector || ''}" onchange="updateSector(${i}, 'sector', this.value)" placeholder="板块">
+            <select onchange="updateSector(${i}, 'direction', this.value)">
+              <option ${m.direction === 'LONG' ? 'selected' : ''}>LONG</option>
+              <option ${m.direction === 'SHORT' ? 'selected' : ''}>SHORT</option>
+              <option ${m.direction === 'WATCH' ? 'selected' : ''}>WATCH</option>
+            </select>
+          </div>
+          <div class="row">
+            <input type="number" step="0.01" min="0" max="1" value="${m.impact_score}" onchange="updateSector(${i}, 'impact_score', Number(this.value))" placeholder="impact_score">
+            <input type="number" step="0.01" min="0" max="1" value="${m.confidence}" onchange="updateSector(${i}, 'confidence', Number(this.value))" placeholder="confidence">
+          </div>
+          <div class="toolbar"><button onclick="removeSectorRow(${i})">删除</button></div>
+        </div>
+      `).join('');
+    }
+
+    function renderStock() {
+      const container = document.getElementById('stockList');
+      container.innerHTML = state.stock.stocks.map((s, i) => `
+        <div class="card">
+          <div class="row3">
+            <input value="${s.symbol || ''}" onchange="updateStock(${i}, 'symbol', this.value.toUpperCase())" placeholder="Symbol">
+            <input value="${s.name || ''}" onchange="updateStock(${i}, 'name', this.value)" placeholder="名称">
+            <input value="${s.sector || ''}" onchange="updateStock(${i}, 'sector', this.value)" placeholder="板块">
+          </div>
+          <div class="row3">
+            <input type="number" step="0.1" value="${s.roe_pct}" onchange="updateStock(${i}, 'roe_pct', Number(this.value))" placeholder="ROE %">
+            <input type="number" step="1" value="${s.market_cap_usd_billion}" onchange="updateStock(${i}, 'market_cap_usd_billion', Number(this.value))" placeholder="市值(十亿美元)">
+            <input type="number" step="0.01" min="0" max="1" value="${s.liquidity_score}" onchange="updateStock(${i}, 'liquidity_score', Number(this.value))" placeholder="流动性分数">
+          </div>
+          <div class="toolbar"><button onclick="removeStockRow(${i})">删除</button></div>
+        </div>
+      `).join('');
+    }
+
+    function updateSector(i, key, value) { state.sector.mappings[i][key] = value; }
+    function updateStock(i, key, value) { state.stock.stocks[i][key] = value; }
+
+    function addSectorRow() { state.sector.mappings.push(sectorTemplate()); renderSector(); }
+    function addStockRow() { state.stock.stocks.push(stockTemplate()); renderStock(); }
+    function removeSectorRow(i) { state.sector.mappings.splice(i, 1); renderSector(); }
+    function removeStockRow(i) { state.stock.stocks.splice(i, 1); renderStock(); }
+
+    async function loadSectorMapping() {
+      try {
+        const r = await fetch(`${API_BASE}/api/config/sector-mapping`);
+        if (r.ok) state.sector = await r.json();
+      } catch (_) {
+        if (state.sector.mappings.length === 0) state.sector.mappings = [sectorTemplate()];
+      }
+      renderSector();
+    }
+
+    async function loadStockPool() {
+      try {
+        const r = await fetch(`${API_BASE}/api/config/stock-pool`);
+        if (r.ok) state.stock = await r.json();
+      } catch (_) {
+        if (state.stock.stocks.length === 0) state.stock.stocks = [stockTemplate()];
+      }
+      renderStock();
+    }
+
+    async function saveSectorMapping() {
+      state.sector.updated_at = new Date().toISOString();
+      await fetch(`${API_BASE}/api/config/sector-mapping`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state.sector)
+      });
+      alert('板块映射已保存');
+      setLastSync();
+    }
+
+    async function saveStockPool() {
+      state.stock.updated_at = new Date().toISOString();
+      await fetch(`${API_BASE}/api/config/stock-pool`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state.stock)
+      });
+      alert('股票池已保存');
+      setLastSync();
+    }
+
+    async function submitFeedback() {
+      const payload = {
+        trace_id: document.getElementById('fbTrace').value.trim(),
+        source_module: 'C',
+        target_module: document.getElementById('fbTarget').value,
+        feedback_type: document.getElementById('fbType').value,
+        original_value: document.getElementById('fbOriginal').value.trim(),
+        corrected_value: document.getElementById('fbCorrected').value.trim(),
+        reason: document.getElementById('fbReason').value.trim()
+      };
+      if (!payload.trace_id || !payload.reason) {
+        alert('trace_id 和纠错原因不能为空');
+        return;
+      }
+      await fetch(`${API_BASE}/api/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      alert('纠错已提交并回传目标模块');
+    }
+
+    boot();
+  </script>
+</body>
+</html>

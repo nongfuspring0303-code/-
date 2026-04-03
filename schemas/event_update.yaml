@@ -1,0 +1,44 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Event Update Schema
+description: EDT新闻事件输入格式 - 从新闻源输入
+type: object
+required:
+  - type
+  - headline
+  - source
+  - timestamp
+properties:
+  type:
+    type: string
+    const: event_update
+    description: 消息类型标识
+  trace_id:
+    type: string
+    pattern: "^evt_[a-zA-Z0-9]{16}$"
+    description: 事件追踪ID，由C模块事件总线统一生成
+  schema_version:
+    type: string
+    const: v1.0
+    description: Schema版本号
+  headline:
+    type: string
+    description: 新闻标题
+  source:
+    type: string
+    description: 新闻来源
+  source_url:
+    type: string
+    format: uri
+    description: 原始来源链接
+  severity:
+    type: string
+    enum: [E0, E1, E2, E3, E4]
+    description: 严重度等级
+  timestamp:
+    type: string
+    format: date-time
+    description: 事件时间
+  detected_at:
+    type: string
+    format: date-time
+    description: 系统检测时间

@@ -1,0 +1,37 @@
+schema_version: v1.0
+updated_at: "2026-04-03T00:00:00Z"
+selection_rules:
+  min_roe_pct: 15
+  min_market_cap_usd_billion: 50
+  min_liquidity_score: 0.6
+stocks:
+  - symbol: NVDA
+    name: 英伟达
+    sector: 科技
+    roe_pct: 34.2
+    market_cap_usd_billion: 2300
+    liquidity_score: 0.95
+  - symbol: AAPL
+    name: 苹果
+    sector: 科技
+    roe_pct: 29.5
+    market_cap_usd_billion: 2800
+    liquidity_score: 0.96
+  - symbol: MSFT
+    name: 微软
+    sector: 科技
+    roe_pct: 35.7
+    market_cap_usd_billion: 3100
+    liquidity_score: 0.94
+  - symbol: TSLA
+    name: 特斯拉
+    sector: 新能源
+    roe_pct: 18.4
+    market_cap_usd_billion: 560
+    liquidity_score: 0.89
+  - symbol: XOM
+    name: 埃克森美孚
+    sector: 能源
+    roe_pct: 17.1
+    market_cap_usd_billion: 470
+    liquidity_score: 0.86

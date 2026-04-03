@@ -10,9 +10,9 @@ __pycache__/
 # Local runtime outputs
 logs/*.out.txt
 logs/execution_state.json
+logs/*.jsonl
 
 # Local tooling/session files
 .gh-config/
 tools/
 gh.cmd
-

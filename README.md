@@ -64,6 +64,26 @@ python3 scripts/system_healthcheck.py
 python3 scripts/verify_execution_no_pytest.py
 ```
 
+## C 模块联调
+
+```bash
+# 一键启动（含 Mock 流）
+python3 scripts/run_c_module_stack.py
+
+# 无 Mock，等待 A/B 接入推送
+python3 scripts/run_c_module_stack.py --no-mock
+
+# A/B 模块可通过 ingest 接口推送消息
+python3 scripts/push_ab_event.py --type event-update --trace-id evt_demo_001
+python3 scripts/push_ab_event.py --type sector-update --trace-id evt_demo_001
+python3 scripts/push_ab_event.py --type opportunity-update --trace-id evt_demo_001
+```
+
+页面入口：
+- `canvas/index.html`（三栏联动）
+- `canvas/config.html`（配置中心 + 人工纠错）
+- `canvas/monitor.html`（健康监控）
+
 ## 协作硬规则
 
 1. 先读 schema，再改代码。

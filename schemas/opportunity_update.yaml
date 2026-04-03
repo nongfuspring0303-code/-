@@ -1,0 +1,102 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Opportunity Update Schema
+description: B模块输出 - 股票机会更新事件
+type: object
+required:
+  - type
+  - trace_id
+  - schema_version
+  - opportunities
+  - timestamp
+properties:
+  type:
+    type: string
+    const: opportunity_update
+    description: 消息类型标识
+  trace_id:
+    type: string
+    pattern: "^evt_[a-zA-Z0-9]{16}$"
+    description: 事件追踪ID，贯穿全链路
+  schema_version:
+    type: string
+    const: v1.0
+    description: Schema版本号
+  opportunities:
+    type: array
+    description: 股票机会列表
+    items:
+      type: object
+      required:
+        - symbol
+        - name
+        - sector
+        - signal
+        - final_action
+      properties:
+        symbol:
+          type: string
+          description: 股票代码
+        name:
+          type: string
+          description: 股票名称
+        sector:
+          type: string
+          description: 所属板块
+        signal:
+          type: string
+          enum: [LONG, SHORT, WATCH]
+          description: 信号方向
+        entry_zone:
+          type: object
+          description: 入场区间
+          properties:
+            support:
+              type: number
+              description: 支撑位
+            resistance:
+              type: number
+              description: 阻力位
+        risk_flags:
+          type: array
+          description: 风险旗标列表
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [volatility, liquidity, market_cap, concentration, sentiment]
+                description: 风险类型
+              level:
+                type: string
+                enum: [low, medium, high]
+                description: 风险等级
+              description:
+                type: string
+                description: 风险描述
+        final_action:
+          type: string
+          enum: [EXECUTE, WATCH, BLOCK, PENDING_CONFIRM]
+          description: 最终动作
+        reasoning:
+          type: string
+          maxLength: 50
+          description: 理由摘要，50字以内
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 置信度 0-1
+  timestamp:
+    type: string
+    format: date-time
+    description: 事件时间
+  source_sector_update:
+    type: object
+    description: 关联的板块更新
+    properties:
+      trace_id:
+        type: string
+      sectors:
+        type: array
+        items:
+          type: string

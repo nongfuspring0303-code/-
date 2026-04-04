@@ -27,5 +27,5 @@ def test_full_workflow_execute():
     assert "intel" in out
     assert "analysis" in out
     assert "execution" in out
+    assert "opportunity_update" in out["analysis"]
     assert out["execution"]["final"]["action"] in ("EXECUTE", "WATCH", "BLOCK", "FORCE_CLOSE", "PENDING_CONFIRM")
-

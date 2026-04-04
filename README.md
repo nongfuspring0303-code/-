@@ -47,6 +47,10 @@ SignalScorer + AISignalAdapter -> LiquidityChecker -> RiskGatekeeper -> Position
 - `RiskGatekeeper` 增强（B2/B3）
   - 增加 G7（AI 复核/降级闸门）
   - 决策输出新增 `decision_summary` 与 `reasoning`
+- `OpportunityScorer`（Phase3-B1/B2/B3）
+  - 优质股票池配置：`configs/premium_stock_pool.yaml`
+  - 机会评分与机会卡：`scripts/opportunity_score.py`
+  - 多空分化验证：`scripts/verify_direction_consistency.py`
 
 ## 快速验收
 
@@ -55,6 +59,7 @@ python3 -m pytest -q
 PYTHONPYCACHEPREFIX=/tmp/pycache python3 scripts/system_healthcheck.py
 bash scripts/verify_phase12.sh
 bash scripts/verify_fullchain.sh
+python3 scripts/verify_direction_consistency.py --samples 100 --min-rate 0.8
 ```
 
 若环境中 `pytest` 与 Python 版本不兼容，至少保留：

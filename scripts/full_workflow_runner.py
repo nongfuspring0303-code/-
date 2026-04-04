@@ -14,6 +14,7 @@ from fatigue_calculator import FatigueCalculator
 from intel_modules import IntelPipeline
 from lifecycle_manager import LifecycleManager
 from market_validator import MarketValidator
+from opportunity_score import OpportunityScorer
 from signal_scorer import SignalScorer
 from workflow_runner import WorkflowRunner
 
@@ -28,6 +29,7 @@ class FullWorkflowRunner:
         self.conduction = ConductionMapper()
         self.validation = MarketValidator()
         self.scorer = SignalScorer()
+        self.opportunity = OpportunityScorer()
         self.execution = WorkflowRunner()
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -117,6 +119,28 @@ class FullWorkflowRunner:
             "market_validation": validation_out,
             "signal": signal_out,
         }
+
+        sectors = []
+        for item in conduction_out.get("sector_impacts", []):
+            sectors.append(
+                {
+                    "name": item.get("sector", "未知板块"),
+                    "direction": "LONG" if item.get("direction") == "benefit" else "SHORT",
+                    "impact_score": round(min(1.0, max(0.0, float(validation_out.get("A1", 0)) / 100.0)), 2),
+                    "confidence": round(min(1.0, max(0.0, float(conduction_out.get("confidence", 0)) / 100.0)), 2),
+                }
+            )
+
+        opportunity_update = self.opportunity.build_opportunity_update(
+            {
+                "trace_id": event_object["event_id"],
+                "schema_version": "v1.0",
+                "sectors": sectors,
+                "stock_candidates": conduction_out.get("stock_candidates", []),
+                "timestamp": payload.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            }
+        )
+        analysis_out["opportunity_update"] = opportunity_update
 
         execution_in = {
             "A0": payload.get("A0", intel_out["severity"]["A0"]),

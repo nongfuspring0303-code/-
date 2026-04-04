@@ -96,6 +96,16 @@ registry:
     config: edt-modules-config.yaml
     test_case: tests/test_signal_scorer.yaml
 
+  - name: OpportunityScorer
+    version: 1.0.0
+    category: 分析
+    description: "阶段三B层机会评分与机会卡生成（优质池过滤+多空分化+字段补全）"
+    input_schema: opportunity_score_input.json
+    output_schema: opportunity_score_output.json
+    dependencies: [ConductionMapper, MarketValidator, SignalScorer]
+    config: premium_stock_pool.yaml
+    test_case: tests/test_opportunity_score.py
+
   - name: NarrativeStateRecognizer
     version: 1.0.0
     category: 分析
@@ -214,6 +224,7 @@ dependencies_graph:
   - "EventCapture -> SourceRanker -> SeverityEstimator -> EventObjectifier"
   - "EventObjectifier -> LifecycleManager -> FatigueCalculator"
   - "EventObjectifier -> ConductionMapper -> MarketValidator"
+  - "ConductionMapper + sector_update -> OpportunityScorer -> opportunity_update"
   - "AIEventIntelOutput -> NarrativeStateRecognizer -> AISignalAdapter"
   - "MarketValidator + FatigueCalculator -> SignalScorer"
   - "SignalScorer + AISignalAdapter -> LiquidityChecker -> RiskGatekeeper -> PositionSizer -> ExitManager"

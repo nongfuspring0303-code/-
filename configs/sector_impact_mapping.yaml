@@ -1,0 +1,20 @@
+# Sector impact mapping for A-1
+# Map internal sector tags to Yahoo sector names
+version: v1
+mapping:
+  industrials_export:
+    - "Industrials"
+  financials:
+    - "Financial Services"
+  energy:
+    - "Energy"
+  defense:
+    - "Industrials"
+  travel:
+    - "Consumer Cyclical"
+  online:
+    - "Technology"
+  healthcare:
+    - "Healthcare"
+  domestic:
+    - "Consumer Cyclical"

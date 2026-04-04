@@ -52,6 +52,19 @@
       },
       "additionalProperties": true
     },
+    "sector_data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "symbol": { "type": "string" },
+          "sector": { "type": "string" },
+          "industry": { "type": "string" },
+          "source": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
     "metadata": {
       "type": "object",
       "additionalProperties": true

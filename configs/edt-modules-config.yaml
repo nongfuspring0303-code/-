@@ -504,6 +504,18 @@ modules:
         blocked_symbols: []
 
   # ========== A层 AI事件智能模块 ==========
+  DataAdapter:
+    enabled: true
+    params:
+      yahoo_sector_symbols:
+        - "AAPL"
+        - "MSFT"
+        - "NVDA"
+        - "JPM"
+        - "XOM"
+      yahoo_timeout: 6
+      yahoo_base_url: "https://query2.finance.yahoo.com/v10/finance/quoteSummary"
+
   NewsIngestion:
     enabled: true
     timeout: 8
@@ -512,8 +524,23 @@ modules:
       retries: 2
       dedupe: true
       dedupe_window_minutes: 120
+      dedupe_similarity_threshold: 0.78
+      dedupe_min_token_overlap: 3
       enable_source_rank: true
       sources:
+        - "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&output=atom"
+        - "https://www.sec.gov/news/pressreleases.rss"
+        - "https://www.federalreserve.gov/feeds/press_all.xml"
+        - "https://www.federalreserve.gov/feeds/speeches.xml"
+        - "https://ustr.gov/rss.xml"
+        - "https://www.nasdaq.com/feed/rssoutbound?category=Markets"
+        - "https://www.finra.org/rss.xml"
+        - "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en"
+        - "https://www.ft.com/rss/home"
+        - "https://www.cnbc.com/id/10000664/device/rss/rss.html"
+        - "https://feeds.apnews.com/rss/business"
+        - "https://www.barrons.com/xml/rss/3_7202.xml"
+        - "https://www.economist.com/rss.xml"
         - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
         - "https://www.marketwatch.com/rss/topstories"
         - "https://seekingalpha.com/market_currents.xml"

@@ -10,6 +10,8 @@ rule.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from pathlib import Path
+import yaml
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 
@@ -26,6 +28,29 @@ class ConductionMapper(EDTModule):
             if key not in input_data:
                 return False, f"Missing required field: {key}"
         return True, None
+
+    def _load_sector_mapping(self) -> Dict[str, List[str]]:
+        path = Path(__file__).resolve().parent.parent / "configs" / "sector_impact_mapping.yaml"
+        try:
+            payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            return payload.get("mapping", {})
+        except Exception:
+            return {}
+
+    def _apply_sector_mapping(self, sector_impacts: List[Dict[str, Any]], sector_data: List[Dict[str, Any]]) -> None:
+        if not sector_data:
+            return
+        mapping = self._load_sector_mapping()
+        if not mapping:
+            return
+        available = {item.get("sector"): item for item in sector_data if item.get("sector")}
+        for impact in sector_impacts:
+            tag = impact.get("sector")
+            candidates = mapping.get(tag, [])
+            for name in candidates:
+                if name in available:
+                    impact["sector"] = name
+                    break
 
     def _tariff_mapping(self) -> Dict[str, Any]:
         return {
@@ -86,6 +111,7 @@ class ConductionMapper(EDTModule):
         headline = raw.get("headline", "")
         summary = raw.get("summary", "")
         policy_intervention = raw.get("policy_intervention", "NONE")
+        sector_data = raw.get("sector_data", []) or []
 
         if not headline and not summary:
             return ModuleOutput(
@@ -107,6 +133,8 @@ class ConductionMapper(EDTModule):
                 "conduction_path": ["事件信息不足，需人工补充传导路径"],
                 "confidence": 35,
             }
+
+        self._apply_sector_mapping(mapping["sector_impacts"], sector_data)
 
         if not mapping["macro_factors"] or not mapping["sector_impacts"]:
             mapping["stock_candidates"] = []

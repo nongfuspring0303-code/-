@@ -88,6 +88,47 @@ def test_event_evidence_scorer_abnormal_penalty():
     assert out.data["evidence_score"] <= 30
 
 
+def test_news_ingestion_atom_parse():
+    atom_xml = """
+    <feed xmlns=\"http://www.w3.org/2005/Atom\">
+      <title>SEC Filings</title>
+      <entry>
+        <title>8-K - Example Corp</title>
+        <link href=\"https://www.sec.gov/Archives/edgar/data/000000/0000000000-25-000001.txt\" />
+        <updated>2025-01-27T14:26:00Z</updated>
+        <summary>Example summary</summary>
+      </entry>
+    </feed>
+    """
+    from ai_event_intel import _parse_atom
+    items = _parse_atom(atom_xml, "https://www.sec.gov/")
+    assert len(items) == 1
+    assert items[0]["headline"] == "8-K - Example Corp"
+    assert items[0]["source_type"] == "atom"
+
+
+def test_news_ingestion_similarity_dedupe():
+    items = [
+        {
+            "headline": "Fed signals rate cuts ahead as inflation cools",
+            "source_url": "https://example.com/a",
+            "timestamp": "Mon, 27 Jan 2025 14:26:00 -0500",
+            "raw_text": "story A",
+            "source_type": "rss",
+        },
+        {
+            "headline": "Fed signals rate cuts ahead as inflation cools further",
+            "source_url": "https://another.com/b",
+            "timestamp": "Mon, 27 Jan 2025 14:30:00 -0500",
+            "raw_text": "story B",
+            "source_type": "rss",
+        },
+    ]
+    out = NewsIngestion().run({"items_override": items, "max_items": 10})
+    assert out.status == ModuleStatus.SUCCESS
+    assert len(out.data["items"]) == 1
+
+
 def test_event_evidence_scorer_domain_suffix_match():
     payload = {
         "trace_id": "TRC-TEST-0003",

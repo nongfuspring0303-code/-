@@ -3,9 +3,17 @@
 Data Adapter - 模拟新闻与市场数据接入
 """
 
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+import urllib.request
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 try:
     from edt_module_base import CacheManager
@@ -17,8 +25,42 @@ except ImportError:
 class DataAdapter:
     """数据接入适配器（真实新闻流优先 + 模拟兜底）"""
 
-    def __init__(self):
+    def __init__(self, config_path: Optional[str] = None):
         self.cache = CacheManager() if CacheManager else None
+        self.config = self._load_config(config_path)
+
+    def _load_config(self, config_path: Optional[str]) -> Dict[str, Any]:
+        if not yaml:
+            return {}
+        path = Path(config_path) if config_path else Path(__file__).resolve().parent.parent / "configs" / "edt-modules-config.yaml"
+        try:
+            return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            return {}
+
+    def _get_config(self, path: str, default: Any = None) -> Any:
+        keys = path.split(".")
+        value: Any = self.config
+        for key in keys:
+            if isinstance(value, dict):
+                value = value.get(key, default)
+            else:
+                return default
+        return value
+
+    def _safe_fetch_json(self, url: str, timeout: int) -> Optional[Dict[str, Any]]:
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "EDT-AI/1.0 (contact: admin@example.com)",
+                    "Accept": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8", errors="replace"))
+        except Exception:
+            return None
 
     def fetch_news(self) -> Dict[str, Any]:
         try:
@@ -69,6 +111,28 @@ class DataAdapter:
             "etf_volatility": {"change_pct": 3.2}
         }
 
+    def fetch_sector_data(self) -> List[Dict[str, Any]]:
+        # 仅使用 TwelveData（用户要求）
+        results: List[Dict[str, Any]] = []
+        try:
+            from gov_data_fetcher import SectorETFFetcher
+
+            etf = SectorETFFetcher().get_all_sectors().get("sectors", [])
+            if etf:
+                results = [
+                    {
+                        "symbol": item.get("symbol", ""),
+                        "sector": item.get("name_en", ""),
+                        "industry": item.get("name", ""),
+                        "source": "twelvedata",
+                    }
+                    for item in etf
+                ]
+        except Exception:
+            pass
+
+        return results
+
     def fetch(self) -> Dict[str, Any]:
         key = "mock_event" 
         if self.cache:
@@ -78,7 +142,8 @@ class DataAdapter:
 
         payload = {
             "news": self.fetch_news(),
-            "market_data": self.fetch_market_data()
+            "market_data": self.fetch_market_data(),
+            "sector_data": self.fetch_sector_data(),
         }
 
         if self.cache:

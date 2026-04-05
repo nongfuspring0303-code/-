@@ -1,6 +1,31 @@
 module: conduction_mapper
 description: 传导映射模块测试用例
 cases:
+  - id: CM-000
+    name: tariff_event_with_sector_data
+    type: normal
+    description: 关税事件在提供 sector_data 时应输出匹配的板块名
+    input:
+      event_id: "ME-C-20260330-000.V1.0"
+      category: "C"
+      severity: "E3"
+      headline: "美国宣布新一轮关税措施"
+      summary: "进口成本上升，出口链承压"
+      lifecycle_state: "Active"
+      narrative_tags:
+        - "trade_war"
+        - "inflation_shock"
+      policy_intervention: "NONE"
+      sector_data:
+        - symbol: "CAT"
+          sector: "Industrials"
+          industry: "Farm & Heavy Construction Machinery"
+          source: "yahoo"
+    expected:
+      sector_impacts_contains:
+        - sector: "Industrials"
+          direction: "hurt"
+
   - id: CM-001
     name: tariff_event_maps_to_macro_sector_stock
     type: normal

@@ -78,12 +78,38 @@ def _parse_rss(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
     return items
 
 
+def _parse_atom(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
+    root = ET.fromstring(xml_text)
+    ns = "{http://www.w3.org/2005/Atom}"
+    items = []
+    for entry in root.findall(f".//{ns}entry"):
+        title = (entry.findtext(f"{ns}title") or "").strip()
+        link = ""
+        link_el = entry.find(f"{ns}link")
+        if link_el is not None:
+            link = link_el.attrib.get("href", "")
+        updated = (entry.findtext(f"{ns}updated") or "").strip()
+        summary = (entry.findtext(f"{ns}summary") or entry.findtext(f"{ns}content") or "").strip()
+        if not title:
+            continue
+        items.append(
+            {
+                "headline": title,
+                "source_url": link or source_url,
+                "timestamp": updated,
+                "raw_text": summary,
+                "source_type": "atom",
+            }
+        )
+    return items
+
+
 def _safe_fetch(url: str, timeout: int) -> Optional[str]:
     try:
         req = urllib.request.Request(
             url,
             headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+                "User-Agent": "EDT-AI/1.0 (contact: admin@example.com) Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
                 "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
             },
         )
@@ -93,20 +119,63 @@ def _safe_fetch(url: str, timeout: int) -> Optional[str]:
         return None
 
 
-def _dedupe_items(items: List[Dict[str, Any]], window_minutes: int) -> List[Dict[str, Any]]:
-    seen: Dict[str, datetime] = {}
+def _tokenize(text: str) -> List[str]:
+    tokens: List[str] = []
+    current = []
+    for ch in text.lower():
+        if ch.isalnum():
+            current.append(ch)
+        else:
+            if current:
+                tokens.append("".join(current))
+                current = []
+    if current:
+        tokens.append("".join(current))
+    return tokens
+
+
+def _jaccard(a: List[str], b: List[str]) -> float:
+    set_a = set(a)
+    set_b = set(b)
+    if not set_a or not set_b:
+        return 0.0
+    return len(set_a & set_b) / len(set_a | set_b)
+
+
+def _dedupe_items(
+    items: List[Dict[str, Any]],
+    window_minutes: int,
+    similarity_threshold: float = 0.78,
+    min_token_overlap: int = 3,
+) -> List[Dict[str, Any]]:
+    seen: List[Dict[str, Any]] = []
     output: List[Dict[str, Any]] = []
     window_seconds = max(1, window_minutes) * 60
 
     for item in items:
-        headline = (item.get("headline") or "").strip().lower()
+        headline = (item.get("headline") or "").strip()
         host = urlparse(item.get("source_url", "")).netloc.lower().replace("www.", "")
-        key = f"{headline}|{host}"
         dt = _parse_datetime(item.get("timestamp"))
-        if key in seen and dt and (dt - seen[key]).total_seconds() <= window_seconds:
+        tokens = _tokenize(headline)
+
+        is_dup = False
+        for prior in seen:
+            prior_dt = prior["dt"]
+            if dt and prior_dt and (dt - prior_dt).total_seconds() > window_seconds:
+                continue
+            if prior["headline"] == headline and prior["host"] == host:
+                is_dup = True
+                break
+            overlap = len(set(tokens) & set(prior["tokens"]))
+            if overlap >= min_token_overlap:
+                score = _jaccard(tokens, prior["tokens"])
+                if score >= similarity_threshold:
+                    is_dup = True
+                    break
+
+        if is_dup:
             continue
-        if dt:
-            seen[key] = dt
+        seen.append({"headline": headline, "host": host, "dt": dt, "tokens": tokens})
         output.append(item)
     return output
 
@@ -132,8 +201,10 @@ class NewsIngestion(EDTModule):
             normalized = [self._normalize_item(item) for item in items_override]
             dedupe_on = bool(self._get_config("modules.NewsIngestion.params.dedupe", True))
             window_minutes = int(self._get_config("modules.NewsIngestion.params.dedupe_window_minutes", 120))
+            similarity_threshold = float(self._get_config("modules.NewsIngestion.params.dedupe_similarity_threshold", 0.78))
+            min_token_overlap = int(self._get_config("modules.NewsIngestion.params.dedupe_min_token_overlap", 3))
             if dedupe_on:
-                normalized = _dedupe_items(normalized, window_minutes)
+                normalized = _dedupe_items(normalized, window_minutes, similarity_threshold, min_token_overlap)
             return ModuleOutput(status=ModuleStatus.SUCCESS, data={"items": normalized[:max_items]})
 
         sources = raw.get("sources") or self._get_config("modules.NewsIngestion.params.sources", [])
@@ -151,8 +222,12 @@ class NewsIngestion(EDTModule):
             if not xml_text:
                 continue
             try:
-                items.extend(_parse_rss(xml_text, src))
-            except ET.ParseError:
+                root = ET.fromstring(xml_text)
+                if root.tag.endswith("feed"):
+                    items.extend(_parse_atom(xml_text, src))
+                else:
+                    items.extend(_parse_rss(xml_text, src))
+            except Exception:
                 continue
 
         if not items:
@@ -170,8 +245,10 @@ class NewsIngestion(EDTModule):
         normalized = [self._normalize_item(item) for item in items]
         dedupe_on = bool(self._get_config("modules.NewsIngestion.params.dedupe", True))
         window_minutes = int(self._get_config("modules.NewsIngestion.params.dedupe_window_minutes", 120))
+        similarity_threshold = float(self._get_config("modules.NewsIngestion.params.dedupe_similarity_threshold", 0.78))
+        min_token_overlap = int(self._get_config("modules.NewsIngestion.params.dedupe_min_token_overlap", 3))
         if dedupe_on:
-            normalized = _dedupe_items(normalized, window_minutes)
+            normalized = _dedupe_items(normalized, window_minutes, similarity_threshold, min_token_overlap)
         return ModuleOutput(status=ModuleStatus.SUCCESS, data={"items": normalized[:max_items]})
 
     def _normalize_item(self, item: Dict[str, Any]) -> Dict[str, Any]:

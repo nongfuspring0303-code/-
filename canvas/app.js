@@ -1,6 +1,6 @@
 const CONFIG = {
-  WS_URL: 'ws://127.0.0.1:8765',
-  API_BASE: 'http://127.0.0.1:8787',
+  WS_URL: window.RUNTIME_CONFIG?.WS_URL || 'ws://127.0.0.1:18765',
+  API_BASE: window.RUNTIME_CONFIG?.API_BASE || 'http://127.0.0.1:18787',
   RECONNECT_INTERVAL: 3000,
   MAX_REPLAY_DAYS: 7,
 };

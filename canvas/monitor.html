@@ -84,8 +84,9 @@
     </div>
   </div>
 
+  <script src="./runtime-config.js"></script>
   <script>
-    const API_BASE = 'http://127.0.0.1:8787';
+    const API_BASE = window.RUNTIME_CONFIG?.API_BASE || 'http://127.0.0.1:18787';
 
     function levelClass(level) {
       if (level === 'healthy') return 'healthy';

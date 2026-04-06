@@ -210,10 +210,23 @@ body {
   color: white;
 }
 
+.news-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 .news-headline {
   font-size: 13px;
   line-height: 1.4;
   margin-top: 4px;
+}
+
+.news-headline-cn {
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 4px;
+  color: var(--text-secondary);
 }
 
 .trace-id {

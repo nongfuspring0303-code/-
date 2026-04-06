@@ -3,3 +3,4 @@ requests>=2.31,<3
 websockets>=12,<16
 pytest>=8,<9
 pytest-asyncio>=0.23,<1
+googletrans==4.0.0rc1

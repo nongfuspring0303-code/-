@@ -19,6 +19,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+try:
+    from googletrans import Translator
+except Exception:  # 非官方库，可能不可用
+    Translator = None
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -40,6 +45,9 @@ class RealtimeNewsMonitor:
         self.poll_interval = poll_interval
         self.api_url = api_url or "http://127.0.0.1:8787"
         self.last_news_signature = ""  # 用于检测新新闻
+        self.translator = Translator() if Translator else None
+        if not self.translator:
+            logger.warning("⚠️ googletrans 不可用，中文翻译将跳过")
         self._load_news_module()
     
     def _load_news_module(self):
@@ -73,6 +81,17 @@ class RealtimeNewsMonitor:
         headline = news.get("headline", "")
         timestamp = news.get("timestamp", "")
         return f"{headline}|{timestamp}"
+
+    def _translate_headline(self, headline: str) -> Optional[str]:
+        """翻译标题为中文（非官方库，失败即跳过）"""
+        if not headline or not self.translator:
+            return None
+        try:
+            result = self.translator.translate(headline, dest="zh-cn")
+            return result.text if result else None
+        except Exception as e:
+            logger.warning(f"⚠️ 翻译失败: {e}")
+            return None
     
     def _process_news(self, news: Dict[str, Any]) -> bool:
         """处理单条新闻，返回是否触发成功"""
@@ -188,10 +207,13 @@ class RealtimeNewsMonitor:
                     logger.info(f"✅ 推送板块到C模块成功")
             
             # 推送 event-update
+            headline = event_object.get("headline", "A/B 实时计算事件")
+            headline_cn = event_object.get("headline_cn") or self._translate_headline(headline)
             event_data = {
                 "trace_id": trace_id,
                 "schema_version": "v1.0",
-                "headline": event_object.get("headline", "A/B 实时计算事件"),
+                "headline": headline,
+                "headline_cn": headline_cn,
                 "source": event_object.get("source_url", "A-Module"),
                 "severity": event_object.get("severity", "E3"),
                 "evidence_score": 0,

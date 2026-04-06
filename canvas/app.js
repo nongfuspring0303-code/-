@@ -119,6 +119,7 @@ function handleEventUpdate(payload, options = {}) {
   const event = {
     id: payload.trace_id || generateTraceId(),
     headline: payload.headline,
+    headline_cn: payload.headline_cn,
     source: payload.source,
     severity: payload.severity || 'E2',
     timestamp: payload.timestamp,
@@ -168,6 +169,13 @@ function handleOpportunityUpdate(payload, options = {}) {
 
 function generateTraceId() {
   return 'evt_' + Math.random().toString(36).substr(2, 16);
+}
+
+function formatTimestamp(ts) {
+  if (!ts) return '';
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return ts;
+  return date.toLocaleString('zh-CN', { hour12: false });
 }
 
 function updateConnectionStatus(status) {
@@ -224,7 +232,9 @@ function renderNews() {
         <span class="news-source">${news.source}</span>
         <span class="news-severity severity-${news.severity}">${news.severity}</span>
       </div>
-      <div class="news-headline">${news.headline}</div>
+      <div class="news-time">${formatTimestamp(news.timestamp)}</div>
+      <div class="news-headline">${news.headline || ''}</div>
+      ${news.headline_cn ? `<div class="news-headline-cn">${news.headline_cn}</div>` : ''}
       <div class="trace-id">${news.id}</div>
     </div>
   `).join('');

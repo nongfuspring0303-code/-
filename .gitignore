@@ -17,3 +17,15 @@ logs/*.jsonl
 tools/
 gh.cmd
 configs/edt-modules-config.yaml.guard_backup
+
+# local env
+.env
+.venv/
+
+# runtime logs / reports
+logs/*.log
+logs/*.json
+logs/*.jsonl
+logs/*.txt
+!logs/.gitkeep
+!logs/README.md

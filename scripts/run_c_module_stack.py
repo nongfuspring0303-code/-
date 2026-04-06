@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -84,7 +84,7 @@ def build_mock_event(trace_id: str):
         },
     ]
 
-    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     return {
         "event_update": {
             "trace_id": trace_id,
@@ -142,11 +142,11 @@ async def mock_producer(bus: EventBus, monitor: HealthMonitor, interval_sec: flo
 async def main():
     parser = argparse.ArgumentParser(description="Run C module local integration stack")
     parser.add_argument("--ws-host", default="127.0.0.1")
-    parser.add_argument("--ws-port", type=int, default=8765)
+    parser.add_argument("--ws-port", type=int, default=18765)
     parser.add_argument("--api-host", default="127.0.0.1")
-    parser.add_argument("--api-port", type=int, default=8787)
+    parser.add_argument("--api-port", type=int, default=18787)
     parser.add_argument("--web-host", default="127.0.0.1")
-    parser.add_argument("--web-port", type=int, default=8080)
+    parser.add_argument("--web-port", type=int, default=18080)
     parser.add_argument("--interval", type=float, default=2.0)
     parser.add_argument("--no-mock", action="store_true", help="disable mock producer, wait for A/B ingest")
     args = parser.parse_args()

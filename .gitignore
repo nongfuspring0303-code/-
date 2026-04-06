@@ -16,3 +16,4 @@ logs/*.jsonl
 .gh-config/
 tools/
 gh.cmd
+configs/edt-modules-config.yaml.guard_backup

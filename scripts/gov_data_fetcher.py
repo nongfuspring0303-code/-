@@ -4,13 +4,14 @@
 来源：用户提供脚本 gov_data_fetcher
 """
 
+import os
 import time
 from datetime import datetime
 from typing import Dict, Optional, Any
 import requests
 
 API_KEYS = {
-    "twelvedata": "7144c3286d03404c8cd486b30c2af91a",
+    "twelvedata": os.getenv("TWELVEDATA_API_KEY", ""),
 }
 
 

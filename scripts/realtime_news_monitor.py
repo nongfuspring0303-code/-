@@ -210,6 +210,28 @@ class RealtimeNewsMonitor:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 if resp.status == 200:
                     logger.info(f"✅ 推送事件到C模块成功")
+            
+            # 推送 opportunity-update
+            opportunities = analysis.get("opportunity_update", {}).get("opportunities", [])
+            if opportunities:
+                opp_data = {
+                    "trace_id": trace_id,
+                    "schema_version": "v1.0",
+                    "opportunities": opportunities,
+                    "timestamp": ts,
+                }
+                
+                endpoint = f"{self.api_url}/api/ingest/opportunity-update"
+                req = urllib.request.Request(
+                    endpoint,
+                    data=json.dumps(opp_data).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    if resp.status == 200:
+                        logger.info(f"✅ 推送机会到C模块成功")
                     
         except Exception as e:
             logger.error(f"推送失败: {e}")

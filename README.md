@@ -71,6 +71,16 @@ python3 scripts/verify_execution_no_pytest.py
 
 ## C 模块联调
 
+### 快速启动（推荐）
+
+```bash
+# 启动实时新闻监控（C模块 + 实时监控）
+./scripts/event run
+
+# 停止
+./scripts/event stop
+```
+
 ```bash
 # 一键启动（含 Mock 流）
 python3 scripts/run_c_module_stack.py

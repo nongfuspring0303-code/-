@@ -477,6 +477,7 @@ modules:
 
   RetryHandler:
     enabled: true
+    timeout: 30
     params:
       max_retries: 3
       backoff:
@@ -492,6 +493,7 @@ modules:
 
   ExecutionAdapter:
     enabled: true
+    timeout: 30
     params:
       # dry_run | paper | live
       mode: "dry_run"
@@ -506,6 +508,7 @@ modules:
   # ========== A层 AI事件智能模块 ==========
   DataAdapter:
     enabled: true
+    timeout: 30
     params:
       yahoo_sector_symbols:
         - "AAPL"
@@ -603,6 +606,7 @@ modules:
 
   AuditCenter:
     enabled: true
+    timeout: 30
     params:
       recommendation:
         high_error_threshold: 3
@@ -610,6 +614,7 @@ modules:
 
   DecisionCardGenerator:
     enabled: true
+    timeout: 30
     params:
       schema_version: "1.0.0"
       producer: "EDT-System"

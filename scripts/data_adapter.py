@@ -124,6 +124,9 @@ class DataAdapter:
                         "symbol": item.get("symbol", ""),
                         "sector": item.get("name_en", ""),
                         "industry": item.get("name", ""),
+                        "price": item.get("price"),
+                        "change_pct": item.get("change_pct"),
+                        "date": item.get("date"),
                         "source": "twelvedata",
                     }
                     for item in etf

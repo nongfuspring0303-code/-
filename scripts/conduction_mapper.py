@@ -83,7 +83,13 @@ class ConductionMapper(EDTModule):
             "confidence": 78,
         }
 
-    def _policy_mapping(self, policy_intervention: str) -> Dict[str, Any]:
+    def _safe_float(self, value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _policy_mapping(self, policy_intervention: str, sector_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         macro_factors: List[Dict[str, Any]] = [
             {"factor": "liquidity", "direction": "up", "strength": "high", "reason": "强政策干预预期改善流动性"},
             {"factor": "rates", "direction": "down", "strength": "medium", "reason": "刺激预期对应宽松利率环境"},
@@ -91,17 +97,64 @@ class ConductionMapper(EDTModule):
         conduction_path = ["危机升级", "政策干预预期", "流动性改善预期", "受益资产反弹"]
         if policy_intervention != "STRONG":
             macro_factors[0]["strength"] = "medium"
+
+        # Real-data path: derive sector impact from live ETF sector snapshot.
+        sector_impacts: List[Dict[str, Any]] = []
+        for item in sector_data:
+            change_pct = self._safe_float(item.get("change_pct"), 0.0)
+            # Skip near-flat moves to reduce noise.
+            if abs(change_pct) < 0.1:
+                continue
+            direction = "benefit" if change_pct >= 0 else "hurt"
+            sector_name = item.get("industry") or item.get("sector") or "未知板块"
+            sector_impacts.append(
+                {
+                    "sector": sector_name,
+                    "direction": direction,
+                    "driver_type": "market_validation",
+                    "reason": f"实时ETF变化 {change_pct:+.2f}%",
+                    "change_pct": round(change_pct, 2),
+                }
+            )
+
+        # Fallback to baseline policy mapping if live sector moves unavailable.
+        if not sector_impacts:
+            sector_impacts = [
+                {
+                    "sector": "金融",
+                    "direction": "benefit",
+                    "driver_type": "beta",
+                    "reason": "流动性宽松预期支撑估值",
+                }
+            ]
+
+        stock_candidates: List[Dict[str, Any]] = []
+        for impact in sector_impacts[:2]:
+            direction = "long" if impact.get("direction") == "benefit" else "short"
+            stock_candidates.append(
+                {
+                    "symbol": "JPM" if "金融" in str(impact.get("sector", "")) else "SPY",
+                    "sector": impact.get("sector", "未知板块"),
+                    "direction": direction,
+                    "event_beta": 0.9,
+                    "liquidity_tier": "high",
+                    "reason": impact.get("reason", "实时板块映射"),
+                }
+            )
+
+        confidence = 74
+        if sector_impacts:
+            abs_moves = [abs(self._safe_float(x.get("change_pct"), 0.0)) for x in sector_impacts]
+            if abs_moves:
+                confidence = int(min(95, max(55, 55 + sum(abs_moves) / len(abs_moves) * 8)))
+
         return {
             "macro_factors": macro_factors,
             "asset_impacts": [{"asset_class": "equity_index", "target": "SPY", "direction": "long", "confidence": 68}],
-            "sector_impacts": [
-                {"sector": "financials", "direction": "benefit", "driver_type": "beta", "reason": "流动性宽松预期支撑估值"}
-            ],
-            "stock_candidates": [
-                {"symbol": "JPM", "sector": "financials", "direction": "long", "event_beta": 0.9, "liquidity_tier": "high", "reason": "受政策宽松预期支撑"}
-            ],
+            "sector_impacts": sector_impacts,
+            "stock_candidates": stock_candidates,
             "conduction_path": conduction_path,
-            "confidence": 74,
+            "confidence": confidence,
         }
 
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
@@ -123,7 +176,7 @@ class ConductionMapper(EDTModule):
         if category == "C":
             mapping = self._tariff_mapping()
         elif category == "E":
-            mapping = self._policy_mapping(policy_intervention)
+            mapping = self._policy_mapping(policy_intervention, sector_data)
         else:
             mapping = {
                 "macro_factors": [],

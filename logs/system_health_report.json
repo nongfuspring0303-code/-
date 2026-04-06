@@ -117,7 +117,7 @@
           "errors": [],
           "warnings": [],
           "evidence": [
-            "module_count=17",
+            "module_count=25",
             "reuters_rank=B"
           ],
           "commands": []
@@ -138,7 +138,7 @@
           "errors": [],
           "warnings": [],
           "evidence": [
-            "registry_entries=16"
+            "registry_entries=21"
           ],
           "commands": []
         },

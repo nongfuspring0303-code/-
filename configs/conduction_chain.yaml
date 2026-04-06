@@ -1,0 +1,250 @@
+# conduction_chain.yaml
+# A-3 任务：传导链层级配置
+# 展示"宏观→板块→主题"链路
+
+schema_version: v1.0
+version: "1.0.0"
+updated_at: "2026-04-06T10:30:00Z"
+description: "传导链层级配置 - 宏观→板块→主题映射关系"
+
+# 传导链模板定义
+chain_templates:
+  - id: "tariff_chain"
+    name: "关税升级传导链"
+    description: "关税事件的标准传导路径"
+    levels:
+      - level: "macro"
+        name: "关税政策"
+        relation: "affects_above"
+        factors:
+          - factor: "inflation"
+            direction: "up"
+            strength: "high"
+          - factor: "growth"
+            direction: "down"
+            strength: "medium"
+      - level: "sector"
+        name: "出口制造业"
+        relation: "same"
+        sectors:
+          - name: "Industrials"
+            direction: "hurt"
+            impact_score: 0.75
+          - name: "Consumer Cyclical"
+            direction: "hurt"
+            impact_score: 0.65
+      - level: "theme"
+        name: "进口替代"
+        relation: "affects_below"
+        themes:
+          - name: "国产替代"
+            direction: "benefit"
+            impact_score: 0.60
+          - name: "供应链安全"
+            direction: "benefit"
+            impact_score: 0.55
+
+  - id: "rate_cut_chain"
+    name: "降息预期传导链"
+    description: "货币政策宽松的标准传导路径"
+    levels:
+      - level: "macro"
+        name: "货币政策"
+        relation: "affects_above"
+        factors:
+          - factor: "liquidity"
+            direction: "up"
+            strength: "high"
+          - factor: "rates"
+            direction: "down"
+            strength: "high"
+      - level: "sector"
+        name: "利率敏感板块"
+        relation: "same"
+        sectors:
+          - name: "Technology"
+            direction: "benefit"
+            impact_score: 0.85
+          - name: "Financial Services"
+            direction: "benefit"
+            impact_score: 0.70
+          - name: "Real Estate"
+            direction: "benefit"
+            impact_score: 0.80
+      - level: "theme"
+        name: "成长股重估"
+        relation: "affects_below"
+        themes:
+          - name: "高估值成长"
+            direction: "benefit"
+            impact_score: 0.75
+          - name: "现金流折现"
+            direction: "benefit"
+            impact_score: 0.65
+
+  - id: "inflation_shock_chain"
+    name: "通胀冲击传导链"
+    description: "通胀超预期的传导路径"
+    levels:
+      - level: "macro"
+        name: "通胀压力"
+        relation: "affects_above"
+        factors:
+          - factor: "inflation"
+            direction: "up"
+            strength: "high"
+          - factor: "real_rates"
+            direction: "up"
+            strength: "medium"
+      - level: "sector"
+        name: "防御性板块"
+        relation: "same"
+        sectors:
+          - name: "Consumer Staples"
+            direction: "benefit"
+            impact_score: 0.70
+          - name: "Utilities"
+            direction: "benefit"
+            impact_score: 0.65
+          - name: "Healthcare"
+            direction: "benefit"
+            impact_score: 0.60
+      - level: "theme"
+        name: "定价权"
+        relation: "affects_below"
+        themes:
+          - name: "必需消费品"
+            direction: "benefit"
+            impact_score: 0.68
+          - name: "成本转嫁能力"
+            direction: "benefit"
+            impact_score: 0.72
+
+  - id: "tech_breakthrough_chain"
+    name: "技术突破传导链"
+    description: "AI/半导体等技术突破的传导路径"
+    levels:
+      - level: "macro"
+        name: "技术进步"
+        relation: "affects_above"
+        factors:
+          - factor: "productivity"
+            direction: "up"
+            strength: "high"
+          - factor: "capex"
+            direction: "up"
+            strength: "medium"
+      - level: "sector"
+        name: "科技产业链"
+        relation: "same"
+        sectors:
+          - name: "Technology"
+            direction: "benefit"
+            impact_score: 0.90
+          - name: "Semiconductors"
+            direction: "benefit"
+            impact_score: 0.95
+          - name: "Communication Services"
+            direction: "benefit"
+            impact_score: 0.75
+      - level: "theme"
+        name: "AI生态"
+        relation: "affects_below"
+        themes:
+          - name: "AI芯片"
+            direction: "benefit"
+            impact_score: 0.92
+          - name: "云计算"
+            direction: "benefit"
+            impact_score: 0.85
+          - name: "软件服务"
+            direction: "benefit"
+            impact_score: 0.78
+
+# 事件关键词到传导链的映射
+event_to_chain_mapping:
+  - event_keywords: ["关税", "trade war", "进口限制", "出口管制"]
+    chain_id: "tariff_chain"
+    confidence: 0.85
+
+  - event_keywords: ["降息", "利率下调", "货币政策宽松", "QE", "量化宽松"]
+    chain_id: "rate_cut_chain"
+    confidence: 0.90
+
+  - event_keywords: ["通胀", "CPI超预期", "物价上涨", "成本推动"]
+    chain_id: "inflation_shock_chain"
+    confidence: 0.80
+
+  - event_keywords: ["AI突破", "半导体", "芯片", "技术革命", "算力"]
+    chain_id: "tech_breakthrough_chain"
+    confidence: 0.88
+
+  - event_keywords: ["原油", "能源价格", "大宗商品", "供应链中断"]
+    chain_id: "inflation_shock_chain"
+    confidence: 0.75
+
+# 传导链层级定义
+level_definitions:
+  macro:
+    description: "宏观经济因素层"
+    examples: ["货币政策", "财政政策", "通胀", "增长", "就业", "贸易"]
+    output_fields: ["factor", "direction", "strength", "reason"]
+
+  sector:
+    description: "行业板块层"
+    examples: ["Technology", "Financials", "Healthcare", "Industrials", "Energy"]
+    output_fields: ["name", "direction", "impact_score", "confidence", "driver_type"]
+
+  theme:
+    description: "投资主题层"
+    examples: ["AI芯片", "新能源车", "国产替代", "ESG", "元宇宙"]
+    output_fields: ["name", "direction", "impact_score", "related_stocks"]
+
+# 传导关系类型
+relation_types:
+  affects_above:
+    description: "影响上层因素"
+    example: "板块变化影响宏观判断"
+
+  same:
+    description: "同级传导"
+    example: "宏观因素直接影响板块"
+
+  affects_below:
+    description: "影响下层主题"
+    example: "板块变化催生投资主题"
+
+# 验证规则
+validation_rules:
+  - rule: "必须包含至少两个层级"
+    description: "传导链必须包含宏观层和至少一个其他层级"
+    min_levels: 2
+
+  - rule: "层级顺序必须正确"
+    description: "必须按照宏观→板块→主题的顺序"
+    order: ["macro", "sector", "theme"]
+
+  - rule: "方向一致性"
+    description: "同一传导链内方向应该逻辑一致"
+    check: "direction_consistency"
+
+  - rule: "影响强度递减"
+    description: "影响强度应随传导层级递减"
+    check: "impact_decay"
+
+# 使用示例
+usage_example: |
+  # 在 conduction_mapper.py 中使用
+  def get_conduction_chain(event_keyword):
+      for mapping in config['event_to_chain_mapping']:
+          if any(kw in event_keyword for kw in mapping['event_keywords']):
+              chain_id = mapping['chain_id']
+              return config['chain_templates'][chain_id]
+      return None
+
+  # 输出格式（用于 sector_update 消息）
+  conduction_chain = [
+      {"level": "macro", "name": "货币政策", "relation": "affects_above"},
+      {"level": "sector", "name": "科技", "relation": "same"},
+      {"level": "theme", "name": "AI芯片", "relation": "affects_below"}
+  ]

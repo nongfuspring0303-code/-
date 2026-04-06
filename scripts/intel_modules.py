@@ -41,9 +41,15 @@ class EventCapture(EDTModule):
         raw = input_data.raw_data
         headline = str(raw["headline"]).lower()
         keywords = [k.lower() for k in self._get_config("modules.EventCapture.params.keywords", [])]
-        captured = any(k in headline for k in keywords) or float(raw.get("vix", 0)) >= float(
-            self._get_config("modules.EventCapture.params.vix_trigger", 20)
-        )
+        
+        # 关键词匹配才触发，VIX仅作为放大器（不单独触发）
+        keyword_matched = any(k in headline for k in keywords)
+        vix_level = float(raw.get("vix", 0))
+        vix_amplify_threshold = float(self._get_config("modules.EventCapture.params.vix_amplify_threshold", 20))
+        vix_amplify = vix_level >= vix_amplify_threshold
+        
+        # 只有关键词匹配才触发，VIX仅影响严重程度
+        captured = keyword_matched
 
         # Minimal category inference for skeleton.
         category = "E"
@@ -60,6 +66,8 @@ class EventCapture(EDTModule):
             status=ModuleStatus.SUCCESS,
             data={
                 "captured": captured,
+                "vix_amplify": vix_amplify,  # VIX是否足以放大严重程度
+                "vix_level": vix_level,
                 "headline": raw["headline"],
                 "source": raw["source"],
                 "timestamp": raw["timestamp"],

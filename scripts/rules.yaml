@@ -1,0 +1,276 @@
+# 检查规则定义
+
+# 规则结构：
+# - id: 规则唯一标识
+# - type: 检查类型
+# - description: 规则描述
+# - severity: 严重程度 (high/medium/low)
+# - check: 检查函数或条件
+# - fixable: 是否可修复 (true/false)
+# - default_fix: 默认修复方案（如果可修复）
+
+rules:
+  # ========== 关键文件存在性检查 ==========
+  - id: "CF-001"
+    type: "critical_file_missing"
+    description: "核心模块配置文件缺失"
+    severity: "high"
+    check: "file_exists('configs/edt-modules-config.yaml')"
+    fixable: false
+    message: "核心模块配置文件缺失，可能导致系统无法启动"
+  
+  - id: "CF-002"
+    type: "critical_file_missing"
+    description: "板块影响映射配置缺失"
+    severity: "high"
+    check: "file_exists('configs/sector_impact_mapping.yaml')"
+    fixable: false
+    message: "板块影响映射配置缺失，A模块无法正常工作"
+  
+  - id: "CF-003"
+    type: "critical_file_missing"
+    description: "优质股票池配置缺失"
+    severity: "high"
+    check: "file_exists('configs/premium_stock_pool.yaml')"
+    fixable: false
+    message: "优质股票池配置缺失，B模块无法正常工作"
+  
+  - id: "CF-004"
+    type: "critical_file_missing"
+    description: "项目分工文档缺失"
+    severity: "medium"
+    check: "file_exists('阶段三任务分工说明.md')"
+    fixable: false
+    message: "项目分工文档缺失，影响团队协作"
+  
+  - id: "CF-005"
+    type: "critical_file_missing"
+    description: "模块注册表缺失"
+    severity: "medium"
+    check: "file_exists('module-registry.yaml')"
+    fixable: false
+    message: "模块注册表缺失，影响模块管理和发现"
+
+  # ========== 配置键完整性检查 ==========
+  - id: "CK-001"
+    type: "config_key_missing"
+    description: "必需模块配置缺失"
+    severity: "medium"
+    check: "config_has_key('modules.EventCapture')"
+    fixable: true
+    default_fix:
+      EventCapture:
+        enabled: true
+        timeout: 60
+    message: "EventCapture模块配置缺失，影响事件捕获功能"
+  
+  - id: "CK-002"
+    type: "config_key_missing"
+    description: "必需模块配置缺失"
+    severity: "medium"
+    check: "config_has_key('modules.SourceRanker')"
+    fixable: true
+    default_fix:
+      SourceRanker:
+        enabled: true
+        timeout: 30
+    message: "SourceRanker模块配置缺失，影响来源排名功能"
+  
+  - id: "CK-003"
+    type: "config_key_missing"
+    description: "必需模块配置缺失"
+    severity: "medium"
+    check: "config_has_key('modules.SignalScorer')"
+    fixable: true
+    default_fix:
+      SignalScorer:
+        enabled: true
+        timeout: 45
+    message: "SignalScorer模块配置缺失，影响信号评分功能"
+  
+  - id: "CK-004"
+    type: "config_key_missing"
+    description: "模块缺少timeout配置"
+    severity: "low"
+    check: "config_has_key('modules.*.timeout')"
+    fixable: true
+    default_fix: 30
+    message: "模块缺少timeout配置，可能导致无限等待"
+
+  # ========== 工作流安全机制检查 ==========
+  - id: "WS-001"
+    type: "safety_mechanism_missing"
+    description: "重试机制Schema缺失"
+    severity: "medium"
+    check: "file_exists('schemas/retry_input.json')"
+    fixable: false
+    message: "重试机制Schema缺失，影响错误恢复能力"
+  
+  - id: "WS-002"
+    type: "safety_mechanism_missing"
+    description: "配置中缺少fallback机制"
+    severity: "high"
+    check: "config_contains('fallback')"
+    fixable: false
+    message: "配置中缺少fallback机制定义，存在系统风险"
+  
+  - id: "WS-003"
+    type: "safety_mechanism_missing"
+    description: "缺少safe-stop机制检查"
+    severity: "high"
+    check: "config_contains('safe_stop') or config_contains('emergency_stop')"
+    fixable: false
+    message: "缺少安全停止机制，存在系统风险"
+
+  # ========== Schema文件检查 ==========
+  - id: "SC-001"
+    type: "schema_missing"
+    description: "事件更新Schema缺失"
+    severity: "high"
+    check: "file_exists('schemas/event_update.yaml')"
+    fixable: false
+    message: "事件更新Schema缺失，影响事件总线通信"
+  
+  - id: "SC-002"
+    type: "schema_missing"
+    description: "板块更新Schema缺失"
+    severity: "high"
+    check: "file_exists('schemas/sector_update.yaml')"
+    fixable: false
+    message: "板块更新Schema缺失，影响A→B模块通信"
+  
+  - id: "SC-003"
+    type: "schema_missing"
+    description: "机会更新Schema缺失"
+    severity: "high"
+    check: "file_exists('schemas/opportunity_update.yaml')"
+    fixable: false
+    message: "机会更新Schema缺失，影响B→C模块通信"
+  
+  - id: "SC-004"
+    type: "schema_missing"
+    description: "风险门控Schema缺失"
+    severity: "medium"
+    check: "file_exists('schemas/risk_gatekeeper.json')"
+    fixable: false
+    message: "风险门控Schema缺失，影响风控功能"
+
+  # ========== 日志字段检查 ==========
+  - id: "LG-001"
+    type: "log_field_missing"
+    description: "日志缺少timestamp字段"
+    severity: "low"
+    check: "log_has_field('timestamp')"
+    fixable: true
+    default_fix: "2026-01-01T00:00:00Z"
+    message: "日志缺少时间戳字段，影响审计追踪"
+  
+  - id: "LG-002"
+    type: "log_field_missing"
+    description: "日志缺少status字段"
+    severity: "low"
+    check: "log_has_field('status')"
+    fixable: true
+    default_fix: "unknown"
+    message: "日志缺少状态字段，影响状态追踪"
+  
+  - id: "LG-003"
+    type: "log_file_missing"
+    description: "审计日志文件缺失"
+    severity: "medium"
+    check: "file_exists('logs/execution_audit.jsonl')"
+    fixable: true
+    default_fix:
+      timestamp: "2026-01-01T00:00:00Z"
+      status: "initialized"
+      message: "审计日志初始化"
+    message: "审计日志文件缺失，影响执行审计"
+
+  # ========== 敏感信息检查 ==========
+  - id: "SI-001"
+    type: "sensitive_info_detected"
+    description: "检测到可能的API密钥"
+    severity: "high"
+    check: "contains_pattern('API_KEY')"
+    fixable: false
+    message: "检测到可能的API密钥硬编码，存在安全风险"
+  
+  - id: "SI-002"
+    type: "sensitive_info_detected"
+    description: "检测到可能的密钥"
+    severity: "high"
+    check: "contains_pattern('SECRET')"
+    fixable: false
+    message: "检测到可能的密钥硬编码，存在安全风险"
+  
+  - id: "SI-003"
+    type: "sensitive_info_detected"
+    description: "检测到可能的密码"
+    severity: "high"
+    check: "contains_pattern('PASSWORD')"
+    fixable: false
+    message: "检测到可能的密码硬编码，存在安全风险"
+  
+  - id: "SI-004"
+    type: "sensitive_info_detected"
+    description: "检测到可能的令牌"
+    severity: "high"
+    check: "contains_pattern('TOKEN')"
+    fixable: false
+    message: "检测到可能的令牌硬编码，存在安全风险"
+
+# 规则分组
+rule_groups:
+  critical_files:
+    name: "关键文件检查"
+    rules: ["CF-001", "CF-002", "CF-003", "CF-004", "CF-005"]
+    enabled: true
+  
+  config_keys:
+    name: "配置键检查"
+    rules: ["CK-001", "CK-002", "CK-003", "CK-004"]
+    enabled: true
+  
+  workflow_safety:
+    name: "工作流安全检查"
+    rules: ["WS-001", "WS-002", "WS-003"]
+    enabled: true
+  
+  schemas:
+    name: "Schema检查"
+    rules: ["SC-001", "SC-002", "SC-003", "SC-004"]
+    enabled: true
+  
+  logs:
+    name: "日志检查"
+    rules: ["LG-001", "LG-002", "LG-003"]
+    enabled: true
+  
+  sensitive_info:
+    name: "敏感信息检查"
+    rules: ["SI-001", "SI-002", "SI-003", "SI-004"]
+    enabled: true
+
+# 级别映射
+level_mapping:
+  high: "red"
+  medium: "yellow"
+  low: "green"
+
+# 修复策略
+fix_strategy:
+  # 自动修复的条件
+  auto_fix_conditions:
+    - severity == "low"
+    - fixable == true
+    - has_default_fix == true
+  
+  # 需要人工确认的修复
+  manual_fix_conditions:
+    - severity == "medium"
+    - fixable == true
+  
+  # 禁止修复的条件
+  no_fix_conditions:
+    - severity == "high"
+    - type contains "sensitive"

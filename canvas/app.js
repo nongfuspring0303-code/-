@@ -37,6 +37,8 @@ function connectWebSocket() {
       STATE.connected = true;
       updateConnectionStatus('connected');
       STATE.ws.send(JSON.stringify({ type: 'subscribe', types: ['event_update', 'sector_update', 'opportunity_update'] }));
+      // Load recent history so refresh doesn't show empty panels.
+      STATE.ws.send(JSON.stringify({ type: 'get_history', limit: 200 }));
       console.log('WebSocket connected');
     };
     
@@ -68,6 +70,13 @@ function connectWebSocket() {
 
 function handleMessage(data) {
   const type = data.type;
+  if (type === 'history' || type === 'replay') {
+    hydrateFromMessages(data.messages || []);
+    return;
+  }
+  if (type === 'subscribed' || type === 'unsubscribed' || type === 'pong') {
+    return;
+  }
   const flatPayload = data.payload && typeof data.payload === 'object' ? { ...data.payload, trace_id: data.trace_id || data.payload.trace_id } : data;
   
   switch (type) {
@@ -85,7 +94,28 @@ function handleMessage(data) {
   }
 }
 
-function handleEventUpdate(payload) {
+function hydrateFromMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return;
+  messages.forEach((msg) => {
+    if (!msg || !msg.type) return;
+    const payload = msg.payload && typeof msg.payload === 'object'
+      ? { ...msg.payload, trace_id: msg.trace_id || msg.payload.trace_id }
+      : msg;
+    if (msg.type === 'event_update') {
+      handleEventUpdate(payload, { render: false });
+    } else if (msg.type === 'sector_update') {
+      handleSectorUpdate(payload, { render: false });
+    } else if (msg.type === 'opportunity_update') {
+      handleOpportunityUpdate(payload, { render: false });
+    }
+  });
+  renderNews();
+  renderSectors();
+  renderOpportunities();
+}
+
+function handleEventUpdate(payload, options = {}) {
+  const shouldRender = options.render !== false;
   const event = {
     id: payload.trace_id || generateTraceId(),
     headline: payload.headline,
@@ -95,12 +125,18 @@ function handleEventUpdate(payload) {
     schema_version: payload.schema_version,
   };
   
-  STATE.events.push(event);
-  STATE.news.unshift(event);
-  renderNews();
+  const existingIdx = STATE.news.findIndex((n) => n.id === event.id);
+  if (existingIdx >= 0) {
+    STATE.news[existingIdx] = { ...STATE.news[existingIdx], ...event };
+  } else {
+    STATE.events.push(event);
+    STATE.news.unshift(event);
+  }
+  if (shouldRender) renderNews();
 }
 
-function handleSectorUpdate(payload) {
+function handleSectorUpdate(payload, options = {}) {
+  const shouldRender = options.render !== false;
   const sectorData = {
     trace_id: payload.trace_id,
     sectors: payload.sectors,
@@ -112,10 +148,11 @@ function handleSectorUpdate(payload) {
   if (!STATE.selectedNews || STATE.selectedNews.id === sectorData.trace_id) {
     STATE.sectors = sectorData;
   }
-  renderSectors();
+  if (shouldRender) renderSectors();
 }
 
-function handleOpportunityUpdate(payload) {
+function handleOpportunityUpdate(payload, options = {}) {
+  const shouldRender = options.render !== false;
   const opportunityData = {
     trace_id: payload.trace_id,
     opportunities: payload.opportunities,
@@ -126,7 +163,7 @@ function handleOpportunityUpdate(payload) {
   if (!STATE.selectedNews || STATE.selectedNews.id === opportunityData.trace_id) {
     STATE.opportunities = opportunityData;
   }
-  renderOpportunities();
+  if (shouldRender) renderOpportunities();
 }
 
 function generateTraceId() {

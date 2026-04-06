@@ -15,7 +15,8 @@ modules:
         - "sanction"
         - "crisis"
         - "emergency"
-      vix_trigger: 20
+      # vix_amplify_threshold: VIX放大阈值，当VIX>=此值时放大严重程度（不触发事件）
+      vix_amplify_threshold: 20
       min_source_rank: "C"
 
   SourceRanker:
@@ -304,7 +305,8 @@ modules:
           action: "A15_ADJUST"
         G5_score:
           enabled: true
-          trigger: "score区间"
+          # trigger: 从PositionSizer.tiers.score_range动态匹配，非静态表达式
+          trigger_logic: "score匹配tiers中任意score_range则触发POSITION_TIER"
           action: "POSITION_TIER"
         G6_policy:
           enabled: true

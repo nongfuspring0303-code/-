@@ -7,7 +7,7 @@ registry:
   - name: EventCapture
     version: 1.0.0
     category: input
-    description: "事件截获 - 关键词/VIX异动触发"
+    description: "事件截获 - 关键词触发，VIX仅作为放大器"
     input_schema: event_input.json
     output_schema: event_output.json
     dependencies: [Logger, DataValidator]

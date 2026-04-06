@@ -1,0 +1,277 @@
+# 修复策略映射
+# 定义哪些问题可以自动修复，以及如何修复
+
+# 修复策略结构：
+# - match: 匹配条件
+# - action: 修复动作
+# - params: 修复参数
+# - validation: 修复后验证
+# - rollback: 回退策略
+
+policies:
+  # ========== 配置键缺失修复策略 ==========
+  - id: "POL-CK-001"
+    name: "缺失模块配置修复"
+    match:
+      type: "config_key_missing"
+      key_pattern: "modules\\.(EventCapture|SourceRanker|SignalScorer)"
+    action: "add_config_key"
+    params:
+      backup: true
+      default_values:
+        EventCapture:
+          enabled: true
+          timeout: 60
+          params:
+            keywords:
+              - "Fed"
+              - "tariff"
+              - "war"
+            vix_trigger: 20
+            min_source_rank: "C"
+        SourceRanker:
+          enabled: true
+          timeout: 30
+          params:
+            ranks:
+              A:
+                - "whitehouse.gov"
+                - "federalreserve.gov"
+                - "sec.gov"
+              B:
+                - "reuters.com"
+                - "bloomberg.com"
+              C:
+                - "cnbc.com"
+                - "wsj.com"
+        SignalScorer:
+          enabled: true
+          timeout: 45
+          params:
+            min_confidence: 0.7
+            max_risk_score: 0.3
+    validation:
+      - "config_file_exists"
+      - "config_parsable"
+      - "key_present"
+    rollback:
+      enabled: true
+      backup_suffix: ".guard_backup"
+  
+  - id: "POL-CK-002"
+    name: "缺失timeout配置修复"
+    match:
+      type: "config_key_missing"
+      key_pattern: "modules\\..+\\.timeout"
+    action: "add_config_key"
+    params:
+      backup: true
+      default_value: 30
+    validation:
+      - "config_parsable"
+      - "timeout_value_valid"
+    rollback:
+      enabled: true
+  
+  # ========== 日志字段缺失修复策略 ==========
+  - id: "POL-LG-001"
+    name: "缺失时间戳字段修复"
+    match:
+      type: "log_field_missing"
+      field: "timestamp"
+    action: "suggest_log_fix"
+    params:
+      template: "2026-01-01T00:00:00Z"
+      format: "ISO8601"
+    validation:
+      - "log_file_exists"
+    rollback:
+      enabled: false  # 只是建议，无需回退
+  
+  - id: "POL-LG-002"
+    name: "缺失状态字段修复"
+    match:
+      type: "log_field_missing"
+      field: "status"
+    action: "suggest_log_fix"
+    params:
+      template: "unknown"
+      allowed_values:
+        - "initialized"
+        - "running"
+        - "completed"
+        - "failed"
+        - "unknown"
+    validation:
+      - "log_file_exists"
+    rollback:
+      enabled: false
+  
+  - id: "POL-LG-003"
+    name: "缺失日志文件修复"
+    match:
+      type: "log_file_missing"
+      file_pattern: "logs/.*\\.jsonl"
+    action: "create_log_file"
+    params:
+      template:
+        timestamp: "2026-01-01T00:00:00Z"
+        status: "initialized"
+        message: "审计日志初始化"
+        guard_action: "created_missing_log_file"
+      ensure_dir: true
+    validation:
+      - "file_exists"
+      - "file_writable"
+      - "json_valid"
+    rollback:
+      enabled: true
+      action: "delete_file"
+
+  # ========== 文档路径修复策略 ==========
+  - id: "POL-DOC-001"
+    name: "文档引用路径修复"
+    match:
+      type: "doc_path_error"
+      path_pattern: "\\.\\./docs/"
+    action: "fix_doc_path"
+    params:
+      old_pattern: "\\.\\./docs/"
+      new_pattern: "docs/"
+      backup: true
+    validation:
+      - "file_exists"
+      - "path_valid"
+    rollback:
+      enabled: true
+
+# 修复动作定义
+actions:
+  add_config_key:
+    description: "添加缺失的配置键"
+    implementation: "utils.add_config_key"
+    safe: true
+    requires_backup: true
+    
+  suggest_log_fix:
+    description: "建议日志字段修复"
+    implementation: "utils.suggest_log_fix"
+    safe: true
+    requires_backup: false
+    
+  create_log_file:
+    description: "创建缺失的日志文件"
+    implementation: "utils.create_log_file"
+    safe: true
+    requires_backup: false
+    
+  fix_doc_path:
+    description: "修复文档引用路径"
+    implementation: "utils.fix_doc_path"
+    safe: true
+    requires_backup: true
+
+# 验证动作定义
+validations:
+  config_file_exists:
+    description: "配置文件存在"
+    implementation: "utils.check_file_exists"
+    
+  config_parsable:
+    description: "配置文件可解析"
+    implementation: "utils.safe_yaml_load"
+    
+  key_present:
+    description: "配置键存在"
+    implementation: "utils.check_config_keys"
+    
+  timeout_value_valid:
+    description: "timeout值有效"
+    implementation: "lambda x: isinstance(x, int) and 1 <= x <= 300"
+    
+  file_exists:
+    description: "文件存在"
+    implementation: "utils.check_file_exists"
+    
+  file_writable:
+    description: "文件可写"
+    implementation: "os.access(path, os.W_OK)"
+    
+  json_valid:
+    description: "JSON格式有效"
+    implementation: "utils.safe_json_load"
+    
+  log_file_exists:
+    description: "日志文件存在"
+    implementation: "utils.check_file_exists"
+    
+  path_valid:
+    description: "路径有效"
+    implementation: "os.path.exists"
+
+# 回退策略
+rollback_strategies:
+  restore_backup:
+    description: "从备份恢复"
+    implementation: "utils.restore_backup"
+    
+  delete_file:
+    description: "删除创建的文件"
+    implementation: "os.remove"
+    
+  revert_changes:
+    description: "回退更改"
+    implementation: "utils.revert_changes"
+
+# 安全限制
+safety_limits:
+  # 最大修复文件数
+  max_files_per_run: 10
+  
+  # 最大修复大小（字节）
+  max_fix_size: 10240  # 10KB
+  
+  # 禁止修复的文件模式
+  protected_files:
+    - "*.py"
+    - "*.yaml"
+    - "*.yml"
+    - "*.json"
+    - "*.md"
+  
+  # 禁止修复的目录
+  protected_dirs:
+    - "tests/"
+    - "schemas/"
+    - "configs/"
+  
+  # 需要额外确认的修复
+  require_confirmation:
+    - type: "config_key_missing"
+      key_pattern: "modules\\..+"
+    - type: "log_file_missing"
+      file_pattern: "logs/.*"
+
+# 修复优先级
+fix_priority:
+  high:
+    - "log_file_missing"  # 先创建日志文件
+    - "config_key_missing"  # 再修复配置
+    
+  medium:
+    - "log_field_missing"
+    
+  low:
+    - "doc_path_error"
+
+# 修复批处理
+batch_processing:
+  enabled: true
+  max_batch_size: 5
+  delay_between_batches: 1  # 秒
+  
+  # 批处理顺序
+  order:
+    - "create_files"
+    - "add_configs"
+    - "suggest_fixes"

@@ -30,7 +30,7 @@
       "name": "workflow_runner.py",
       "changed": false,
       "status": "SKIP",
-      "details": "Target content already present."
+      "details": "Expected source pattern not found."
     },
     {
       "name": "system_healthcheck.py",

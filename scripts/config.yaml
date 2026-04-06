@@ -1,0 +1,138 @@
+# 项目守卫配置
+
+# 运行模式
+# dry-run: 只检查不修改
+# fix-safe: 安全修复（仅绿灯问题）
+# strict: 有红灯问题就失败
+default_mode: "dry-run"
+
+# 检查配置
+checks:
+  critical_files:
+    enabled: true
+    files:
+      - "configs/edt-modules-config.yaml"
+      - "configs/sector_impact_mapping.yaml"
+      - "configs/premium_stock_pool.yaml"
+      - "阶段三任务分工说明.md"
+      - "module-registry.yaml"
+  
+  config_keys:
+    enabled: true
+    required_modules:
+      - "EventCapture"
+      - "SourceRanker"
+      - "SignalScorer"
+    required_keys:
+      - "modules.*.timeout"
+      - "modules.*.enabled"
+  
+  workflow_safety:
+    enabled: true
+    check_retry: true
+    check_fallback: true
+    check_timeout: true
+    check_safe_stop: true
+  
+  schemas:
+    enabled: true
+    required_schemas:
+      - "event_update.yaml"
+      - "sector_update.yaml"
+      - "opportunity_update.yaml"
+      - "risk_gatekeeper.json"
+  
+  logs:
+    enabled: true
+    required_fields:
+      - "timestamp"
+      - "status"
+    log_files:
+      - "logs/execution_audit.jsonl"
+  
+  sensitive_info:
+    enabled: true
+    patterns:
+      API_KEY: "API密钥"
+      SECRET: "密钥"
+      PASSWORD: "密码"
+      TOKEN: "令牌"
+      PRIVATE_KEY: "私钥"
+
+# 修复配置
+fixes:
+  # 允许修复的问题类型
+  allowed_types:
+    - "config_key_missing"
+    - "log_field_missing"
+    - "log_file_missing"
+  
+  # 默认值配置
+  defaults:
+    timeout: 30
+    enabled: true
+    log_timestamp_format: "%Y-%m-%dT%H:%M:%SZ"
+  
+  # 备份配置
+  backup:
+    enabled: true
+    suffix: ".guard_backup"
+    cleanup_after_success: true
+
+# 验证配置
+validation:
+  min_validation:
+    program_startup: true
+    config_readable: true
+    report_output: true
+    strict_mode_fails: true
+  
+  integration_test:
+    enabled: false  # 默认不运行
+    command: "python3 -m pytest tests/ -v"
+    timeout: 300
+
+# 报告配置
+report:
+  output_dir: "logs"
+  filename_prefix: "guard_report"
+  formats:
+    - "json"
+    - "human"
+  
+  # 报告详细程度
+  verbosity: "normal"  # minimal, normal, detailed
+  
+  # 是否在控制台显示报告
+  console_output: true
+
+# 安全配置
+security:
+  # 最大扫描文件大小（字节）
+  max_file_size: 1048576  # 1MB
+  
+  # 排除的目录
+  exclude_dirs:
+    - ".git"
+    - "__pycache__"
+    - ".pytest_cache"
+    - "node_modules"
+    - ".venv"
+  
+  # 排除的文件模式
+  exclude_patterns:
+    - "*.pyc"
+    - "*.pyo"
+    - "*.so"
+    - "*.dll"
+    - "*.exe"
+
+# 性能配置
+performance:
+  # 最大并发检查数
+  max_concurrent_checks: 4
+  
+  # 超时设置（秒）
+  scan_timeout: 300
+  fix_timeout: 60
+  validation_timeout: 30

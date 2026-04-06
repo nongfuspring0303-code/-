@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""
+Event 快速启动命令
+- event run   启动实时新闻监控
+- event stop 停止所有相关进程
+"""
+
+import os
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS = ROOT / "scripts"
+
+def run():
+    """启动 C 模块 + 实时监控"""
+    print("🚀 启动 C 模块...")
+    subprocess.Popen(
+        ["python3", "run_c_module_stack.py", "--no-mock"],
+        cwd=str(SCRIPTS),
+        stdout=open(ROOT / "logs" / "edt.log", "a"),
+        stderr=subprocess.STDOUT,
+    )
+    
+    print("🚀 启动实时新闻监控...")
+    subprocess.Popen(
+        ["python3", "realtime_news_monitor.py", "--poll-interval", "60", "--api", "http://127.0.0.1:18787"],
+        cwd=str(SCRIPTS),
+        stdout=open(ROOT / "logs" / "realtime_monitor.log", "a"),
+        stderr=subprocess.STDOUT,
+    )
+    
+    print("✅ 已启动")
+    print("   - C模块: http://127.0.0.1:18080")
+    print("   - 监控进程已启动")
+
+def stop():
+    """停止所有相关进程"""
+    subprocess.run(["pkill", "-f", "run_c_module_stack"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["pkill", "-f", "realtime_news_monitor"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print("✅ 已停止")
+
+def main():
+    if len(sys.argv) < 2:
+        print("用法: event [run|stop]")
+        sys.exit(1)
+    
+    cmd = sys.argv[1]
+    if cmd == "run":
+        run()
+    elif cmd == "stop":
+        stop()
+    else:
+        print("未知命令: run / stop")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

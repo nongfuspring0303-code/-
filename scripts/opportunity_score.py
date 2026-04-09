@@ -13,8 +13,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import json
+import os
+import time
+import urllib.request
 
 import yaml
+
+from config_center import ConfigCenter
 
 
 def _root_dir() -> Path:
@@ -27,6 +33,45 @@ def _utc_now_iso() -> str:
 
 def _norm_sector(name: Any) -> str:
     return str(name or "").strip().lower()
+
+
+class SectorAliasResolver:
+    """Loads configurable sector alias dictionary and resolves canonical names."""
+
+    def __init__(self, alias_config_path: Optional[str] = None):
+        self.alias_config_path = Path(alias_config_path) if alias_config_path else _root_dir() / "configs" / "sector_aliases.yaml"
+        self._alias_to_canonical = self._load_aliases(self.alias_config_path)
+
+    @staticmethod
+    def _load_yaml(path: Path) -> Dict[str, Any]:
+        if not path.exists():
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+
+    def _load_aliases(self, path: Path) -> Dict[str, str]:
+        cfg = self._load_yaml(path)
+        aliases = cfg.get("aliases", {})
+        if not isinstance(aliases, dict):
+            return {}
+        out: Dict[str, str] = {}
+        for canonical, values in aliases.items():
+            canonical_name = str(canonical or "").strip()
+            if not canonical_name:
+                continue
+            out[_norm_sector(canonical_name)] = canonical_name
+            if isinstance(values, list):
+                for alias in values:
+                    alias_name = str(alias or "").strip()
+                    if alias_name:
+                        out[_norm_sector(alias_name)] = canonical_name
+        return out
+
+    def canonical(self, name: Any) -> str:
+        raw = str(name or "").strip()
+        if not raw:
+            return ""
+        return self._alias_to_canonical.get(_norm_sector(raw), raw)
 
 
 @dataclass
@@ -46,11 +91,15 @@ class PremiumStockPool:
 
     def __init__(self, pool_config_path: Optional[str] = None):
         self.pool_config_path = Path(pool_config_path) if pool_config_path else _root_dir() / "configs" / "premium_stock_pool.yaml"
+        self.sector_aliases = SectorAliasResolver()
         self._cfg = self._load_yaml(self.pool_config_path)
         self.filters = self._cfg.get("filters", {})
         self.rules = self._cfg.get("opportunity_rules", {})
         self.price_source = str(self._cfg.get("price_source", "reference_snapshot"))
         self._stocks_by_symbol = self._build_stock_index(self._cfg.get("stocks", []))
+
+    def canonical_sector(self, name: Any) -> str:
+        return self.sector_aliases.canonical(name)
 
     @staticmethod
     def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -92,8 +141,12 @@ class PremiumStockPool:
         return self._stocks_by_symbol.get(str(symbol).strip().upper())
 
     def pick_by_sector(self, sector_name: str, limit: Optional[int] = None) -> List[PremiumStock]:
-        norm = _norm_sector(sector_name)
-        selected = [s for s in self._stocks_by_symbol.values() if _norm_sector(s.sector) == norm and self._pass_thresholds(s)]
+        norm = _norm_sector(self.canonical_sector(sector_name))
+        selected = [
+            s
+            for s in self._stocks_by_symbol.values()
+            if _norm_sector(self.canonical_sector(s.sector)) == norm and self._pass_thresholds(s)
+        ]
         selected.sort(key=lambda x: (x.liquidity_score, x.market_cap_billion), reverse=True)
         if limit is None:
             return selected
@@ -116,6 +169,28 @@ class OpportunityScorer:
 
     def __init__(self, pool_config_path: Optional[str] = None):
         self.pool = PremiumStockPool(pool_config_path=pool_config_path)
+        self.config = ConfigCenter()
+        self._price_cache: Dict[str, Dict[str, Any]] = {}
+        self._price_fetch_enabled = self._get_price_fetch_enabled()
+        self._price_cache_ttl = self._get_price_cache_ttl()
+        self._price_fetch_base = self._get_price_fetch_base()
+
+    def _get_price_fetch_enabled(self) -> bool:
+        env = os.getenv("EDT_PRICE_FETCH", "").strip().lower()
+        if env in {"1", "true", "yes"}:
+            return True
+        if env in {"0", "false", "no"}:
+            return False
+        return bool(self.config.get("runtime.price_fetch.enabled", True))
+
+    def _get_price_cache_ttl(self) -> int:
+        try:
+            return int(self.config.get("runtime.price_fetch.cache_ttl_seconds", 120))
+        except (TypeError, ValueError):
+            return 120
+
+    def _get_price_fetch_base(self) -> str:
+        return str(self.config.get("runtime.price_fetch.yahoo_quote_base", "https://query1.finance.yahoo.com/v7/finance/quote?symbols=")).strip()
 
     @staticmethod
     def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -124,13 +199,12 @@ class OpportunityScorer:
         except (TypeError, ValueError):
             return default
 
-    @staticmethod
-    def _normalize_direction(value: Any) -> str:
+    def _normalize_direction(self, value: Any) -> str:
         raw = str(value or "WATCH").strip().upper()
         if raw in {"LONG", "SHORT", "WATCH"}:
             return raw
         if raw == "HURT":
-            return "SHORT"
+            return "SHORT" if bool(self.config.get("runtime.hurt_to_short", False)) else "WATCH"
         if raw == "BENEFIT":
             return "LONG"
         return "WATCH"
@@ -191,6 +265,38 @@ class OpportunityScorer:
             return ""
         return self._normalize_direction(candidate.get("direction"))
 
+    def _candidate_realtime_price(self, candidate: Dict[str, Any]) -> Optional[float]:
+        price = self._safe_float(candidate.get("realtime_price"), 0.0)
+        if price <= 0:
+            return None
+        return price
+
+    def _fetch_realtime_price(self, symbol: str) -> Optional[float]:
+        if not self._price_fetch_enabled:
+            return None
+        key = symbol.upper().strip()
+        if not key:
+            return None
+        now = time.time()
+        cached = self._price_cache.get(key)
+        if cached and now - cached.get("ts", 0) < self._price_cache_ttl:
+            return cached.get("price")
+        url = f"{self._price_fetch_base}{key}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+            quote = (((payload.get("quoteResponse") or {}).get("result") or [None])[0]) or {}
+            price = quote.get("regularMarketPrice")
+            if price is None:
+                return None
+            price_val = float(price)
+            if price_val <= 0:
+                return None
+            self._price_cache[key] = {"price": price_val, "ts": now}
+            return price_val
+        except Exception:
+            return None
+
     def _build_opportunity(
         self,
         trace_id: str,
@@ -216,8 +322,15 @@ class OpportunityScorer:
             target_signal = sector_direction
 
         candidate_direction = self._candidate_direction(candidate)
+        realtime_price = self._candidate_realtime_price(candidate)
+        if realtime_price is None:
+            realtime_price = self._fetch_realtime_price(stock.symbol)
         risk_flags = self._build_risk_flags(stock, score, sector_confidence, candidate_direction, target_signal)
+        if realtime_price is None:
+            risk_flags.append({"type": "price_data", "level": "high", "description": "缺少实时价格，需等待行情刷新"})
         final_action = self._resolve_action(target_signal, risk_flags)
+        if realtime_price is None:
+            final_action = "WATCH"
 
         reasoning = f"{sector_name}方向{sector_direction}，综合评分{score:.2f}"
         if len(reasoning) > 50:
@@ -229,9 +342,9 @@ class OpportunityScorer:
             "name": stock.name,
             "sector": sector_name,
             "signal": target_signal,
-            "entry_zone": self._build_entry_zone(stock.last_price),
-            "price_source": stock.price_source,
-            "needs_price_refresh": stock.price_source != "live",
+            "entry_zone": self._build_entry_zone(realtime_price if realtime_price is not None else stock.last_price),
+            "price_source": "live" if realtime_price is not None else stock.price_source,
+            "needs_price_refresh": realtime_price is None,
             "risk_flags": risk_flags,
             "final_action": final_action,
             "reasoning": reasoning,
@@ -248,7 +361,7 @@ class OpportunityScorer:
         stock_candidates = payload.get("stock_candidates", [])
         candidates_by_sector: Dict[str, List[Dict[str, Any]]] = {}
         for cand in stock_candidates:
-            key = _norm_sector(cand.get("sector", ""))
+            key = _norm_sector(self.pool.canonical_sector(cand.get("sector", "")))
             candidates_by_sector.setdefault(key, []).append(cand)
 
         max_per_sector = int(self.pool.rules.get("max_candidates_per_sector", 5))
@@ -256,7 +369,7 @@ class OpportunityScorer:
 
         for sector in sectors:
             sector_name = str(sector.get("name", "未知板块"))
-            norm_sector = _norm_sector(sector_name)
+            norm_sector = _norm_sector(self.pool.canonical_sector(sector_name))
             sector_direction = self._normalize_direction(sector.get("direction", "WATCH"))
             impact_score = self._safe_float(sector.get("impact_score", 0.0), 0.0)
             sector_conf = self._safe_float(sector.get("confidence", 0.0), 0.0)

@@ -9,13 +9,14 @@ rule.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import yaml
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
+from ai_semantic_analyzer import SemanticAnalyzer
+from ai_conduction_selector import AIConductionSelector
+from config_center import ConfigCenter
 
 
 class ConductionMapper(EDTModule):
@@ -24,6 +25,10 @@ class ConductionMapper(EDTModule):
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("ConductionMapper", "1.0.0", config_path)
         self.chain_config_path = Path(__file__).resolve().parent.parent / "configs" / "conduction_chain.yaml"
+        self.config_center = ConfigCenter(config_path=config_path)
+        self.config_center.register("conduction_chain", self.chain_config_path)
+        self.semantic = SemanticAnalyzer(config_path=config_path)
+        self.selector = AIConductionSelector()
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["event_id", "category", "severity", "lifecycle_state"]
@@ -41,41 +46,38 @@ class ConductionMapper(EDTModule):
             return {}
 
     def _load_chain_config(self) -> Dict[str, Any]:
-        try:
-            payload = yaml.safe_load(self.chain_config_path.read_text(encoding="utf-8")) or {}
-            return payload if isinstance(payload, dict) else {}
-        except Exception:
-            return {}
+        payload = self.config_center.get_registered("conduction_chain", {})
+        return payload if isinstance(payload, dict) else {}
 
     @staticmethod
     def _normalize_text(*parts: Any) -> str:
         return " ".join(str(part or "").lower() for part in parts).strip()
 
     @staticmethod
-    def _matches_any(text: str, keywords: List[str]) -> bool:
+    def _keyword_match_strength(text: str, keyword: str) -> int:
         lower = text.lower()
-        for keyword in keywords:
-            needle = str(keyword).strip().lower()
-            if not needle:
-                continue
-            if " " in needle or any(ord(ch) > 127 for ch in needle):
-                if needle in lower:
-                    return True
+        needle = str(keyword).strip().lower()
+        if not needle:
+            return 0
+        if " " in needle or any(ord(ch) > 127 for ch in needle):
+            return 2 if needle in lower else 0
+
+        tokens = set()
+        current = []
+        for ch in lower:
+            if ch.isalnum():
+                current.append(ch)
             else:
-                tokens = set()
-                current = []
-                for ch in lower:
-                    if ch.isalnum():
-                        current.append(ch)
-                    else:
-                        if current:
-                            tokens.add("".join(current))
-                            current = []
                 if current:
                     tokens.add("".join(current))
-                if needle in tokens:
-                    return True
-        return False
+                    current = []
+        if current:
+            tokens.add("".join(current))
+        return 1 if needle in tokens else 0
+
+    @classmethod
+    def _matches_any(cls, text: str, keywords: List[str]) -> bool:
+        return any(cls._keyword_match_strength(text, kw) > 0 for kw in keywords)
 
     def _match_chain_template(self, category: str, headline: str, summary: str) -> Optional[Dict[str, Any]]:
         chain_cfg = self._load_chain_config()
@@ -84,16 +86,35 @@ class ConductionMapper(EDTModule):
         text = self._normalize_text(headline, summary)
 
         selected_chain_id = None
+        selected_strength = 0
         for rule in mapping_rules:
             keywords = rule.get("event_keywords", [])
-            if isinstance(keywords, list) and self._matches_any(text, keywords):
+            if not isinstance(keywords, list):
+                continue
+            strength = max((self._keyword_match_strength(text, kw) for kw in keywords), default=0)
+            if strength > selected_strength:
+                selected_strength = strength
                 selected_chain_id = rule.get("chain_id")
-                break
 
-        if category == "C" and "tariff_chain" in templates:
-            selected_chain_id = "tariff_chain"
-        elif category == "E" and not selected_chain_id and "rate_cut_chain" in templates:
-            selected_chain_id = "rate_cut_chain"
+        semantic_out = self.semantic.analyze(headline, summary)
+        chosen = self.selector.choose_chain(semantic_out, selected_chain_id)
+        semantic_selected = str(chosen.get("chain_id") or "")
+        if semantic_selected in templates:
+            selected_chain_id = semantic_selected
+
+        category_defaults = {
+            "A": "liquidity_stress_chain",
+            "B": "public_health_chain",
+            "C": "tariff_chain",
+            "D": "geo_risk_chain",
+            "E": "rate_cut_chain",
+            "F": "macro_data_chain",
+            "G": "market_structure_chain",
+        }
+        if not selected_chain_id:
+            default_chain = category_defaults.get(str(category).upper())
+            if default_chain in templates:
+                selected_chain_id = default_chain
 
         if not selected_chain_id:
             return None

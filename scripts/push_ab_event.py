@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime
 from urllib import request
 
@@ -82,7 +83,8 @@ def build_payload(kind: str, trace_id: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--api", default="http://127.0.0.1:8787")
+    default_api = f"http://127.0.0.1:{os.getenv('EDT_API_PORT', '18787')}"
+    parser.add_argument("--api", default=default_api)
     parser.add_argument(
         "--type",
         required=True,

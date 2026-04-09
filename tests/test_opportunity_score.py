@@ -12,7 +12,7 @@ def test_premium_pool_filters_by_threshold_and_membership():
     assert pool.price_source == "reference_snapshot"
     candidates = [
         {"symbol": "NVDA"},
-        {"symbol": "CAT"},  # market cap below threshold in pool config
+        {"symbol": "CAT"},
         {"symbol": "UNKNOWN"},
     ]
     filtered = pool.filter_candidates(candidates)
@@ -74,3 +74,66 @@ def test_direction_consistency_rate_meets_target():
 
     metrics = evaluate_direction_consistency(scorer, bullish, bearish)
     assert metrics["differentiation_rate"] >= 0.8
+
+
+def test_missing_realtime_price_forces_watch_with_risk_flag():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_missing_realtime_price",
+        "schema_version": "v1.0",
+        "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.9}],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.3,
+            }
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+    assert len(out["opportunities"]) == 1
+    opp = out["opportunities"][0]
+
+    assert opp["final_action"] == "WATCH"
+    assert any(f.get("type") == "price_data" for f in opp["risk_flags"])
+
+
+def test_entry_zone_uses_realtime_price_first():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_realtime_price_first",
+        "schema_version": "v1.0",
+        "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.9}],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.3,
+                "realtime_price": 500.0,
+            }
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+    assert len(out["opportunities"]) == 1
+    opp = out["opportunities"][0]
+
+    assert opp["entry_zone"] == {"support": 485.0, "resistance": 515.0}
+    assert opp["price_source"] == "live"
+    assert opp["needs_price_refresh"] is False
+
+
+def test_fallback_pool_supports_sector_alias_dictionary():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_energy_alias",
+        "schema_version": "v1.0",
+        "sectors": [{"name": "Energy", "direction": "LONG", "impact_score": 0.8, "confidence": 0.8}],
+        "stock_candidates": [],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+    assert any(opp["symbol"] == "XOM" for opp in out["opportunities"])

@@ -17,6 +17,7 @@ import uuid
 import xml.etree.ElementTree as ET
 import urllib.request
 import urllib.error
+import hashlib
 from email.utils import parsedate_to_datetime
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
@@ -76,6 +77,7 @@ def _parse_rss(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
                 "source_type": "rss",
             }
         )
+    items.sort(key=lambda x: _parse_datetime(x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     return items
 
 
@@ -102,6 +104,7 @@ def _parse_atom(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
                 "source_type": "atom",
             }
         )
+    items.sort(key=lambda x: _parse_datetime(x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     return items
 
 
@@ -141,6 +144,14 @@ def _jaccard(a: List[str], b: List[str]) -> float:
     if not set_a or not set_b:
         return 0.0
     return len(set_a & set_b) / len(set_a | set_b)
+
+
+def _deterministic_event_id(headline: str, source_url: str, timestamp: str) -> str:
+    dt = _parse_datetime(timestamp)
+    date_part = dt.strftime("%Y%m%d") if dt else "00000000"
+    base = f"{headline}|{source_url}|{date_part}".encode("utf-8", errors="ignore")
+    digest = hashlib.sha1(base).hexdigest()[:10]
+    return f"ME-{date_part}-{digest}"
 
 
 def _dedupe_items(
@@ -244,6 +255,22 @@ class NewsIngestion(EDTModule):
                 continue
 
         if not items:
+            execution_mode = str(self._get_config("modules.ExecutionAdapter.params.mode", "dry_run")).lower()
+            runtime_role = str(self._get_config("runtime.role", "dev")).lower()
+            strict_fallback = bool(self._get_config("runtime.strict_fallback", False)) or bool(
+                self._get_config("modules.NewsIngestion.params.strict_fallback", False)
+            )
+            if execution_mode == "live" or runtime_role == "prod" or strict_fallback:
+                return ModuleOutput(
+                    status=ModuleStatus.FAILED,
+                    data={"items": []},
+                    errors=[
+                        {
+                            "code": "NEWS_SOURCE_UNAVAILABLE",
+                            "message": "News source fetch yielded no items; strict mode blocks fallback.",
+                        }
+                    ],
+                )
             items = [
                 {
                     "headline": "Fed announces emergency liquidity action",
@@ -276,16 +303,23 @@ class NewsIngestion(EDTModule):
                 source_rank = rank_out.data.get("rank", source_rank)
             except (AttributeError, TypeError, ValueError):
                 pass
+        event_id = item.get("event_id") or _deterministic_event_id(
+            item.get("headline", ""),
+            source_url,
+            timestamp,
+        )
         return {
             "trace_id": trace_id,
-            "event_id": item.get("event_id", ""),
+            "event_id": event_id,
             "headline": item.get("headline", ""),
             "source_url": source_url,
             "timestamp": timestamp,
             "raw_text": item.get("raw_text", ""),
             "source_type": item.get("source_type", ""),
             "source_rank": source_rank,
-            "schema_version": item.get("schema_version", "ai_intel_v1"),
+            "is_test_data": bool(item.get("is_test_data", False)),
+            "metadata": item.get("metadata", {}),
+            "schema_version": item.get("schema_version", "v1.0"),
             "producer": item.get("producer", "member-a"),
             "generated_at": item.get("generated_at", _now_iso()),
         }
@@ -306,7 +340,7 @@ class EventEvidenceScorer(EDTModule):
 
         evidence_score = self._score_evidence(source_url, source_type)
         consistency_score = self._score_consistency(corroborating_sources)
-        freshness_score = self._score_freshness(timestamp)
+        freshness_score = self._score_freshness(timestamp, raw.get("generated_at") or raw.get("evaluated_at"))
         confidence = round(0.4 * evidence_score + 0.3 * consistency_score + 0.3 * freshness_score, 2)
 
         narrative_state = raw.get("narrative_state", "initial")
@@ -327,7 +361,7 @@ class EventEvidenceScorer(EDTModule):
                 "confidence": confidence,
                 "narrative_state": narrative_state,
                 "reasoning": reasoning,
-                "schema_version": raw.get("schema_version", "ai_intel_v1"),
+                "schema_version": raw.get("schema_version", "v1.0"),
                 "producer": raw.get("producer", "member-a"),
                 "generated_at": raw.get("generated_at", _now_iso()),
             },
@@ -375,14 +409,22 @@ class EventEvidenceScorer(EDTModule):
 
         return min(100.0, 50.0 + 10.0 * len(corroborating_sources))
 
-    def _score_freshness(self, timestamp: Optional[str]) -> float:
+    def _score_freshness(self, timestamp: Optional[str], reference_ts: Optional[str] = None) -> float:
         if not timestamp:
             return 50.0
         try:
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except (TypeError, ValueError):
             return 50.0
-        hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+        now_dt = None
+        if reference_ts:
+            try:
+                now_dt = datetime.fromisoformat(reference_ts.replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                now_dt = None
+        if not now_dt:
+            now_dt = datetime.now(timezone.utc)
+        hours = (now_dt - dt).total_seconds() / 3600
         if hours <= 1:
             return 90.0
         if hours <= 6:

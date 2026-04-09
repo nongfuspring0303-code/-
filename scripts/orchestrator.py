@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import atexit
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 
@@ -86,6 +87,8 @@ class OrchestratorNode(EDTModule):
         self.config_path = Path(resolved_config)
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}
         self._lock = threading.Lock()
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        atexit.register(self._executor.shutdown, wait=False)
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         if "node_type" not in input_data:
@@ -107,16 +110,15 @@ class OrchestratorNode(EDTModule):
             return self._circuit_breakers[node_type]
 
     def _execute_with_timeout(self, module: EDTModule, payload: Dict[str, Any], timeout_ms: int) -> ModuleOutput:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(module.run, payload)
-            try:
-                return future.result(timeout=timeout_ms / 1000)
-            except FutureTimeoutError:
-                return ModuleOutput(
-                    status=ModuleStatus.FAILED,
-                    data={},
-                    errors=[{"code": "TIMEOUT", "message": f"Execution timeout after {timeout_ms}ms"}],
-                )
+        future = self._executor.submit(module.run, payload)
+        try:
+            return future.result(timeout=timeout_ms / 1000)
+        except FutureTimeoutError:
+            return ModuleOutput(
+                status=ModuleStatus.FAILED,
+                data={},
+                errors=[{"code": "TIMEOUT", "message": f"Execution timeout after {timeout_ms}ms"}],
+            )
 
     def _execute_with_retry(
         self,

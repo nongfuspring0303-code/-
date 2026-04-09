@@ -45,8 +45,12 @@ class RealtimeNewsMonitor:
     def __init__(self, config_path: Optional[str] = None, poll_interval: int = 60, api_url: Optional[str] = None):
         self.config_path = config_path or _default_config_path()
         self.poll_interval = poll_interval
-        self.api_url = api_url or "http://127.0.0.1:8787"
+        api_port = os.getenv("EDT_API_PORT", "18787")
+        self.api_url = api_url or f"http://127.0.0.1:{api_port}"
+        if api_url and api_port not in str(api_url):
+            logger.warning("⚠️ api_url port mismatch: env=%s api_url=%s", api_port, api_url)
         self.node_role = self._load_node_role()
+        self.master_api = self._load_master_api()
         self.last_news_signature = ""  # 用于检测新新闻
         self.translator = Translator() if Translator else None
         if not self.translator:
@@ -61,12 +65,41 @@ class RealtimeNewsMonitor:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 payload = yaml.safe_load(f) or {}
             runtime = payload.get("runtime", {}) if isinstance(payload, dict) else {}
-            return str(runtime.get("node_role", "master")).strip().lower() or "master"
+            role = str(runtime.get("node_role", "master")).strip().lower()
+            return role or "master"
         except Exception:
             return "master"
 
+    def _load_master_api(self) -> str:
+        env_master = os.getenv("EDT_MASTER_API", "").strip()
+        if env_master:
+            return env_master
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                payload = yaml.safe_load(f) or {}
+            runtime = payload.get("runtime", {}) if isinstance(payload, dict) else {}
+            master = str(runtime.get("master_api", "")).strip()
+            return master
+        except Exception:
+            return ""
+
     def _can_publish_main_chain(self) -> bool:
         return self.node_role != "worker"
+
+    def _forward_to_master(self, payload: Dict[str, Any], endpoint_suffix: str) -> bool:
+        if not self.master_api:
+            logger.warning("⚠️ worker 未配置 master_api，无法转发主链")
+            return False
+        try:
+            import urllib.request
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            endpoint = f"{self.master_api}{endpoint_suffix}"
+            req = urllib.request.Request(endpoint, data=data, headers=self._c_ingest_headers(), method="POST")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status in (200, 202)
+        except Exception as e:
+            logger.warning("⚠️ 转发 master 失败: %s", e)
+            return False
     
     def _load_news_module(self):
         try:
@@ -121,8 +154,20 @@ class RealtimeNewsMonitor:
         """处理单条新闻，返回是否触发成功"""
         if not self.event_capture:
             return False
-        if news.get("metadata", {}).get("is_test_data"):
-            logger.warning("⚠️ 跳过测试数据，避免把fallback误当真实新闻触发")
+
+        metadata = news.get("metadata", {})
+        source_type = str(news.get("source_type", "")).lower()
+        if (
+            metadata.get("is_test_data")
+            or bool(news.get("is_test_data"))
+            or source_type in {"fallback", "failed"}
+        ):
+            logger.warning(
+                "⚠️ 跳过非实盘新闻，避免触发下游: source_type=%s metadata.is_test_data=%s is_test_data=%s",
+                source_type or "unknown",
+                bool(metadata.get("is_test_data")),
+                bool(news.get("is_test_data")),
+            )
             return False
         
         try:
@@ -193,7 +238,10 @@ class RealtimeNewsMonitor:
         if not self.api_url:
             return
         if not self._can_publish_main_chain():
-            logger.info("⏭️ 当前节点为 worker，跳过主链推送")
+            logger.info("⏭️ 当前节点为 worker，转发主链至 master")
+            payload = result.get("analysis", {})
+            if payload:
+                self._forward_to_master(payload, "/api/ingest/sector-update")
             return
         
         try:
@@ -204,6 +252,8 @@ class RealtimeNewsMonitor:
             event_object = intel.get("event_object", {})
             ts = datetime.now(timezone.utc).isoformat()
             trace_id = str(result.get("trace_id") or event_object.get("event_id", "unknown"))
+            if not trace_id.startswith(("TRC-", "REQ-", "BATCH-", "evt_")):
+                trace_id = f"TRC-{trace_id}"
             request_id = str(result.get("request_id") or trace_id)
             batch_id = str(result.get("batch_id") or f"BATCH-{request_id}")
             
@@ -225,6 +275,7 @@ class RealtimeNewsMonitor:
                 })
             
             data = {
+                "type": "sector_update",
                 "trace_id": trace_id,
                 "request_id": request_id,
                 "batch_id": batch_id,
@@ -237,22 +288,26 @@ class RealtimeNewsMonitor:
             import urllib.request
             
             # 推送 sector-update
-            endpoint = f"{self.api_url}/api/ingest/sector-update"
-            req = urllib.request.Request(
-                endpoint,
-                data=json.dumps(data).encode("utf-8"),
-                headers=self._c_ingest_headers(),
-                method="POST"
-            )
-            
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status == 200:
-                    logger.info(f"✅ 推送板块到C模块成功")
+            if not self._can_publish_main_chain():
+                self._forward_to_master(data, "/api/ingest/sector-update")
+            else:
+                endpoint = f"{self.api_url}/api/ingest/sector-update"
+                req = urllib.request.Request(
+                    endpoint,
+                    data=json.dumps(data).encode("utf-8"),
+                    headers=self._c_ingest_headers(),
+                    method="POST"
+                )
+                
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    if resp.status == 200:
+                        logger.info(f"✅ 推送板块到C模块成功")
             
             # 推送 event-update
             headline = event_object.get("headline", "A/B 实时计算事件")
             headline_cn = event_object.get("headline_cn") or self._translate_headline(headline)
             event_data = {
+                "type": "event_update",
                 "trace_id": trace_id,
                 "request_id": request_id,
                 "batch_id": batch_id,
@@ -263,25 +318,35 @@ class RealtimeNewsMonitor:
                 "severity": event_object.get("severity", "E3"),
                 "evidence_score": 0,
                 "narrative_state": "Fact-Driven",
+                "news_timestamp": (
+                    event_object.get("news_timestamp")
+                    or event_object.get("published_at")
+                    or event_object.get("detected_at")
+                    or event_object.get("timestamp")
+                ),
                 "timestamp": ts,
             }
             
-            endpoint = f"{self.api_url}/api/ingest/event-update"
-            req = urllib.request.Request(
-                endpoint,
-                data=json.dumps(event_data).encode("utf-8"),
-                headers=self._c_ingest_headers(),
-                method="POST"
-            )
-            
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status == 200:
-                    logger.info(f"✅ 推送事件到C模块成功")
+            if not self._can_publish_main_chain():
+                self._forward_to_master(event_data, "/api/ingest/event-update")
+            else:
+                endpoint = f"{self.api_url}/api/ingest/event-update"
+                req = urllib.request.Request(
+                    endpoint,
+                    data=json.dumps(event_data).encode("utf-8"),
+                    headers=self._c_ingest_headers(),
+                    method="POST"
+                )
+                
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    if resp.status == 200:
+                        logger.info(f"✅ 推送事件到C模块成功")
             
             # 推送 opportunity-update
             opportunities = analysis.get("opportunity_update", {}).get("opportunities", [])
             if opportunities:
                 opp_data = {
+                    "type": "opportunity_update",
                     "trace_id": trace_id,
                     "request_id": request_id,
                     "batch_id": batch_id,
@@ -290,17 +355,20 @@ class RealtimeNewsMonitor:
                     "timestamp": ts,
                 }
                 
-                endpoint = f"{self.api_url}/api/ingest/opportunity-update"
-                req = urllib.request.Request(
-                    endpoint,
-                    data=json.dumps(opp_data).encode("utf-8"),
-                    headers=self._c_ingest_headers(),
-                    method="POST"
-                )
-                
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    if resp.status == 200:
-                        logger.info(f"✅ 推送机会到C模块成功")
+                if not self._can_publish_main_chain():
+                    self._forward_to_master(opp_data, "/api/ingest/opportunity-update")
+                else:
+                    endpoint = f"{self.api_url}/api/ingest/opportunity-update"
+                    req = urllib.request.Request(
+                        endpoint,
+                        data=json.dumps(opp_data).encode("utf-8"),
+                        headers=self._c_ingest_headers(),
+                        method="POST"
+                    )
+                    
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        if resp.status == 200:
+                            logger.info(f"✅ 推送机会到C模块成功")
                     
         except Exception as e:
             logger.error(f"推送失败: {e}")
@@ -308,7 +376,8 @@ class RealtimeNewsMonitor:
     def _push_to_c_module(self, data: Dict[str, Any], api_url: str):
         """推送到C模块"""
         if not self._can_publish_main_chain():
-            logger.info("⏭️ 当前节点为 worker，跳过主链推送")
+            logger.info("⏭️ 当前节点为 worker，转发主链至 master")
+            self._forward_to_master(data, "/api/ingest/sector-update")
             return
         try:
             import urllib.request
@@ -335,7 +404,7 @@ class RealtimeNewsMonitor:
         news_list = self._fetch_latest_news()
         
         if not news_list:
-            logger.info("📭 未获取到新闻")
+            logger.warning("📭 新闻摄取为空，已跳过下游触发")
             return False
         
         latest_news = news_list[0]
@@ -380,10 +449,11 @@ def main():
         default=60,
         help="轮询间隔（秒），默认60秒"
     )
+    default_api = f"http://127.0.0.1:{os.getenv('EDT_API_PORT', '18787')}"
     parser.add_argument(
         "--api",
         type=str,
-        default="http://127.0.0.1:8787",
+        default=default_api,
         help="C模块API地址"
     )
     parser.add_argument(

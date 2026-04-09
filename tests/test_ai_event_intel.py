@@ -24,6 +24,7 @@ def test_news_ingestion_override():
     assert len(out.data["items"]) == 1
     assert out.data["items"][0]["trace_id"]
     assert "source_rank" in out.data["items"][0]
+    assert out.data["items"][0]["schema_version"] == "v1.0"
 
 
 def test_event_evidence_scorer_basic():
@@ -129,6 +130,45 @@ def test_news_ingestion_similarity_dedupe():
     assert len(out.data["items"]) == 1
 
 
+def test_news_ingestion_hard_fail_in_live_mode_when_sources_empty(monkeypatch):
+    import ai_event_intel
+
+    monkeypatch.setattr(ai_event_intel, "_safe_fetch", lambda _url, _timeout: None)
+    ingestion = NewsIngestion()
+
+    config_values = {
+        "modules.NewsIngestion.params.sources": ["https://unavailable.test/rss.xml"],
+        "modules.NewsIngestion.params.timeout": 1,
+        "modules.NewsIngestion.params.retries": 0,
+        "modules.ExecutionAdapter.params.mode": "live",
+    }
+    monkeypatch.setattr(ingestion, "_get_config", lambda path, default=None: config_values.get(path, default))
+
+    out = ingestion.run({"max_items": 1})
+    assert out.status == ModuleStatus.FAILED
+    assert out.data.get("items") == []
+    assert out.errors and out.errors[0].get("code") == "NEWS_SOURCE_UNAVAILABLE"
+
+
+def test_news_ingestion_keeps_fallback_in_non_live_mode_when_sources_empty(monkeypatch):
+    import ai_event_intel
+
+    monkeypatch.setattr(ai_event_intel, "_safe_fetch", lambda _url, _timeout: None)
+    ingestion = NewsIngestion()
+
+    config_values = {
+        "modules.NewsIngestion.params.sources": ["https://unavailable.test/rss.xml"],
+        "modules.NewsIngestion.params.timeout": 1,
+        "modules.NewsIngestion.params.retries": 0,
+        "modules.ExecutionAdapter.params.mode": "dry_run",
+    }
+    monkeypatch.setattr(ingestion, "_get_config", lambda path, default=None: config_values.get(path, default))
+
+    out = ingestion.run({"max_items": 1})
+    assert out.status == ModuleStatus.SUCCESS
+    assert out.data["items"][0]["source_type"] == "fallback"
+
+
 def test_event_evidence_scorer_domain_suffix_match():
     payload = {
         "trace_id": "TRC-TEST-0003",
@@ -167,3 +207,21 @@ def test_event_evidence_scorer_consistency_weighted():
     out = EventEvidenceScorer().run(payload)
     assert out.status == ModuleStatus.SUCCESS
     assert out.data["consistency_score"] > 50
+
+
+def test_event_evidence_scorer_keeps_explicit_schema_version():
+    payload = {
+        "trace_id": "TRC-TEST-0005",
+        "event_id": "ME-C-20260402-001.V1.0",
+        "headline": "Fed update",
+        "source_url": "https://www.federalreserve.gov/",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "raw_text": "policy update",
+        "source_type": "official",
+        "schema_version": "ai_intel_v1",
+        "producer": "member-a",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    out = EventEvidenceScorer().run(payload)
+    assert out.status == ModuleStatus.SUCCESS
+    assert out.data["schema_version"] == "ai_intel_v1"

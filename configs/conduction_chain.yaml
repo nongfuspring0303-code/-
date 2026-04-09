@@ -161,11 +161,159 @@ chain_templates:
             direction: "benefit"
             impact_score: 0.78
 
+  - id: "trade_talks_chain"
+    name: "贸易谈判传导链"
+    description: "贸易会议/谈判类中性事件传导路径"
+    levels:
+      - level: "macro"
+        name: "贸易政策预期"
+        relation: "affects_above"
+        factors:
+          - factor: "uncertainty"
+            direction: "down"
+            strength: "medium"
+      - level: "sector"
+        name: "出口相关板块"
+        relation: "same"
+        sectors:
+          - name: "Industrials"
+            direction: "watch"
+            impact_score: 0.55
+          - name: "Consumer Cyclical"
+            direction: "watch"
+            impact_score: 0.52
+      - level: "theme"
+        name: "贸易缓和预期"
+        relation: "affects_below"
+        themes:
+          - name: "风险偏好修复"
+            direction: "watch"
+            impact_score: 0.50
+
+  - id: "liquidity_stress_chain"
+    name: "流动性压力传导链"
+    description: "银行挤兑/信用收缩等金融稳定风险传导路径"
+    levels:
+      - level: "macro"
+        name: "金融稳定"
+        relation: "affects_above"
+        factors:
+          - factor: "liquidity"
+            direction: "down"
+            strength: "high"
+      - level: "sector"
+        name: "金融板块"
+        relation: "same"
+        sectors:
+          - name: "Financial Services"
+            direction: "hurt"
+            impact_score: 0.85
+
+  - id: "public_health_chain"
+    name: "公共卫生事件传导链"
+    description: "疫情/公共卫生紧急事件传导路径"
+    levels:
+      - level: "macro"
+        name: "公共卫生冲击"
+        relation: "affects_above"
+        factors:
+          - factor: "mobility"
+            direction: "down"
+            strength: "high"
+      - level: "sector"
+        name: "防御与医药"
+        relation: "same"
+        sectors:
+          - name: "Healthcare"
+            direction: "benefit"
+            impact_score: 0.80
+
+  - id: "geo_risk_chain"
+    name: "地缘风险传导链"
+    description: "战争/冲突升级等地缘风险传导路径"
+    levels:
+      - level: "macro"
+        name: "风险溢价"
+        relation: "affects_above"
+        factors:
+          - factor: "risk_premium"
+            direction: "up"
+            strength: "high"
+      - level: "sector"
+        name: "能源与军工"
+        relation: "same"
+        sectors:
+          - name: "Energy"
+            direction: "benefit"
+            impact_score: 0.78
+
+  - id: "macro_data_chain"
+    name: "宏观数据冲击传导链"
+    description: "就业/CPI/PMI等宏观数据超预期传导路径"
+    levels:
+      - level: "macro"
+        name: "宏观数据"
+        relation: "affects_above"
+        factors:
+          - factor: "growth"
+            direction: "variable"
+            strength: "medium"
+      - level: "sector"
+        name: "顺周期板块"
+        relation: "same"
+        sectors:
+          - name: "Industrials"
+            direction: "watch"
+            impact_score: 0.60
+
+  - id: "market_structure_chain"
+    name: "市场制度传导链"
+    description: "交易制度/监管规则变化传导路径"
+    levels:
+      - level: "macro"
+        name: "市场制度"
+        relation: "affects_above"
+        factors:
+          - factor: "market_microstructure"
+            direction: "variable"
+            strength: "medium"
+      - level: "sector"
+        name: "交易活跃板块"
+        relation: "same"
+        sectors:
+          - name: "Technology"
+            direction: "watch"
+            impact_score: 0.58
+
 # 事件关键词到传导链的映射
 event_to_chain_mapping:
   - event_keywords: ["关税", "trade war", "进口限制", "出口管制"]
     chain_id: "tariff_chain"
     confidence: 0.85
+
+  - event_keywords: ["trade meeting", "trade talks", "贸易会议", "贸易谈判", "会晤"]
+    chain_id: "trade_talks_chain"
+    confidence: 0.80
+
+  - event_keywords: ["bank run", "liquidity crisis", "流动性危机", "挤兑", "credit crunch"]
+    chain_id: "liquidity_stress_chain"
+    confidence: 0.84
+
+  - event_keywords: ["pandemic", "public health emergency", "疫情", "传染病爆发", "lockdown"]
+    chain_id: "public_health_chain"
+    confidence: 0.86
+
+  - event_keywords: ["geopolitical", "军事冲突", "war escalation", "导弹袭击", "制裁升级"]
+    chain_id: "geo_risk_chain"
+    confidence: 0.83
+
+  - event_keywords: ["nonfarm payroll", "CPI", "PPI", "PMI", "宏观数据", "就业数据"]
+    chain_id: "macro_data_chain"
+    confidence: 0.80
+
+  - event_keywords: ["market structure", "交易制度", "熔断机制", "监管新规", "涨跌停"]
+    chain_id: "market_structure_chain"
+    confidence: 0.78
 
   - event_keywords: ["降息", "利率下调", "货币政策宽松", "QE", "量化宽松"]
     chain_id: "rate_cut_chain"

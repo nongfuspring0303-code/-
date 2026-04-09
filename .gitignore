@@ -16,6 +16,7 @@ logs/*.jsonl
 .gh-config/
 tools/
 gh.cmd
+.worktrees/
 configs/edt-modules-config.yaml.guard_backup
 
 # local env

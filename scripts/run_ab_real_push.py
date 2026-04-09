@@ -173,7 +173,8 @@ def one_cycle(api_base: str, require_live: bool = False) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run A/B real computation and push to C ingest")
-    parser.add_argument("--api", default="http://127.0.0.1:8787", help="C ingest API base")
+    default_api = f"http://127.0.0.1:{os.getenv('EDT_API_PORT', '18787')}"
+    parser.add_argument("--api", default=default_api, help="C ingest API base")
     parser.add_argument("--loop", action="store_true", help="Run continuously")
     parser.add_argument("--interval", type=int, default=300, help="Seconds between cycles in loop mode")
     parser.add_argument("--require-live", action="store_true", help="Only push when live (non-fallback) news is available")

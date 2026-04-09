@@ -628,5 +628,24 @@ modules:
     enabled: true
     timeout: 30
     params:
-      schema_version: "1.0.0"
+      schema_version: "v1.0"
       producer: "EDT-System"
+
+runtime:
+  role: "dev"
+  node_role: "master"
+  master_api: ""
+  strict_fallback: true
+  price_fetch:
+    enabled: true
+    cache_ttl_seconds: 120
+    yahoo_quote_base: "https://query1.finance.yahoo.com/v7/finance/quote?symbols="
+  hurt_to_short: false
+  semantic:
+    enabled: false
+    min_confidence: 70
+  c_module_stack:
+    history_file: "logs/event_bus_history.jsonl"
+    mock_producer:
+      default_mode: "auto"
+      allow_non_dev: false

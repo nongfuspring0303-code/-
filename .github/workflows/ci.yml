@@ -33,3 +33,10 @@ jobs:
       - name: Run no-pytest verification
         run: |
           python scripts/verify_execution_no_pytest.py
+
+      - name: Run regression quality gates
+        run: |
+          python scripts/verify_sector_coverage.py --min-coverage 0.90
+          python scripts/verify_dedupe_accuracy.py --min-accuracy 0.95
+          python scripts/verify_direction_consistency.py --min-rate 0.85
+          python scripts/verify_mapping_quality.py --min-family-coverage 1.0 --min-precision 0.9

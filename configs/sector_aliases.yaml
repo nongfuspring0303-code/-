@@ -1,0 +1,11 @@
+schema_version: v1.0
+updated_at: "2026-04-09T00:00:00Z"
+
+aliases:
+  能源: [Energy, Oil & Gas, Oil and Gas]
+  科技: [Technology, Tech]
+  金融: [Financials, Finance, Financial Services]
+  医疗: [Healthcare, Health Care]
+  工业: [Industrials]
+  公用事业: [Utilities]
+  消费: [Consumer, Consumer Cyclical, Consumer Staples]

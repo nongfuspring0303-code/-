@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
+import os
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
@@ -26,7 +27,7 @@ def run():
     
     print("🚀 启动实时新闻监控...")
     subprocess.Popen(
-        ["python3", "realtime_news_monitor.py", "--poll-interval", "60", "--api", "http://127.0.0.1:18787"],
+        ["python3", "realtime_news_monitor.py", "--poll-interval", "60", "--api", f"http://127.0.0.1:{os.getenv('EDT_API_PORT', '18787')}"],
         cwd=str(SCRIPTS),
         stdout=open(ROOT / "logs" / "realtime_monitor.log", "a"),
         stderr=subprocess.STDOUT,

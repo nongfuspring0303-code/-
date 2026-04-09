@@ -337,7 +337,7 @@ def check_pressure_gate() -> CheckResult:
     return result
 
 
-def check_phase3_evidence_ledger() -> CheckResult:
+def check_phase3_evidence_ledger(mode: str = "dev") -> CheckResult:
     ledger = Phase3EvidenceLedger()
     summary = ledger.read_summary()
     result = CheckResult(
@@ -365,7 +365,12 @@ def check_phase3_evidence_ledger() -> CheckResult:
         ]
     )
     if not summary.get("real_flow_evidence"):
-        result.warnings.append("No live pressure-gate records found; current evidence is replay-only.")
+        if mode == "prod":
+            result.status = "RED"
+            result.summary = "Production readiness requires live pressure-gate evidence."
+            result.errors.append("No live pressure-gate records found; replay-only evidence is insufficient in prod mode.")
+        else:
+            result.warnings.append("No live pressure-gate records found; current evidence is replay-only.")
 
     return result
 
@@ -545,7 +550,7 @@ def run_project_checks(mode: str = "dev") -> list[CheckResult]:
         check_contract(),
         check_test_runtime(),
         check_pressure_gate(),
-        check_phase3_evidence_ledger(),
+        check_phase3_evidence_ledger(mode=mode),
         check_canary_source_health(mode=mode),
         check_external_data_health(mode=mode),
         check_recovery(),
@@ -601,6 +606,7 @@ def main() -> int:
         "python": sys.version,
         "self_heal": args.self_heal,
         "self_only": args.self_only,
+        "mode": args.mode,
         "stages": [
             asdict(stage_self_check),
             asdict(stage_self_heal),

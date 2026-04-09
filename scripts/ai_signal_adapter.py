@@ -113,7 +113,7 @@ class AISignalAdapter(EDTModule):
                 "base_direction": base_direction,
                 "narrative_state": narrative_state,
                 "mapping_version": mapping_version,
-                "schema_version": raw.get("schema_version", "ai_factor_map_v1"),
+                "schema_version": raw.get("schema_version", "v1.0"),
                 "producer": raw.get("producer", "member-b"),
                 "generated_at": raw.get("generated_at", datetime.now(timezone.utc).isoformat()),
                 "model_id": raw.get("model_id", "unknown"),
@@ -129,4 +129,3 @@ class AISignalAdapter(EDTModule):
                 ],
             },
         )
-

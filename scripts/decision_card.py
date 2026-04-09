@@ -88,7 +88,7 @@ class DecisionCardGenerator:
                  risk_notes: List[str] = None, trigger_conditions: List[str] = None,
                  invalid_conditions: List[str] = None, producer: str = "EDT-System") -> DecisionCard:
         default_producer = self._get_config("modules.DecisionCardGenerator.params.producer", "EDT-System")
-        schema_version = self._get_config("modules.DecisionCardGenerator.params.schema_version", "1.0.0")
+        schema_version = self._get_config("modules.DecisionCardGenerator.params.schema_version", "v1.0")
 
         card = DecisionCard(
             trace_id=trace_id,

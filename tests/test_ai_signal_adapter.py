@@ -51,3 +51,16 @@ def test_ai_signal_adapter_marks_review_required_when_confidence_low():
     assert out.data["ai_review_required"] is True
     assert out.data["ai_review_passed"] is False
 
+
+def test_ai_signal_adapter_defaults_schema_version_to_v1():
+    mod = AISignalAdapter()
+    payload = _payload()
+    payload.pop("schema_version")
+    out = mod.run(payload)
+    assert out.data["schema_version"] == "v1.0"
+
+
+def test_ai_signal_adapter_keeps_explicit_schema_version():
+    mod = AISignalAdapter()
+    out = mod.run(_payload())
+    assert out.data["schema_version"] == "ai_intel_v1"

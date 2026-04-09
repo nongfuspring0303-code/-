@@ -9,6 +9,8 @@ import json
 import sys
 import os
 from pathlib import Path
+from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -141,6 +143,99 @@ class TestEventBus:
         assert "message_history_count" in stats
         assert "replay_buffer_days" in stats
 
+    def test_publish_persists_history_jsonl(self, tmp_path: Path):
+        async def run():
+            history_file = tmp_path / "event_bus_history.jsonl"
+            bus = EventBus(host="localhost", port=8766, history_file=str(history_file))
+
+            await bus.publish("persist_event", {"value": 1}, "evt_persist_001")
+
+            assert history_file.exists()
+            lines = history_file.read_text(encoding="utf-8").strip().splitlines()
+            assert len(lines) == 1
+
+            payload = json.loads(lines[0])
+            assert payload["type"] == "persist_event"
+            assert payload["trace_id"] == "evt_persist_001"
+            assert payload["payload"] == {"value": 1}
+
+            await bus.stop()
+
+        asyncio.run(run())
+
+    def test_startup_reload_history_jsonl(self, tmp_path: Path):
+        history_file = tmp_path / "event_bus_history.jsonl"
+        history_file.write_text(
+            "\n".join([
+                json.dumps(
+                    {
+                        "type": "event_update",
+                        "trace_id": "evt_reload_001",
+                        "schema_version": "v1.0",
+                        "payload": {"step": 1},
+                        "timestamp": "2026-04-08T09:00:00",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "sector_update",
+                        "trace_id": "evt_reload_001",
+                        "schema_version": "v1.0",
+                        "payload": {"step": 2},
+                        "timestamp": "2026-04-08T09:00:01",
+                    }
+                ),
+            ])
+            + "\n",
+            encoding="utf-8",
+        )
+
+        bus = EventBus(host="localhost", port=8766, history_file=str(history_file))
+
+        assert len(bus.message_history) == 2
+        assert bus.message_history[0].trace_id == "evt_reload_001"
+        assert bus.message_history[1].type == "sector_update"
+        assert "2026-04-08" in bus.replay_buffer
+        assert len(bus.replay_buffer["2026-04-08"]) == 2
+
+    def test_startup_reload_skips_invalid_history_lines(self, tmp_path: Path):
+        history_file = tmp_path / "event_bus_history.jsonl"
+        history_file.write_text(
+            "{invalid json}\n"
+            + json.dumps(
+                {
+                    "type": "event_update",
+                    "trace_id": "evt_valid_001",
+                    "schema_version": "v1.0",
+                    "payload": {"ok": True},
+                    "timestamp": "2026-04-08T09:00:00",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        bus = EventBus(host="localhost", port=8766, history_file=str(history_file))
+        assert len(bus.message_history) == 1
+        assert bus.message_history[0].trace_id == "evt_valid_001"
+
+    def test_persisted_history_compacts_to_max_history(self, tmp_path: Path):
+        async def run():
+            history_file = tmp_path / "event_bus_history.jsonl"
+            bus = EventBus(host="localhost", port=8766, history_file=str(history_file))
+            bus.max_history = 3
+            for i in range(5):
+                await bus.publish("event_update", {"i": i}, f"evt_{i}")
+
+            lines = history_file.read_text(encoding="utf-8").strip().splitlines()
+            assert len(lines) == 3
+            first = json.loads(lines[0])
+            last = json.loads(lines[-1])
+            assert first["trace_id"] == "evt_2"
+            assert last["trace_id"] == "evt_4"
+
+        asyncio.run(run())
+
     def test_default_history_file_is_enabled(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             event_bus_mod,
@@ -204,6 +299,27 @@ class TestEventBusIntegration:
             assert len(messages) == 2
 
             await bus.stop()
+
+        asyncio.run(run())
+
+    def test_websocket_auth_handshake_valid_and_invalid_token(self):
+        async def run():
+            bus = EventBus(host="127.0.0.1", port=8790, auth_token="secure-token")
+            server_task = asyncio.create_task(bus.start())
+            await asyncio.sleep(0.1)
+
+            try:
+                async with connect("ws://127.0.0.1:8790?token=secure-token") as ws:
+                    msg = json.loads(await ws.recv())
+                    assert msg.get("type") == "connected"
+
+                async with connect("ws://127.0.0.1:8790?token=bad-token") as ws:
+                    with pytest.raises(ConnectionClosed) as exc_info:
+                        await ws.recv()
+                    assert exc_info.value.rcvd and exc_info.value.rcvd.code == 4401
+            finally:
+                await bus.stop()
+                server_task.cancel()
 
         asyncio.run(run())
 

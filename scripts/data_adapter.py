@@ -65,8 +65,17 @@ class DataAdapter:
             )
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8", errors="replace"))
-        except Exception:
+        except Exception as exc:
+            logging.warning("market_data_fetch_failed url=%s reason=%s", url, exc)
             return None
+
+    def _get_int_config(self, path: str, default: int) -> int:
+        value = self._get_config(path, default)
+        try:
+            parsed = int(value)
+            return parsed if parsed > 0 else default
+        except (TypeError, ValueError):
+            return default
 
     def _record_health_snapshot(self, snapshot: Dict[str, Any]) -> None:
         try:
@@ -185,14 +194,62 @@ class DataAdapter:
             }
         }
 
+    def _fetch_vix(self) -> Optional[Dict[str, Any]]:
+        timeout = self._get_int_config("data_adapter.market_data.timeout_seconds", 5)
+        url = self._get_config(
+            "data_adapter.market_data.vix_url",
+            "https://query1.finance.yahoo.com/v7/finance/quote?symbols=%5EVIX",
+        )
+        payload = self._safe_fetch_json(url, timeout)
+        if not payload:
+            return None
+
+        quote = (((payload.get("quoteResponse") or {}).get("result") or [None])[0]) or {}
+        level = quote.get("regularMarketPrice")
+        if level is None:
+            return None
+        return {
+            "level": level,
+            "change_pct": quote.get("regularMarketChangePercent"),
+        }
+
+    def _fetch_spx(self) -> Optional[Dict[str, Any]]:
+        timeout = self._get_int_config("data_adapter.market_data.timeout_seconds", 5)
+        url = self._get_config(
+            "data_adapter.market_data.spx_url",
+            "https://query1.finance.yahoo.com/v7/finance/quote?symbols=%5EGSPC",
+        )
+        payload = self._safe_fetch_json(url, timeout)
+        if not payload:
+            return None
+
+        quote = (((payload.get("quoteResponse") or {}).get("result") or [None])[0]) or {}
+        change_pct = quote.get("regularMarketChangePercent")
+        if change_pct is None:
+            return None
+        return {"change_pct": change_pct}
+
     def fetch_market_data(self) -> Dict[str, Any]:
-        # Explicitly mark market data as unavailable unless a real adapter is wired in.
+        vix = self._fetch_vix()
+        spx = self._fetch_spx()
+
+        if vix and spx:
+            return {
+                "vix_level": vix.get("level"),
+                "vix_change_pct": vix.get("change_pct"),
+                "spx_change_pct": spx.get("change_pct"),
+                "etf_volatility": {"change_pct": None},
+                "market_data_source": "realtime",
+                "is_test_data": False,
+            }
+
+        # Strict unavailable mode: no synthetic market fallback in production path.
         return {
             "vix_level": None,
             "vix_change_pct": None,
             "spx_change_pct": None,
             "etf_volatility": {"change_pct": None},
-            "market_data_source": "unavailable",
+            "market_data_source": "failed",
             "is_test_data": True,
         }
 

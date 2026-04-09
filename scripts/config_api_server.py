@@ -26,6 +26,7 @@ from scripts.health_monitor import HealthMonitor
 from scripts.risk_gatekeeper import RiskGatekeeper, ActionType
 
 DEFAULT_API_TOKEN = os.getenv("EDT_API_TOKEN", os.getenv("EDT_WS_TOKEN", "edt-local-dev-token"))
+DEFAULT_RUNTIME_ROLE = os.getenv("EDT_RUNTIME_ROLE", "").strip().lower()
 
 
 class ConfigAPIHandler(BaseHTTPRequestHandler):
@@ -34,6 +35,7 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
     gatekeeper = RiskGatekeeper()
     event_publisher = None
     auth_token = DEFAULT_API_TOKEN
+    runtime_role = DEFAULT_RUNTIME_ROLE
 
     def _send_json(self, status: int, payload: dict):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -52,6 +54,8 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
         return json.loads(raw or "{}")
 
     def _is_authorized(self) -> bool:
+        if self.runtime_role == "prod" and not self.auth_token:
+            return False
         if not self.auth_token:
             return True
         header_token = self.headers.get("X-EDT-Token", "").strip()
@@ -227,14 +231,16 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             return False
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8787, event_publisher=None) -> HTTPServer:
+def create_server(host: str = "127.0.0.1", port: int = 18787, event_publisher=None) -> HTTPServer:
     if event_publisher is not None:
         ConfigAPIHandler.event_publisher = staticmethod(event_publisher)
     ConfigAPIHandler.auth_token = DEFAULT_API_TOKEN
+    if DEFAULT_RUNTIME_ROLE:
+        ConfigAPIHandler.runtime_role = DEFAULT_RUNTIME_ROLE
     return HTTPServer((host, port), ConfigAPIHandler)
 
 
-def run(host: str = "127.0.0.1", port: int = 8787):
+def run(host: str = "127.0.0.1", port: int = 18787):
     server = create_server(host, port)
     print(f"Config API listening on http://{host}:{port}")
     server.serve_forever()

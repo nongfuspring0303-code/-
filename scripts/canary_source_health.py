@@ -12,23 +12,20 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+import urllib.error
+import urllib.request
 
 try:
     import yaml
 except ImportError:
     yaml = None
-
-try:
-    from ai_event_intel import NewsIngestion
-except Exception:  # noqa: BLE001
-    NewsIngestion = None
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,6 +33,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_CANARY_SOURCE_ID = "reuters_rss_top_news"
 DEFAULT_CANARY_SOURCE_URL = "https://feeds.reuters.com/reuters/topNews"
 DEFAULT_CANARY_SOURCE_KIND = "rss"
+DEFAULT_CANARY_SOURCE_URLS = [
+    DEFAULT_CANARY_SOURCE_URL,
+    "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best",
+    "https://www.reuters.com/markets/rss",
+    "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
+]
+DEFAULT_RETRY_DELAYS_SEC = [5, 10, 20]
 
 
 def _root_dir() -> Path:
@@ -86,19 +90,28 @@ class CanaryAssessment:
 class CanarySourceHealth:
     def __init__(self, config_path: Optional[str] = None, audit_dir: Optional[str] = None):
         self.config_path = Path(config_path) if config_path else _root_dir() / "configs" / "edt-modules-config.yaml"
-        self.audit_dir = Path(audit_dir) if audit_dir else _default_log_dir()
+        self.config = self._load_config()
+        self.settings = self._load_settings()
+        configured_audit_dir = self.settings.get("audit_dir")
+        if audit_dir:
+            self.audit_dir = Path(audit_dir)
+        elif configured_audit_dir:
+            configured_path = Path(str(configured_audit_dir))
+            self.audit_dir = configured_path if configured_path.is_absolute() else _root_dir() / configured_path
+        else:
+            self.audit_dir = _default_log_dir()
         self.audit_dir.mkdir(parents=True, exist_ok=True)
         self.health_log_file = self.audit_dir / "canary_health.jsonl"
         self.health_summary_file = self.audit_dir / "canary_health_summary.json"
         self.health_report_file = self.audit_dir / "canary_health_report.json"
-        self.config = self._load_config()
-        self.settings = self._load_settings()
         self.source_id = str(self.settings.get("source_id", DEFAULT_CANARY_SOURCE_ID))
         self.source_url = str(self.settings.get("source_url", DEFAULT_CANARY_SOURCE_URL))
         self.source_kind = str(self.settings.get("source_kind", DEFAULT_CANARY_SOURCE_KIND))
+        self.sources = self._source_candidates()
         self.timeout = int(self.settings.get("timeout", 10))
         self.max_items = int(self.settings.get("max_items", 10))
         self.window_minutes = self._window_minutes()
+        self.retry_delays_sec = self._retry_delays()
         gate = self.settings.get("gate", {}) or {}
         self.min_success_rate_1h = float(gate.get("min_success_rate_1h", 0.95))
         self.max_p95_latency_ms = float(gate.get("max_p95_latency_ms", 3000))
@@ -140,6 +153,42 @@ class CanarySourceHealth:
                     continue
             return values or [5, 60, 30]
         return [5, 60, 30]
+
+    def _source_candidates(self) -> List[Dict[str, Any]]:
+        raw_sources = self.settings.get("sources", [])
+        values: List[Dict[str, Any]] = []
+        if isinstance(raw_sources, list):
+            for item in raw_sources:
+                if isinstance(item, str) and item.strip():
+                    values.append({"url": item.strip(), "kind": self.source_kind})
+                elif isinstance(item, dict):
+                    url = str(item.get("url", "")).strip()
+                    if not url:
+                        continue
+                    values.append({
+                        "url": url,
+                        "kind": str(item.get("kind", self.source_kind)),
+                        "api_key_env": str(item.get("api_key_env", "") or ""),
+                        "headers": item.get("headers", {}) if isinstance(item.get("headers", {}), dict) else {},
+                    })
+        if not values:
+            values = [{"url": self.source_url, "kind": self.source_kind}]
+        if self.source_url not in [spec["url"] for spec in values]:
+            values.insert(0, {"url": self.source_url, "kind": self.source_kind})
+        return values
+
+    def _retry_delays(self) -> List[int]:
+        raw = self.settings.get("retry_delays_sec", DEFAULT_RETRY_DELAYS_SEC)
+        values: List[int] = []
+        if isinstance(raw, list):
+            for item in raw:
+                try:
+                    delay = int(item)
+                except (TypeError, ValueError):
+                    continue
+                if delay > 0:
+                    values.append(delay)
+        return values or list(DEFAULT_RETRY_DELAYS_SEC)
 
     def _load_records(self, window_minutes: int = 60) -> List[Dict[str, Any]]:
         if not self.health_log_file.exists():
@@ -187,39 +236,173 @@ class CanarySourceHealth:
             "last_record": records[-1] if records else {},
         }
 
-    def _collect_feed_items(self, source_url: str, timeout: int, max_items: int) -> tuple[str, List[Dict[str, Any]], Optional[str]]:
-        if NewsIngestion is None:
-            return "failed", [], "NewsIngestion unavailable"
-        try:
-            out = NewsIngestion(str(self.config_path)).run({
-                "sources": [source_url],
-                "max_items": max_items,
-                "timeout": timeout,
-                "retries": 0,
-            })
-        except Exception as exc:  # noqa: BLE001
-            return "failed", [], str(exc)
-
-        items = out.data.get("items", []) if isinstance(out.data, dict) else []
-        if not isinstance(items, list):
-            return "failed", [], "invalid items payload"
-
-        real_items = [
-            item for item in items
-            if isinstance(item, dict)
-            and not bool(item.get("is_test_data"))
-            and str(item.get("source_type", "")).lower() != "fallback"
+    def _parse_feed_items(self, xml_text: str, source_url: str) -> List[Dict[str, Any]]:
+        root = ET.fromstring(xml_text)
+        if root.tag.endswith("feed"):
+            items = _parse_atom(xml_text, source_url)
+        else:
+            items = _parse_rss(xml_text, source_url)
+        return [
+            item
+            for item in items
+            if isinstance(item, dict) and item.get("headline") and not bool(item.get("is_test_data"))
         ]
-        if not real_items:
-            return "failed", [], "fallback_or_test_data"
-        return "success", real_items, None
+
+    def _resolve_headers(self, source_spec: Dict[str, Any]) -> Dict[str, str]:
+        headers = {
+            "User-Agent": "EDT-Canary/1.0 Mozilla/5.0",
+            "Accept": "application/rss+xml, application/xml;q=0.9, application/json;q=0.8, */*;q=0.7",
+        }
+        custom_headers = source_spec.get("headers", {})
+        if isinstance(custom_headers, dict):
+            for key, value in custom_headers.items():
+                if key and value is not None:
+                    headers[str(key)] = str(value)
+        api_key_env = str(source_spec.get("api_key_env", "") or "")
+        if api_key_env:
+            api_key = os.getenv(api_key_env, "").strip()
+            if api_key:
+                headers.setdefault("X-Api-Key", api_key)
+        return headers
+
+    def _fetch_source_once(self, source_spec: Dict[str, Any], timeout: int, max_items: int) -> Dict[str, Any]:
+        source_url = str(source_spec.get("url", self.source_url))
+        source_kind = str(source_spec.get("kind", self.source_kind)).lower()
+        started = time.perf_counter()
+        headers = self._resolve_headers(source_spec)
+        try:
+            req = urllib.request.Request(source_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                payload = resp.read().decode("utf-8", errors="replace")
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "status": "failed",
+                "items": [],
+                "error": f"fetch_failed:{exc}",
+                "fetch_latency_ms": round((time.perf_counter() - started) * 1000.0, 2),
+            }
+
+        try:
+            if source_kind in {"json", "newsapi"} or "newsapi.org" in source_url:
+                items = self._parse_newsapi_items(payload, source_url)
+            else:
+                items = self._parse_feed_items(payload, source_url)
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "status": "failed",
+                "items": [],
+                "error": f"parse_failed:{exc}",
+                "fetch_latency_ms": round((time.perf_counter() - started) * 1000.0, 2),
+            }
+        if not items:
+            return {
+                "status": "failed",
+                "items": [],
+                "error": "empty_or_test_data",
+                "fetch_latency_ms": round((time.perf_counter() - started) * 1000.0, 2),
+            }
+        return {
+            "status": "success",
+            "items": items[:max_items],
+            "error": None,
+            "fetch_latency_ms": round((time.perf_counter() - started) * 1000.0, 2),
+        }
+
+    def _parse_newsapi_items(self, json_text: str, source_url: str) -> List[Dict[str, Any]]:
+        payload = json.loads(json_text)
+        if str(payload.get("status", "")).lower() != "ok":
+            return []
+        articles = payload.get("articles", [])
+        if not isinstance(articles, list):
+            return []
+        items: List[Dict[str, Any]] = []
+        for article in articles:
+            if not isinstance(article, dict):
+                continue
+            title = (article.get("title") or "").strip()
+            if not title:
+                continue
+            published_at = article.get("publishedAt") or article.get("published_at")
+            source_name = ""
+            source = article.get("source")
+            if isinstance(source, dict):
+                source_name = str(source.get("name", "") or "").strip()
+            items.append(
+                {
+                    "headline": title,
+                    "source_url": article.get("url", source_url),
+                    "timestamp": published_at,
+                    "raw_text": (article.get("description") or article.get("content") or "").strip(),
+                    "source_type": "newsapi",
+                    "source_name": source_name,
+                }
+            )
+        return items
+
+    def _collect_feed_items(
+        self,
+        source_specs: Sequence[Dict[str, Any]],
+        timeout: int,
+        max_items: int,
+    ) -> Tuple[str, List[Dict[str, Any]], Optional[str], Dict[str, Any]]:
+        attempted_sources: List[Dict[str, Any]] = []
+        last_latency_ms = 0.0
+        for source_spec in source_specs:
+            source_url = str(source_spec.get("url", self.source_url))
+            source_attempts: List[Dict[str, Any]] = []
+            delays = [0] + self.retry_delays_sec
+            for attempt_index, delay in enumerate(delays):
+                if delay > 0:
+                    time.sleep(delay)
+                result = self._fetch_source_once(source_spec, timeout, max_items)
+                last_latency_ms = float(result.get("fetch_latency_ms", 0.0) or 0.0)
+                source_attempts.append(
+                    {
+                        "attempt": attempt_index + 1,
+                        "status": result["status"],
+                        "error": result["error"],
+                        "fetch_latency_ms": result["fetch_latency_ms"],
+                    }
+                )
+                if result["status"] == "success":
+                    attempted_sources.append(
+                        {
+                            "source_url": source_url,
+                            "source_kind": source_spec.get("kind", self.source_kind),
+                            "status": "success",
+                            "attempts": source_attempts,
+                        }
+                    )
+                    return "success", result["items"], None, {
+                        "attempted_sources": attempted_sources,
+                        "used_source_url": source_url,
+                        "fetch_latency_ms": last_latency_ms,
+                        "source_attempts": source_attempts,
+                    }
+            attempted_sources.append(
+                {
+                    "source_url": source_url,
+                    "source_kind": source_spec.get("kind", self.source_kind),
+                    "status": "failed",
+                    "attempts": source_attempts,
+                }
+            )
+
+        last_error = attempted_sources[-1]["attempts"][-1]["error"] if attempted_sources else "no_sources"
+        return "failed", [], last_error, {
+            "attempted_sources": attempted_sources,
+            "used_source_url": None,
+            "fetch_latency_ms": last_latency_ms,
+            "source_attempts": attempted_sources[-1]["attempts"] if attempted_sources else [],
+        }
 
     def collect_once(self) -> Dict[str, Any]:
         fetched_at = _now_iso()
         attempt_id = f"CANARY-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
         started = time.perf_counter()
-        status, items, error = self._collect_feed_items(self.source_url, self.timeout, self.max_items)
-        fetch_latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
+        status, items, error, attempt_meta = self._collect_feed_items(self.sources, self.timeout, self.max_items)
+        total_elapsed_ms = round((time.perf_counter() - started) * 1000.0, 2)
+        fetch_latency_ms = float(attempt_meta.get("fetch_latency_ms", total_elapsed_ms) or total_elapsed_ms)
 
         parsed_items: List[Dict[str, Any]] = []
         published_times: List[datetime] = []
@@ -246,7 +429,8 @@ class CanarySourceHealth:
         record = {
             "record_type": "canary_fetch",
             "source_id": self.source_id,
-            "source_url": self.source_url,
+            "source_url": attempt_meta.get("used_source_url") or self.source_url,
+            "primary_source_url": self.source_url,
             "source_kind": self.source_kind,
             "trace_id": attempt_id,
             "fetched_at": fetched_at,
@@ -254,6 +438,9 @@ class CanarySourceHealth:
             "is_canary": True,
             "fetch_status": status,
             "fetch_latency_ms": fetch_latency_ms,
+            "total_elapsed_ms": total_elapsed_ms,
+            "retry_delays_sec": list(self.retry_delays_sec),
+            "attempted_sources": attempt_meta.get("attempted_sources", []),
             "freshness_lag_sec": round(max(freshness_values), 2) if freshness_values else None,
             "new_item_count": len(parsed_items),
             "items": parsed_items,

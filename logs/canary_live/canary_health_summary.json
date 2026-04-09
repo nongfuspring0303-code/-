@@ -1,0 +1,689 @@
+{
+  "schema_version": "v1.0",
+  "generated_at": "2026-04-09T19:05:09.178823Z",
+  "source_id": "newsapi_us_top_headlines",
+  "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+  "source_kind": "newsapi",
+  "windows": {
+    "5": {
+      "window_minutes": 5,
+      "total_attempts": 1,
+      "success_count": 1,
+      "success_rate": 1.0,
+      "p95_latency_ms": 1639.82,
+      "freshness_lag_sec": 96069.18,
+      "new_item_count": 10,
+      "live_sample_count": 1,
+      "last_record": {
+        "record_type": "canary_fetch",
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+        "primary_source_url": "https://newsapi.org/v2/top-headlines?country=us",
+        "source_kind": "newsapi",
+        "trace_id": "CANARY-20260409190507-4a5c2595",
+        "fetched_at": "2026-04-09T19:05:07.536423Z",
+        "published_at": "2026-04-08T17:45:53Z",
+        "is_canary": true,
+        "fetch_status": "success",
+        "fetch_latency_ms": 1639.82,
+        "total_elapsed_ms": 1639.87,
+        "retry_delays_sec": [
+          5,
+          10,
+          20
+        ],
+        "attempted_sources": [
+          {
+            "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+            "source_kind": "newsapi",
+            "status": "success",
+            "attempts": [
+              {
+                "attempt": 1,
+                "status": "success",
+                "error": null,
+                "fetch_latency_ms": 1639.82
+              }
+            ]
+          }
+        ],
+        "freshness_lag_sec": 96069.18,
+        "new_item_count": 10,
+        "items": [
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.politico.com/news/2026/04/08/pam-bondi-deposition-ho-00863544",
+            "headline": "Pam Bondi still on the hook for Epstein testimony, Oversight panel says - Politico",
+            "published_at": "2026-04-08T17:45:53Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-1",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "http://www.hollywoodreporter.com/business/business-news/jeff-shell-president-paramount-out-1236554943/",
+            "headline": "Jeff Shell Exiting as President of Paramount - The Hollywood Reporter",
+            "published_at": "2026-04-08T17:41:14Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-2",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.wired.com/story/amazon-pulls-support-for-perfectly-fine-older-kindles/",
+            "headline": "Amazon Pulls Support for Perfectly Fine Older Kindles - WIRED",
+            "published_at": "2026-04-08T16:54:00Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-3",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.foxnews.com/live-news/artemis-ii-moon-nasa-photos-april-8-2026",
+            "headline": "Artemis II astronauts now under Earth's gravity again after leaving moon's sphere of influence - Fox News",
+            "published_at": "2026-04-08T16:48:59Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-4",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "http://www.rollingstone.com/music/music-features/artists-denied-entry-into-the-uk-list-1235543300/",
+            "headline": "Ye, Snoop Dogg, and Other Artists Who’ve Been Denied Entry into the U.K. - Yahoo",
+            "published_at": "2026-04-08T16:43:32Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-5",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.foxnews.com/live-news/trump-us-iran-war-ceasefire-strait-hormuz-israel-live-updates-04-08-2026",
+            "headline": "President Trump’s ceasefire with Iran draws praise from world leaders - Fox News",
+            "published_at": "2026-04-08T16:33:58Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-6",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.washingtonpost.com/health/2026/04/08/glp1-gene-weight-loss-response-side-effects/",
+            "headline": "If you aren’t losing weight with GLP-1 drugs, this may be one reason why - The Washington Post",
+            "published_at": "2026-04-08T16:32:22Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-7",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.npr.org/2026/04/08/nx-s1-5770114/democrats-wisconsin-georgia-election-shift-overperformance-trump",
+            "headline": "Democrats keep doing better in elections since Trump returned to office - NPR",
+            "published_at": "2026-04-08T16:28:29Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-8",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.washingtonpost.com/world/2026/04/08/hungary-iran-hezbollah-trump-orban/",
+            "headline": "After pager attack on Hezbollah, Hungary offered help to Iran - washingtonpost.com",
+            "published_at": "2026-04-08T16:26:27Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-9",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.cbsnews.com/news/molly-miller-colt-haynes-missing-person-identified-investigation-oklahoma/",
+            "headline": "Human remains identified as pair who vanished after Oklahoma car chase 13 years ago - CBS News",
+            "published_at": "2026-04-08T16:24:00Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-10",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          }
+        ]
+      }
+    },
+    "60": {
+      "window_minutes": 60,
+      "total_attempts": 1,
+      "success_count": 1,
+      "success_rate": 1.0,
+      "p95_latency_ms": 1639.82,
+      "freshness_lag_sec": 96069.18,
+      "new_item_count": 10,
+      "live_sample_count": 1,
+      "last_record": {
+        "record_type": "canary_fetch",
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+        "primary_source_url": "https://newsapi.org/v2/top-headlines?country=us",
+        "source_kind": "newsapi",
+        "trace_id": "CANARY-20260409190507-4a5c2595",
+        "fetched_at": "2026-04-09T19:05:07.536423Z",
+        "published_at": "2026-04-08T17:45:53Z",
+        "is_canary": true,
+        "fetch_status": "success",
+        "fetch_latency_ms": 1639.82,
+        "total_elapsed_ms": 1639.87,
+        "retry_delays_sec": [
+          5,
+          10,
+          20
+        ],
+        "attempted_sources": [
+          {
+            "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+            "source_kind": "newsapi",
+            "status": "success",
+            "attempts": [
+              {
+                "attempt": 1,
+                "status": "success",
+                "error": null,
+                "fetch_latency_ms": 1639.82
+              }
+            ]
+          }
+        ],
+        "freshness_lag_sec": 96069.18,
+        "new_item_count": 10,
+        "items": [
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.politico.com/news/2026/04/08/pam-bondi-deposition-ho-00863544",
+            "headline": "Pam Bondi still on the hook for Epstein testimony, Oversight panel says - Politico",
+            "published_at": "2026-04-08T17:45:53Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-1",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "http://www.hollywoodreporter.com/business/business-news/jeff-shell-president-paramount-out-1236554943/",
+            "headline": "Jeff Shell Exiting as President of Paramount - The Hollywood Reporter",
+            "published_at": "2026-04-08T17:41:14Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-2",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.wired.com/story/amazon-pulls-support-for-perfectly-fine-older-kindles/",
+            "headline": "Amazon Pulls Support for Perfectly Fine Older Kindles - WIRED",
+            "published_at": "2026-04-08T16:54:00Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-3",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.foxnews.com/live-news/artemis-ii-moon-nasa-photos-april-8-2026",
+            "headline": "Artemis II astronauts now under Earth's gravity again after leaving moon's sphere of influence - Fox News",
+            "published_at": "2026-04-08T16:48:59Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-4",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "http://www.rollingstone.com/music/music-features/artists-denied-entry-into-the-uk-list-1235543300/",
+            "headline": "Ye, Snoop Dogg, and Other Artists Who’ve Been Denied Entry into the U.K. - Yahoo",
+            "published_at": "2026-04-08T16:43:32Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-5",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.foxnews.com/live-news/trump-us-iran-war-ceasefire-strait-hormuz-israel-live-updates-04-08-2026",
+            "headline": "President Trump’s ceasefire with Iran draws praise from world leaders - Fox News",
+            "published_at": "2026-04-08T16:33:58Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-6",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.washingtonpost.com/health/2026/04/08/glp1-gene-weight-loss-response-side-effects/",
+            "headline": "If you aren’t losing weight with GLP-1 drugs, this may be one reason why - The Washington Post",
+            "published_at": "2026-04-08T16:32:22Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-7",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.npr.org/2026/04/08/nx-s1-5770114/democrats-wisconsin-georgia-election-shift-overperformance-trump",
+            "headline": "Democrats keep doing better in elections since Trump returned to office - NPR",
+            "published_at": "2026-04-08T16:28:29Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-8",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.washingtonpost.com/world/2026/04/08/hungary-iran-hezbollah-trump-orban/",
+            "headline": "After pager attack on Hezbollah, Hungary offered help to Iran - washingtonpost.com",
+            "published_at": "2026-04-08T16:26:27Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-9",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.cbsnews.com/news/molly-miller-colt-haynes-missing-person-identified-investigation-oklahoma/",
+            "headline": "Human remains identified as pair who vanished after Oklahoma car chase 13 years ago - CBS News",
+            "published_at": "2026-04-08T16:24:00Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-10",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          }
+        ]
+      }
+    },
+    "30": {
+      "window_minutes": 30,
+      "total_attempts": 1,
+      "success_count": 1,
+      "success_rate": 1.0,
+      "p95_latency_ms": 1639.82,
+      "freshness_lag_sec": 96069.18,
+      "new_item_count": 10,
+      "live_sample_count": 1,
+      "last_record": {
+        "record_type": "canary_fetch",
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+        "primary_source_url": "https://newsapi.org/v2/top-headlines?country=us",
+        "source_kind": "newsapi",
+        "trace_id": "CANARY-20260409190507-4a5c2595",
+        "fetched_at": "2026-04-09T19:05:07.536423Z",
+        "published_at": "2026-04-08T17:45:53Z",
+        "is_canary": true,
+        "fetch_status": "success",
+        "fetch_latency_ms": 1639.82,
+        "total_elapsed_ms": 1639.87,
+        "retry_delays_sec": [
+          5,
+          10,
+          20
+        ],
+        "attempted_sources": [
+          {
+            "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+            "source_kind": "newsapi",
+            "status": "success",
+            "attempts": [
+              {
+                "attempt": 1,
+                "status": "success",
+                "error": null,
+                "fetch_latency_ms": 1639.82
+              }
+            ]
+          }
+        ],
+        "freshness_lag_sec": 96069.18,
+        "new_item_count": 10,
+        "items": [
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.politico.com/news/2026/04/08/pam-bondi-deposition-ho-00863544",
+            "headline": "Pam Bondi still on the hook for Epstein testimony, Oversight panel says - Politico",
+            "published_at": "2026-04-08T17:45:53Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-1",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "http://www.hollywoodreporter.com/business/business-news/jeff-shell-president-paramount-out-1236554943/",
+            "headline": "Jeff Shell Exiting as President of Paramount - The Hollywood Reporter",
+            "published_at": "2026-04-08T17:41:14Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-2",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.wired.com/story/amazon-pulls-support-for-perfectly-fine-older-kindles/",
+            "headline": "Amazon Pulls Support for Perfectly Fine Older Kindles - WIRED",
+            "published_at": "2026-04-08T16:54:00Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-3",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.foxnews.com/live-news/artemis-ii-moon-nasa-photos-april-8-2026",
+            "headline": "Artemis II astronauts now under Earth's gravity again after leaving moon's sphere of influence - Fox News",
+            "published_at": "2026-04-08T16:48:59Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-4",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "http://www.rollingstone.com/music/music-features/artists-denied-entry-into-the-uk-list-1235543300/",
+            "headline": "Ye, Snoop Dogg, and Other Artists Who’ve Been Denied Entry into the U.K. - Yahoo",
+            "published_at": "2026-04-08T16:43:32Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-5",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.foxnews.com/live-news/trump-us-iran-war-ceasefire-strait-hormuz-israel-live-updates-04-08-2026",
+            "headline": "President Trump’s ceasefire with Iran draws praise from world leaders - Fox News",
+            "published_at": "2026-04-08T16:33:58Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-6",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.washingtonpost.com/health/2026/04/08/glp1-gene-weight-loss-response-side-effects/",
+            "headline": "If you aren’t losing weight with GLP-1 drugs, this may be one reason why - The Washington Post",
+            "published_at": "2026-04-08T16:32:22Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-7",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.npr.org/2026/04/08/nx-s1-5770114/democrats-wisconsin-georgia-election-shift-overperformance-trump",
+            "headline": "Democrats keep doing better in elections since Trump returned to office - NPR",
+            "published_at": "2026-04-08T16:28:29Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-8",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.washingtonpost.com/world/2026/04/08/hungary-iran-hezbollah-trump-orban/",
+            "headline": "After pager attack on Hezbollah, Hungary offered help to Iran - washingtonpost.com",
+            "published_at": "2026-04-08T16:26:27Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-9",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          },
+          {
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://www.cbsnews.com/news/molly-miller-colt-haynes-missing-person-identified-investigation-oklahoma/",
+            "headline": "Human remains identified as pair who vanished after Oklahoma car chase 13 years ago - CBS News",
+            "published_at": "2026-04-08T16:24:00Z",
+            "trace_id": "CANARY-20260409190507-4a5c2595-10",
+            "is_canary": true,
+            "source_kind": "newsapi"
+          }
+        ]
+      }
+    }
+  },
+  "recent_30m": {
+    "window_minutes": 30,
+    "total_attempts": 1,
+    "success_count": 1,
+    "success_rate": 1.0,
+    "p95_latency_ms": 1639.82,
+    "freshness_lag_sec": 96069.18,
+    "new_item_count": 10,
+    "live_sample_count": 1,
+    "last_record": {
+      "record_type": "canary_fetch",
+      "source_id": "newsapi_us_top_headlines",
+      "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+      "primary_source_url": "https://newsapi.org/v2/top-headlines?country=us",
+      "source_kind": "newsapi",
+      "trace_id": "CANARY-20260409190507-4a5c2595",
+      "fetched_at": "2026-04-09T19:05:07.536423Z",
+      "published_at": "2026-04-08T17:45:53Z",
+      "is_canary": true,
+      "fetch_status": "success",
+      "fetch_latency_ms": 1639.82,
+      "total_elapsed_ms": 1639.87,
+      "retry_delays_sec": [
+        5,
+        10,
+        20
+      ],
+      "attempted_sources": [
+        {
+          "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+          "source_kind": "newsapi",
+          "status": "success",
+          "attempts": [
+            {
+              "attempt": 1,
+              "status": "success",
+              "error": null,
+              "fetch_latency_ms": 1639.82
+            }
+          ]
+        }
+      ],
+      "freshness_lag_sec": 96069.18,
+      "new_item_count": 10,
+      "items": [
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.politico.com/news/2026/04/08/pam-bondi-deposition-ho-00863544",
+          "headline": "Pam Bondi still on the hook for Epstein testimony, Oversight panel says - Politico",
+          "published_at": "2026-04-08T17:45:53Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-1",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "http://www.hollywoodreporter.com/business/business-news/jeff-shell-president-paramount-out-1236554943/",
+          "headline": "Jeff Shell Exiting as President of Paramount - The Hollywood Reporter",
+          "published_at": "2026-04-08T17:41:14Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-2",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.wired.com/story/amazon-pulls-support-for-perfectly-fine-older-kindles/",
+          "headline": "Amazon Pulls Support for Perfectly Fine Older Kindles - WIRED",
+          "published_at": "2026-04-08T16:54:00Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-3",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.foxnews.com/live-news/artemis-ii-moon-nasa-photos-april-8-2026",
+          "headline": "Artemis II astronauts now under Earth's gravity again after leaving moon's sphere of influence - Fox News",
+          "published_at": "2026-04-08T16:48:59Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-4",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "http://www.rollingstone.com/music/music-features/artists-denied-entry-into-the-uk-list-1235543300/",
+          "headline": "Ye, Snoop Dogg, and Other Artists Who’ve Been Denied Entry into the U.K. - Yahoo",
+          "published_at": "2026-04-08T16:43:32Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-5",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.foxnews.com/live-news/trump-us-iran-war-ceasefire-strait-hormuz-israel-live-updates-04-08-2026",
+          "headline": "President Trump’s ceasefire with Iran draws praise from world leaders - Fox News",
+          "published_at": "2026-04-08T16:33:58Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-6",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.washingtonpost.com/health/2026/04/08/glp1-gene-weight-loss-response-side-effects/",
+          "headline": "If you aren’t losing weight with GLP-1 drugs, this may be one reason why - The Washington Post",
+          "published_at": "2026-04-08T16:32:22Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-7",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.npr.org/2026/04/08/nx-s1-5770114/democrats-wisconsin-georgia-election-shift-overperformance-trump",
+          "headline": "Democrats keep doing better in elections since Trump returned to office - NPR",
+          "published_at": "2026-04-08T16:28:29Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-8",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.washingtonpost.com/world/2026/04/08/hungary-iran-hezbollah-trump-orban/",
+          "headline": "After pager attack on Hezbollah, Hungary offered help to Iran - washingtonpost.com",
+          "published_at": "2026-04-08T16:26:27Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-9",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        },
+        {
+          "source_id": "newsapi_us_top_headlines",
+          "source_url": "https://www.cbsnews.com/news/molly-miller-colt-haynes-missing-person-identified-investigation-oklahoma/",
+          "headline": "Human remains identified as pair who vanished after Oklahoma car chase 13 years ago - CBS News",
+          "published_at": "2026-04-08T16:24:00Z",
+          "trace_id": "CANARY-20260409190507-4a5c2595-10",
+          "is_canary": true,
+          "source_kind": "newsapi"
+        }
+      ]
+    }
+  },
+  "last_record": {
+    "record_type": "canary_fetch",
+    "source_id": "newsapi_us_top_headlines",
+    "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+    "primary_source_url": "https://newsapi.org/v2/top-headlines?country=us",
+    "source_kind": "newsapi",
+    "trace_id": "CANARY-20260409190507-4a5c2595",
+    "fetched_at": "2026-04-09T19:05:07.536423Z",
+    "published_at": "2026-04-08T17:45:53Z",
+    "is_canary": true,
+    "fetch_status": "success",
+    "fetch_latency_ms": 1639.82,
+    "total_elapsed_ms": 1639.87,
+    "retry_delays_sec": [
+      5,
+      10,
+      20
+    ],
+    "attempted_sources": [
+      {
+        "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+        "source_kind": "newsapi",
+        "status": "success",
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "success",
+            "error": null,
+            "fetch_latency_ms": 1639.82
+          }
+        ]
+      }
+    ],
+    "freshness_lag_sec": 96069.18,
+    "new_item_count": 10,
+    "items": [
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.politico.com/news/2026/04/08/pam-bondi-deposition-ho-00863544",
+        "headline": "Pam Bondi still on the hook for Epstein testimony, Oversight panel says - Politico",
+        "published_at": "2026-04-08T17:45:53Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-1",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "http://www.hollywoodreporter.com/business/business-news/jeff-shell-president-paramount-out-1236554943/",
+        "headline": "Jeff Shell Exiting as President of Paramount - The Hollywood Reporter",
+        "published_at": "2026-04-08T17:41:14Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-2",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.wired.com/story/amazon-pulls-support-for-perfectly-fine-older-kindles/",
+        "headline": "Amazon Pulls Support for Perfectly Fine Older Kindles - WIRED",
+        "published_at": "2026-04-08T16:54:00Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-3",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.foxnews.com/live-news/artemis-ii-moon-nasa-photos-april-8-2026",
+        "headline": "Artemis II astronauts now under Earth's gravity again after leaving moon's sphere of influence - Fox News",
+        "published_at": "2026-04-08T16:48:59Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-4",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "http://www.rollingstone.com/music/music-features/artists-denied-entry-into-the-uk-list-1235543300/",
+        "headline": "Ye, Snoop Dogg, and Other Artists Who’ve Been Denied Entry into the U.K. - Yahoo",
+        "published_at": "2026-04-08T16:43:32Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-5",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.foxnews.com/live-news/trump-us-iran-war-ceasefire-strait-hormuz-israel-live-updates-04-08-2026",
+        "headline": "President Trump’s ceasefire with Iran draws praise from world leaders - Fox News",
+        "published_at": "2026-04-08T16:33:58Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-6",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.washingtonpost.com/health/2026/04/08/glp1-gene-weight-loss-response-side-effects/",
+        "headline": "If you aren’t losing weight with GLP-1 drugs, this may be one reason why - The Washington Post",
+        "published_at": "2026-04-08T16:32:22Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-7",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.npr.org/2026/04/08/nx-s1-5770114/democrats-wisconsin-georgia-election-shift-overperformance-trump",
+        "headline": "Democrats keep doing better in elections since Trump returned to office - NPR",
+        "published_at": "2026-04-08T16:28:29Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-8",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.washingtonpost.com/world/2026/04/08/hungary-iran-hezbollah-trump-orban/",
+        "headline": "After pager attack on Hezbollah, Hungary offered help to Iran - washingtonpost.com",
+        "published_at": "2026-04-08T16:26:27Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-9",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      },
+      {
+        "source_id": "newsapi_us_top_headlines",
+        "source_url": "https://www.cbsnews.com/news/molly-miller-colt-haynes-missing-person-identified-investigation-oklahoma/",
+        "headline": "Human remains identified as pair who vanished after Oklahoma car chase 13 years ago - CBS News",
+        "published_at": "2026-04-08T16:24:00Z",
+        "trace_id": "CANARY-20260409190507-4a5c2595-10",
+        "is_canary": true,
+        "source_kind": "newsapi"
+      }
+    ]
+  }
+}

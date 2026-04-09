@@ -9,36 +9,89 @@ import canary_source_health as csh
 from canary_source_health import CanarySourceHealth
 
 
-def test_canary_source_health_collects_and_summarizes(tmp_path, monkeypatch):
-    def fake_collect(self, source_url, timeout, max_items):
-        return "success", [
-            {
-                "headline": "Fed signals policy shift",
-                "source_url": source_url,
-                "timestamp": "2026-04-10T01:02:03Z",
-                "source_type": "rss",
-            }
-        ], None
+def test_canary_source_health_falls_back_to_backup_source(tmp_path, monkeypatch):
+    calls = []
 
-    monkeypatch.setattr(CanarySourceHealth, "_collect_feed_items", fake_collect)
+    def fake_fetch(self, source_spec, timeout, max_items):
+        source_url = source_spec["url"] if isinstance(source_spec, dict) else source_spec
+        calls.append(source_url)
+        if "reutersagency.com" in source_url:
+            return {
+                "status": "failed",
+                "items": [],
+                "error": "network_error",
+                "fetch_latency_ms": 12.5,
+            }
+        return {
+            "status": "success",
+            "items": [
+                {
+                    "headline": "Fed signals policy shift",
+                    "source_url": source_url,
+                    "timestamp": "2026-04-10T01:02:03Z",
+                    "source_type": "rss",
+                }
+            ],
+            "error": None,
+            "fetch_latency_ms": 21.5,
+        }
+
+    monkeypatch.setattr(CanarySourceHealth, "_fetch_source_once", fake_fetch)
+    monkeypatch.setattr(csh.time, "sleep", lambda *_args, **_kwargs: None)
     health = CanarySourceHealth(audit_dir=str(tmp_path))
+    health.sources = [
+        {"url": "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best", "kind": "rss"},
+        {"url": "https://www.reuters.com/markets/rss", "kind": "rss"},
+        {"url": "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en", "kind": "rss"},
+    ]
     record = health.collect_once()
 
     assert record["is_canary"] is True
     assert record["fetch_status"] == "success"
-    assert record["source_id"] == "reuters_rss_top_news"
+    assert record["source_id"] == "newsapi_us_top_headlines"
     assert record["new_item_count"] == 1
+    assert record["source_url"] == "https://www.reuters.com/markets/rss"
+    assert record["primary_source_url"] == "https://newsapi.org/v2/top-headlines?country=us"
+    assert len(record["attempted_sources"]) == 2
+    assert calls[0] == "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+    assert calls[1] == "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+    assert calls[2] == "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+    assert calls[3] == "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+    assert calls[4] == "https://www.reuters.com/markets/rss"
     assert record["items"][0]["trace_id"].startswith(record["trace_id"])
     assert (tmp_path / "canary_health.jsonl").exists()
     assert (tmp_path / "canary_health_summary.json").exists()
     assert (tmp_path / "canary_health_report.json").exists()
 
     summary = health.read_summary()
-    assert summary["source_id"] == "reuters_rss_top_news"
+    assert summary["source_id"] == "newsapi_us_top_headlines"
     assert summary["windows"]["60"]["success_rate"] == 1.0
     assert summary["windows"]["60"]["new_item_count"] == 1
     assessment = health.assess(summary=summary, mode="prod")
     assert assessment.status == "GREEN"
+
+
+def test_canary_source_health_parses_newsapi_payload(tmp_path):
+    health = CanarySourceHealth(audit_dir=str(tmp_path))
+    payload = json.dumps(
+        {
+            "status": "ok",
+            "articles": [
+                {
+                    "title": "Fed signals policy shift",
+                    "url": "https://example.com/fed-policy-shift",
+                    "publishedAt": "2026-04-10T01:02:03Z",
+                    "description": "Markets react to the new guidance.",
+                    "source": {"name": "Reuters"},
+                }
+            ],
+        }
+    )
+    items = health._parse_newsapi_items(payload, "https://newsapi.org/v2/top-headlines?country=us")
+    assert len(items) == 1
+    assert items[0]["headline"] == "Fed signals policy shift"
+    assert items[0]["source_type"] == "newsapi"
+    assert items[0]["source_url"] == "https://example.com/fed-policy-shift"
 
 
 def test_canary_source_health_yellow_without_samples(tmp_path):
@@ -47,4 +100,3 @@ def test_canary_source_health_yellow_without_samples(tmp_path):
     assessment = health.assess(summary=summary, mode="dev")
     assert assessment.status == "YELLOW"
     assert "No live canary samples" in assessment.summary
-

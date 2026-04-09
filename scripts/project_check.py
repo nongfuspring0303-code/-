@@ -201,7 +201,7 @@ def check_project():
         issues.append("外部数据健康暂无记录")
 
     print("\n🛰️  Canary 源健康检查:")
-    canary = CanarySourceHealth(audit_dir=str(root / "logs"))
+    canary = CanarySourceHealth()
     canary_summary = canary.read_summary()
     canary_assessment = canary.assess(summary=canary_summary, mode="dev")
     canary_window_1h = canary_assessment.windows.get("60", {}) or canary_assessment.windows.get("1h", {})

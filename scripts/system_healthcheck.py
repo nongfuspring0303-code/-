@@ -404,7 +404,7 @@ def check_external_data_health(mode: str = "dev") -> CheckResult:
 
 
 def check_canary_source_health(mode: str = "dev") -> CheckResult:
-    health = CanarySourceHealth(audit_dir=str(LOGS_DIR))
+    health = CanarySourceHealth()
     summary = health.read_summary()
     assessment = health.assess(summary=summary, mode=mode)
     result = CheckResult(

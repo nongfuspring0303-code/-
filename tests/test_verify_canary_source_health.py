@@ -13,9 +13,10 @@ def test_verify_canary_source_health_green_with_fresh_sample(tmp_path, monkeypat
     def fake_collect(self):
         record = {
             "record_type": "canary_fetch",
-            "source_id": "reuters_rss_top_news",
-            "source_url": "https://feeds.reuters.com/reuters/topNews",
-            "source_kind": "rss",
+            "source_id": "newsapi_us_top_headlines",
+            "source_url": "https://newsapi.org/v2/top-headlines?country=us",
+            "primary_source_url": "https://newsapi.org/v2/top-headlines?country=us",
+            "source_kind": "newsapi",
             "trace_id": "CANARY-TEST",
             "fetched_at": "2026-04-10T02:00:00Z",
             "published_at": "2026-04-10T01:59:30Z",
@@ -26,7 +27,7 @@ def test_verify_canary_source_health_green_with_fresh_sample(tmp_path, monkeypat
             "new_item_count": 1,
             "items": [
                 {
-                    "source_id": "reuters_rss_top_news",
+                    "source_id": "newsapi_us_top_headlines",
                     "source_url": "https://www.reuters.com/world/us/fed-policy-shift",
                     "headline": "Fed signals policy shift",
                     "published_at": "2026-04-10T01:59:30Z",
@@ -49,4 +50,3 @@ def test_verify_canary_source_health_green_with_fresh_sample(tmp_path, monkeypat
 def test_verify_canary_source_health_fails_without_samples(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["verify_canary_source_health.py", "--audit-dir", str(tmp_path)])
     assert verifier.main() == 1
-

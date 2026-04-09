@@ -543,8 +543,10 @@ modules:
       dedupe_min_token_overlap: 3
       enable_source_rank: true
       sources:
-        - "https://www.cnbc.com/id/10000664/device/rss/rss.html"
+        - "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+        - "https://www.reuters.com/markets/rss"
         - "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en"
+        - "https://www.cnbc.com/id/10000664/device/rss/rss.html"
         - "https://www.marketwatch.com/rss/topstories"
         - "https://feeds.apnews.com/rss/business"
         - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
@@ -596,6 +598,42 @@ modules:
           domains:
             - "twitter.com"
             - "telegram"
+
+canary_source_health:
+  source_id: "newsapi_us_top_headlines"
+  source_url: "https://newsapi.org/v2/top-headlines?country=us"
+  source_kind: "newsapi"
+  audit_dir: "logs/canary_live"
+  timeout: 10
+  max_items: 10
+  sources:
+    - url: "https://newsapi.org/v2/top-headlines?country=us"
+      kind: "newsapi"
+      api_key_env: "NEWSAPI_API_KEY"
+    - url: "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+      kind: "rss"
+    - url: "https://www.reuters.com/markets/rss"
+      kind: "rss"
+    - url: "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en"
+      kind: "rss"
+  retry_delays_sec:
+    - 5
+    - 10
+    - 20
+  windows_minutes:
+    - 5
+    - 60
+    - 30
+  gate:
+    min_success_rate_1h: 0.95
+    max_p95_latency_ms: 3000
+    max_freshness_lag_sec: 21600
+    min_new_item_count_30m: 1
+    source_overrides:
+      # Transitional override for the temporary NewsAPI live source.
+      # Remove once the final production canary source is swapped in.
+      newsapi_us_top_headlines:
+        max_freshness_lag_sec: 100000
 
   # ========== C层编排与审计模块 ==========
   OrchestratorNode:

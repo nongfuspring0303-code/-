@@ -28,5 +28,6 @@ logs/*.log
 logs/*.json
 logs/*.jsonl
 logs/*.txt
+logs/canary_live/
 !logs/.gitkeep
 !logs/README.md

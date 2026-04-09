@@ -23,6 +23,7 @@ if str(PROJECT_ROOT / "scripts") not in sys.path:
 
 from phase3_evidence_ledger import Phase3EvidenceLedger
 from data_adapter import DataAdapter
+from canary_source_health import CanarySourceHealth
 
 
 def check_project():
@@ -198,6 +199,28 @@ def check_project():
     else:
         print("  ⚠️  外部数据健康暂无记录")
         issues.append("外部数据健康暂无记录")
+
+    print("\n🛰️  Canary 源健康检查:")
+    canary = CanarySourceHealth()
+    canary_summary = canary.read_summary()
+    canary_assessment = canary.assess(summary=canary_summary, mode="dev")
+    canary_window_1h = canary_assessment.windows.get("60", {}) or canary_assessment.windows.get("1h", {})
+    canary_window_30m = canary_assessment.windows.get("30", {}) or canary_assessment.windows.get("30m", {})
+    symbol = "✅" if canary_assessment.status == "GREEN" else "⚠️" if canary_assessment.status == "YELLOW" else "❌"
+    print(f"  {symbol} Canary 源健康: {canary_assessment.summary}")
+    print(
+        "    "
+        f"1h success_rate={canary_window_1h.get('success_rate', 0)} "
+        f"p95_latency_ms={canary_window_1h.get('p95_latency_ms', 0)} "
+        f"freshness_lag_sec={canary_window_1h.get('freshness_lag_sec', 0)} "
+        f"new_item_count_30m={canary_window_30m.get('new_item_count', 0)}"
+    )
+    for warn in canary_assessment.warnings:
+        print(f"    ⚠️  {warn}")
+    for err in canary_assessment.errors:
+        print(f"    ❌ {err}")
+    if canary_assessment.status == "RED":
+        issues.append("Canary 源健康未通过")
 
     # 5. 检查测试
     print("\n🧪 测试检查:")

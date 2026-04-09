@@ -80,6 +80,11 @@ def resolve_history_file(runtime_cfg: dict, history_file: str | None = None) -> 
     return str((PROJECT_ROOT / path).resolve())
 
 
+def resolve_history_file_path(history_file: str | None) -> str | None:
+    """Backward-compatible wrapper for tests/imports."""
+    return resolve_history_file({}, history_file)
+
+
 
 def start_static_server(host: str, port: int, directory: Path) -> ThreadingHTTPServer:
     handler = partial(SimpleHTTPRequestHandler, directory=str(directory))

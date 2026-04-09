@@ -33,3 +33,8 @@ jobs:
       - name: Run no-pytest verification
         run: |
           python scripts/verify_execution_no_pytest.py
+
+      - name: Run canary source health gate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          python scripts/verify_canary_source_health.py --refresh

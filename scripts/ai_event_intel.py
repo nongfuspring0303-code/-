@@ -221,8 +221,8 @@ class NewsIngestion(EDTModule):
             return ModuleOutput(status=ModuleStatus.SUCCESS, data={"items": normalized[:max_items]})
 
         sources = raw.get("sources") or self._get_config("modules.NewsIngestion.params.sources", [])
-        timeout = int(self._get_config("modules.NewsIngestion.params.timeout", 8))
-        retries = int(self._get_config("modules.NewsIngestion.params.retries", 2))
+        timeout = int(raw.get("timeout", self._get_config("modules.NewsIngestion.params.timeout", 8)))
+        retries = int(raw.get("retries", self._get_config("modules.NewsIngestion.params.retries", 2)))
 
         items: List[Dict[str, Any]] = []
         for src in sources:

@@ -597,6 +597,59 @@ modules:
             - "twitter.com"
             - "telegram"
 
+canary_source_health:
+  source_id: "reuters_rss_top_news"
+  source_url: "https://feeds.reuters.com/reuters/topNews"
+  source_kind: "rss"
+  timeout: 10
+  max_items: 10
+  windows_minutes:
+    - 5
+    - 60
+    - 30
+  gate:
+    min_success_rate_1h: 0.95
+    max_p95_latency_ms: 3000
+    max_freshness_lag_sec: 1800
+    min_new_item_count_30m: 1
+
+  EventEvidenceScorer:
+    enabled: true
+    timeout: 10
+    params:
+      default_score: 50
+      abnormal_domains:
+        - "pastebin.com"
+        - "t.me"
+        - "bit.ly"
+      abnormal_types:
+        - "unknown"
+        - "forum"
+      abnormal_penalty: 20
+      consistency_rank_weights:
+        A: 1.0
+        B: 0.8
+        C: 0.4
+        unknown: 0.5
+      source_rank_map:
+        A:
+          score: 95
+          domains:
+            - "federalreserve.gov"
+            - "whitehouse.gov"
+            - "sec.gov"
+        B:
+          score: 80
+          domains:
+            - "reuters.com"
+            - "bloomberg.com"
+            - "wsj.com"
+        C:
+          score: 50
+          domains:
+            - "twitter.com"
+            - "telegram"
+
   # ========== C层编排与审计模块 ==========
   OrchestratorNode:
     enabled: true

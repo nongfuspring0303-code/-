@@ -42,6 +42,7 @@ except Exception as exc:  # noqa: BLE001
 
 from phase3_evidence_ledger import Phase3EvidenceLedger
 from data_adapter import DataAdapter
+from canary_source_health import CanarySourceHealth
 
 
 STATUS_ORDER = {"GREEN": 0, "YELLOW": 1, "RED": 2}
@@ -402,6 +403,32 @@ def check_external_data_health(mode: str = "dev") -> CheckResult:
     return result
 
 
+def check_canary_source_health(mode: str = "dev") -> CheckResult:
+    health = CanarySourceHealth(audit_dir=str(LOGS_DIR))
+    summary = health.read_summary()
+    assessment = health.assess(summary=summary, mode=mode)
+    result = CheckResult(
+        name="CANARY_SOURCE_HEALTH",
+        status=assessment.status,
+        summary=assessment.summary,
+        warnings=list(assessment.warnings),
+        errors=list(assessment.errors),
+        evidence=list(assessment.evidence),
+    )
+    window_1h = assessment.windows.get("60", {}) or assessment.windows.get("1h", {})
+    recent_30m = assessment.windows.get("30", {}) or assessment.windows.get("30m", {})
+    result.evidence.extend(
+        [
+            f"1h_success_rate={window_1h.get('success_rate', 0)}",
+            f"1h_p95_latency_ms={window_1h.get('p95_latency_ms', 0)}",
+            f"1h_freshness_lag_sec={window_1h.get('freshness_lag_sec', 0)}",
+            f"1h_new_item_count={window_1h.get('new_item_count', 0)}",
+            f"30m_new_item_count={recent_30m.get('new_item_count', 0)}",
+        ]
+    )
+    return result
+
+
 def check_recovery() -> CheckResult:
     result = CheckResult(name="RECOVERY", status="GREEN", summary="Health system self-check and recovery entrypoints are present.")
     required = [
@@ -519,9 +546,20 @@ def run_project_checks(mode: str = "dev") -> list[CheckResult]:
         check_test_runtime(),
         check_pressure_gate(),
         check_phase3_evidence_ledger(),
+        check_canary_source_health(mode=mode),
         check_external_data_health(mode=mode),
         check_recovery(),
     ]
+
+
+def _stage_status_for_overall(checks: list[CheckResult], mode: str) -> str:
+    statuses: list[str] = []
+    for check in checks:
+        status = check.status
+        if mode == "dev" and check.name == "CANARY_SOURCE_HEALTH" and status == "YELLOW":
+            status = "GREEN"
+        statuses.append(status)
+    return worst_status(statuses)
 
 
 def main() -> int:
@@ -553,7 +591,7 @@ def main() -> int:
     if stage_self_heal.status != "SKIP":
         stage_statuses.append(stage_self_heal.status)
     if stage_project.status != "SKIP":
-        stage_statuses.append(stage_project.status)
+        stage_statuses.append(_stage_status_for_overall(stage_project.checks, args.mode))
     normalized_statuses = [s for s in stage_statuses if s in STATUS_ORDER]
     overall = worst_status(normalized_statuses)
 

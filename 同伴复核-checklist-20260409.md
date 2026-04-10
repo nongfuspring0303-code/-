@@ -78,15 +78,17 @@ python3 scripts/verify_direction_consistency.py --min-rate 0.85
 
 ### I.2 P0/P1 能力复核（代码与测试点）
 - [ ] P0-1 实时行情失败形态：`scripts/data_adapter.py` + `tests/test_data_adapter.py`
-- [ ] P0-2 新闻源强失败（非静默 fallback）：`scripts/ai_event_intel.py` + `tests/test_ai_event_intel.py`
+- [x] P0-2 新闻源强失败（非静默 fallback）- **已更新**: Sina 主源 + canary 门禁 GREEN：`scripts/ai_event_intel.py` + `tests/test_ai_event_intel_sina.py`
 - [ ] P0-3 实时价优先评分 / 缺实时价强制 WATCH：`scripts/opportunity_score.py` + `tests/test_opportunity_score.py`
 - [ ] P0-4 schema 默认统一 v1.0：`scripts/ai_event_intel.py` + `scripts/ai_signal_adapter.py`
 - [ ] P1 EventBus 落盘恢复：`scripts/event_bus.py` + `tests/test_event_bus.py`
 - [ ] P1 CI 门禁接入：`.github/workflows/ci.yml`
 
 ### I.3 中后段任务复核（阶段四追加）
-- [ ] 语义层基础：`scripts/ai_semantic_analyzer.py` + `tests/test_ai_semantic_analyzer.py`
-- [ ] 语义+规则传导选择：`scripts/ai_conduction_selector.py` + `scripts/conduction_mapper.py`
+- [x] 语义层基础：`scripts/ai_semantic_analyzer.py` + `tests/test_ai_semantic_analyzer.py` (已更新 GLM-4.7 Flash API)
+- [x] 语义+规则传导选择：`scripts/ai_conduction_selector.py` + `scripts/conduction_mapper.py`
+- [x] **本轮新增 (2026-04-10)**: Sina 新闻源集成 - `scripts/ai_event_intel.py` + `tests/test_ai_event_intel_sina.py`
+- [x] **本轮新增 (2026-04-10)**: GLM API 语义分析 - `scripts/ai_semantic_analyzer.py` + `configs/edt-modules-config.yaml`
 - [ ] Master/Worker 推送门禁：`scripts/realtime_news_monitor.py` + `tests/test_master_worker_consistency.py`
 - [ ] conduction_chain 热更新：`scripts/config_center.py` + `tests/test_conduction_mapper_dynamic.py`
 - [ ] websockets API 迁移：`scripts/event_bus.py` + `tests/test_event_bus.py`

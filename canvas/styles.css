@@ -253,6 +253,16 @@ body {
   color: var(--text-secondary);
 }
 
+.ai-info {
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 4px;
+  color: #9b59b6;
+  background: #f5f0fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
 .trace-id {
   font-size: 10px;
   color: var(--accent-yellow);

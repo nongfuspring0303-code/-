@@ -255,6 +255,9 @@ class RealtimeNewsMonitor:
             analysis = result.get("analysis", {})
             intel = result.get("intel", {})
             event_object = intel.get("event_object", {})
+            ai_verdict = intel.get("ai_verdict", "")
+            ai_confidence = intel.get("ai_confidence", 0)
+            ai_reason = intel.get("ai_reason", "")
             ts = datetime.now(timezone.utc).isoformat()
             trace_id = str(result.get("trace_id") or event_object.get("event_id", "unknown"))
             if not trace_id.startswith(("TRC-", "REQ-", "BATCH-", "evt_")):
@@ -333,6 +336,9 @@ class RealtimeNewsMonitor:
                         or event_object.get("timestamp")
                     ),
                     "timestamp": ts,
+                    "ai_verdict": ai_verdict,
+                    "ai_confidence": ai_confidence,
+                    "ai_reason": ai_reason,
                 }
 
                 if not self._can_publish_main_chain():

@@ -57,3 +57,12 @@ properties:
     type: string
     format: date-time
     description: 系统检测时间
+  ai_verdict:
+    type: string
+    description: AI语义分析判定 (hit/abstain/not_called)
+  ai_confidence:
+    type: number
+    description: AI语义分析置信度
+  ai_reason:
+    type: string
+    description: AI语义分析理由

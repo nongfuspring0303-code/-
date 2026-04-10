@@ -20,6 +20,7 @@ import urllib.error
 import hashlib
 import json
 from email.utils import parsedate_to_datetime
+import os
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 from pathlib import Path
@@ -147,6 +148,14 @@ def _safe_fetch(url: str, timeout: int) -> Optional[str]:
             return resp.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, TimeoutError, OSError, ValueError):
         return None
+
+
+def _parse_sse_json(text: str) -> Dict[str, Any]:
+    text = (text or "").strip()
+    if "\ndata:" in text:
+        data_line = text.split("\ndata:", 1)[1].strip()
+        return json.loads(data_line)
+    return json.loads(text)
 
 
 def _tokenize(text: str) -> List[str]:
@@ -284,6 +293,10 @@ class NewsIngestion(EDTModule):
         if sina_items:
             items.extend(sina_items)
 
+        jin10_items = self._fetch_jin10(timeout)
+        if jin10_items:
+            items.extend(jin10_items)
+
         if not items:
             execution_mode = str(self._get_config("modules.ExecutionAdapter.params.mode", "dry_run")).lower()
             runtime_role = str(self._get_config("runtime.role", "dev")).lower()
@@ -417,6 +430,73 @@ class NewsIngestion(EDTModule):
 
         except Exception:
             return []
+
+    def _fetch_jin10(self, timeout: int = 8) -> List[Dict[str, Any]]:
+        """Fetch Jin10 flash list via MCP."""
+        enable_jin10 = bool(self._get_config("modules.NewsIngestion.params.enable_jin10", False))
+        if not enable_jin10:
+            return []
+
+        mcp_url = str(self._get_config("modules.NewsIngestion.params.jin10.mcp_url", "https://mcp.jin10.com/mcp"))
+        token_env = str(self._get_config("modules.NewsIngestion.params.jin10.token_env", "JIN10_MCP_TOKEN"))
+        token = os.getenv(token_env, "").strip()
+        if not token:
+            return []
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": token,
+        }
+
+        def rpc(method: str, params: Dict[str, Any], request_id: int, notify: bool = False):
+            payload: Dict[str, Any] = {"jsonrpc": "2.0", "method": method, "params": params}
+            if not notify:
+                payload["id"] = request_id
+            req = urllib.request.Request(mcp_url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                parsed = _parse_sse_json(raw)
+                return parsed, resp.headers
+
+        init_params = {
+            "protocolVersion": "2025-11-25",
+            "capabilities": {"tools": {}, "resources": {}},
+            "clientInfo": {"name": "edt-jin10", "version": "0.1.0"},
+        }
+        init_resp, init_headers = rpc("initialize", init_params, 1)
+        session_id = None
+        for k, v in init_headers.items():
+            if k.lower() in ("mcp-session-id", "session-id", "x-session-id"):
+                session_id = v
+                break
+        if session_id:
+            headers["mcp-session-id"] = session_id
+        rpc("notifications/initialized", {}, 2, notify=True)
+
+        call_params = {"name": "list_flash", "arguments": {}}
+        call_resp, _ = rpc("tools/call", call_params, 3)
+        structured = call_resp.get("result", {}).get("structuredContent") or {}
+        data = structured.get("data", {}) if isinstance(structured, dict) else {}
+        items_raw = data.get("items", []) if isinstance(data, dict) else []
+        if not isinstance(items_raw, list):
+            return []
+
+        items: List[Dict[str, Any]] = []
+        for raw in items_raw:
+            content = raw.get("content", "")
+            ts = raw.get("time", "")
+            url = raw.get("url", "")
+            if not content:
+                continue
+            items.append({
+                "headline": content,
+                "source_url": url,
+                "timestamp": ts,
+                "raw_text": content,
+                "source_type": "jin10",
+                "source_mode": "push",
+            })
+        return items
 
 
 class EventEvidenceScorer(EDTModule):

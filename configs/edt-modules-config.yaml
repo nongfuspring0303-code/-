@@ -543,6 +543,7 @@ modules:
       dedupe_min_token_overlap: 3
       enable_source_rank: true
       enable_sina: true
+      enable_jin10: false
       sina:
         url: "http://zhibo.sina.com.cn/api/zhibo/feed"
         params:
@@ -550,6 +551,9 @@ modules:
           page_size: 20
           zhibo_id: 152
           dire: "f"
+      jin10:
+        mcp_url: "https://mcp.jin10.com/mcp"
+        token_env: "JIN10_MCP_TOKEN"
       sources:
         - "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
         - "https://www.reuters.com/markets/rss"

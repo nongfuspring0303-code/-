@@ -46,5 +46,6 @@ jobs:
           python scripts/verify_mapping_quality.py --min-family-coverage 1.0 --min-precision 0.9
 
       - name: Run canary source health gate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           python scripts/verify_canary_source_health.py --refresh

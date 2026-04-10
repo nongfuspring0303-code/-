@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import ai_semantic_analyzer as semmod
 from ai_semantic_analyzer import SemanticAnalyzer
 
 
@@ -152,3 +153,40 @@ def test_semantic_analyzer_missing_api_key_falls_back(tmp_path, monkeypatch):
     assert out["verdict"] == "abstain"
     assert out["fallback_reason"] == "confidence_below_threshold"
     assert out["reason"] == "glm-4.7-flash api key missing"
+
+
+def test_semantic_analyzer_uses_model_from_config(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash-custom\n    min_confidence: 10\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ZAI_API_KEY", "test_key")
+    captured = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"event_type":"trade_talks","sentiment":"neutral","confidence":90,"recommended_chain":"trade_talks_chain","reason":"ok"}'
+                        }
+                    }
+                ]
+            }
+
+    def _fake_post(_url, headers=None, json=None, timeout=None):
+        captured["headers"] = headers
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return _Resp()
+
+    monkeypatch.setattr(semmod.requests, "post", _fake_post)
+    out = SemanticAnalyzer(config_path=str(cfg)).analyze("headline", "raw")
+
+    assert out["verdict"] == "hit"
+    assert captured["json"]["model"] == "glm-4.7-flash-custom"

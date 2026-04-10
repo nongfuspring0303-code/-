@@ -122,7 +122,7 @@ class SemanticAnalyzer:
         text = f"{headline} {raw_text}"
 
         if provider in ("glm_4", "glm-4.7-flash", "glm-4.7", "gemini_flash_lite") or model:
-            return self._call_glm_api(text, timeout_ms)
+            return self._call_glm_api(text, timeout_ms, model=model)
 
         text_lower = text.lower()
         if any(k in text_lower for k in ["trade meeting", "trade talks", "贸易会议", "贸易谈判", "谈判"]):
@@ -149,7 +149,7 @@ class SemanticAnalyzer:
             "reason": "deterministic fallback",
         }
 
-    def _call_glm_api(self, text: str, timeout_ms: int) -> Dict[str, Any]:
+    def _call_glm_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
         prompt = f"""你是一个金融新闻语义分析专家。请分析以下新闻标题和内容，判断其是否可能触发交易机会。
 
 新闻内容：{text}
@@ -179,7 +179,7 @@ class SemanticAnalyzer:
                 "Content-Type": "application/json",
             }
             payload = {
-                "model": "glm-4.7-flash",
+                "model": model or "glm-4.7-flash",
                 "messages": [
                     {"role": "user", "content": prompt}
                 ],

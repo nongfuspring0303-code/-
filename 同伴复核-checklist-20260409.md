@@ -89,6 +89,8 @@ python3 scripts/verify_direction_consistency.py --min-rate 0.85
 - [x] 语义+规则传导选择：`scripts/ai_conduction_selector.py` + `scripts/conduction_mapper.py`
 - [x] **本轮新增 (2026-04-10)**: Sina 新闻源集成 - `scripts/ai_event_intel.py` + `tests/test_ai_event_intel_sina.py`
 - [x] **本轮新增 (2026-04-10)**: GLM API 语义分析 - `scripts/ai_semantic_analyzer.py` + `configs/edt-modules-config.yaml`
+- [x] **本轮新增 (2026-04-10)**: `run_local.sh` 集成新闻监控（无需单独启动 monitor）- `scripts/run_c_module_stack.py`
+- [x] **本轮新增 (2026-04-10)**: 前端展示 AI 语义结果 - `canvas/app.js` + `canvas/styles.css`
 - [ ] Master/Worker 推送门禁：`scripts/realtime_news_monitor.py` + `tests/test_master_worker_consistency.py`
 - [ ] conduction_chain 热更新：`scripts/config_center.py` + `tests/test_conduction_mapper_dynamic.py`
 - [ ] websockets API 迁移：`scripts/event_bus.py` + `tests/test_event_bus.py`
@@ -99,6 +101,8 @@ python3 scripts/verify_direction_consistency.py --min-rate 0.85
 ### I.4 本轮新增修复复核（新闻时间 + 板块别名）
 - [ ] `event_update.news_timestamp` 优先级生效：`scripts/realtime_news_monitor.py`
 - [ ] 回归测试通过：`tests/test_realtime_news_monitor.py::test_push_event_update_uses_detected_at_as_news_timestamp`
+- [x] `event_update` 新增 AI 字段：`ai_verdict/ai_confidence/ai_reason`（schema + payload + UI）
+- [x] 预览事件可见 AI 结果：`scripts/realtime_news_monitor.py::_push_news_preview` 二次更新同 trace_id
 - [ ] 配置化板块别名生效：`configs/sector_aliases.yaml` + `scripts/opportunity_score.py`
 - [ ] 回归测试通过：`tests/test_opportunity_score.py::test_fallback_pool_supports_sector_alias_dictionary`
 - [ ] 运行证据存在：`logs/event_bus_history.jsonl` 中可见 `news_timestamp` 与 `XOM`

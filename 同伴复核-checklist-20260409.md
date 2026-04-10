@@ -91,6 +91,7 @@ python3 scripts/verify_direction_consistency.py --min-rate 0.85
 - [x] **本轮新增 (2026-04-10)**: GLM API 语义分析 - `scripts/ai_semantic_analyzer.py` + `configs/edt-modules-config.yaml`
 - [x] **本轮新增 (2026-04-10)**: 语义 API Key 改为环境变量（移除硬编码）- `scripts/ai_semantic_analyzer.py`
 - [x] **本轮新增 (2026-04-10)**: 语义模型参数真实生效（请求体使用 runtime.semantic.model）- `scripts/ai_semantic_analyzer.py`
+- [x] **本轮新增 (2026-04-10)**: 语义配置可自定义模型（`runtime.semantic.model`）+ 明确 `api_key_env`
 - [x] **本轮新增 (2026-04-10)**: `run_local.sh` 集成新闻监控（无需单独启动 monitor）- `scripts/run_c_module_stack.py`
 - [x] **本轮新增 (2026-04-10)**: 前端展示 AI 语义结果 - `canvas/app.js` + `canvas/styles.css`
 - [ ] Master/Worker 推送门禁：`scripts/realtime_news_monitor.py` + `tests/test_master_worker_consistency.py`

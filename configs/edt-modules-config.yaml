@@ -693,6 +693,7 @@ runtime:
     enabled: true
     provider: glm-4.7-flash
     model: glm-4.7-flash
+    api_key_env: ZAI_API_KEY
     min_confidence: 70
     timeout_ms: 1500
     full_enable: true

@@ -521,7 +521,8 @@ class RealtimeNewsMonitor:
         
         while True:
             try:
-                triggered = self.run_once()
+                # run_once 包含网络 IO 与同步处理，放到线程池避免阻塞主事件循环
+                triggered = await asyncio.to_thread(self.run_once)
                 if triggered:
                     logger.info("⏸️ 等待下一轮...")
             except KeyboardInterrupt:

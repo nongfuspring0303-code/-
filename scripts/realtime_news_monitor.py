@@ -172,12 +172,18 @@ class RealtimeNewsMonitor:
             )
             return False
 
-        # 新闻展示与触发解耦：真实新闻先推送到前端展示，再决定是否触发A/B
+        # 新闻展示与触发解耦：先推送预览，再补充AI语义结果
         self._push_news_preview(news)
         
         try:
             result = self.event_capture.run(news)
             captured = result.data.get("captured", False)
+            self._push_news_preview(
+                news,
+                ai_verdict=result.data.get("ai_verdict", ""),
+                ai_confidence=result.data.get("ai_confidence", 0),
+                ai_reason=result.data.get("ai_reason", ""),
+            )
             
             if captured:
                 logger.info(f"📰 新闻触发: {news.get('headline', '')[:50]}...")
@@ -387,7 +393,13 @@ class RealtimeNewsMonitor:
         except Exception as e:
             logger.error(f"推送失败: {e}")
 
-    def _push_news_preview(self, news: Dict[str, Any]) -> None:
+    def _push_news_preview(
+        self,
+        news: Dict[str, Any],
+        ai_verdict: str = "",
+        ai_confidence: float = 0,
+        ai_reason: str = "",
+    ) -> None:
         """Push lightweight event-update so UI can always display real news."""
         if not self.api_url:
             return
@@ -410,6 +422,9 @@ class RealtimeNewsMonitor:
             "narrative_state": "News-Only",
             "news_timestamp": news.get("timestamp"),
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "ai_verdict": ai_verdict,
+            "ai_confidence": ai_confidence,
+            "ai_reason": ai_reason,
         }
 
         try:

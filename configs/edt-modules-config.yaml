@@ -542,6 +542,14 @@ modules:
       dedupe_similarity_threshold: 0.78
       dedupe_min_token_overlap: 3
       enable_source_rank: true
+      enable_sina: true
+      sina:
+        url: "http://zhibo.sina.com.cn/api/zhibo/feed"
+        params:
+          page: 1
+          page_size: 20
+          zhibo_id: 152
+          dire: "f"
       sources:
         - "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
         - "https://www.reuters.com/markets/rss"
@@ -600,16 +608,23 @@ modules:
             - "telegram"
 
 canary_source_health:
-  source_id: "newsapi_us_top_headlines"
-  source_url: "https://newsapi.org/v2/top-headlines?country=us"
-  source_kind: "newsapi"
+  source_id: "sina_live_feed"
+  source_url: "http://zhibo.sina.com.cn/api/zhibo/feed"
+  source_kind: "json"
   audit_dir: "logs/canary_live"
   timeout: 10
   max_items: 10
   sources:
-    - url: "https://newsapi.org/v2/top-headlines?country=us"
-      kind: "newsapi"
-      api_key_env: "NEWSAPI_API_KEY"
+    - url: "http://zhibo.sina.com.cn/api/zhibo/feed"
+      kind: "json"
+      params:
+        page: 1
+        page_size: 10
+        zhibo_id: 152
+        dire: "f"
+      headers:
+        User-Agent: "Mozilla/5.0"
+        Referer: "http://finance.sina.com.cn/7x24/"
     - url: "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
       kind: "rss"
     - url: "https://www.reuters.com/markets/rss"
@@ -629,11 +644,6 @@ canary_source_health:
     max_p95_latency_ms: 3000
     max_freshness_lag_sec: 21600
     min_new_item_count_30m: 1
-    source_overrides:
-      # Transitional override for the temporary NewsAPI live source.
-      # Remove once the final production canary source is swapped in.
-      newsapi_us_top_headlines:
-        max_freshness_lag_sec: 100000
 
   # ========== C层编排与审计模块 ==========
   OrchestratorNode:
@@ -680,8 +690,13 @@ runtime:
     yahoo_quote_base: "https://query1.finance.yahoo.com/v7/finance/quote?symbols="
   hurt_to_short: false
   semantic:
-    enabled: false
+    enabled: true
+    provider: glm-4.7-flash
+    model: glm-4.7-flash
     min_confidence: 70
+    timeout_ms: 1500
+    full_enable: true
+    emergency_disable: false
   c_module_stack:
     history_file: "logs/event_bus_history.jsonl"
     mock_producer:

@@ -62,6 +62,36 @@ def test_process_news_skips_test_data_and_logs_warning(monkeypatch, caplog):
     assert any("跳过非实盘新闻" in message for message in caplog.messages)
 
 
+def test_process_news_real_news_keyword_miss_does_not_trigger_ab(monkeypatch):
+    class _MissCapture:
+        def run(self, _news):
+            class _Out:
+                data = {"captured": False, "matched_keywords": [], "vix_amplify": False}
+
+            return _Out()
+
+    monitor = _build_monitor(monkeypatch)
+    monitor.event_capture = _MissCapture()
+
+    trigger_calls = {"count": 0}
+
+    def _fake_trigger(_news):
+        trigger_calls["count"] += 1
+
+    monitor._trigger_ab_pipeline = _fake_trigger
+
+    news = {
+        "headline": "Routine company update",
+        "source_type": "rss",
+        "metadata": {},
+    }
+
+    result = monitor._process_news(news)
+
+    assert result is False
+    assert trigger_calls["count"] == 0
+
+
 def test_push_event_update_uses_detected_at_as_news_timestamp(monkeypatch):
     captured_posts = []
 

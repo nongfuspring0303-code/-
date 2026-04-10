@@ -11,6 +11,8 @@ Real-time News Monitor for EDT Project
 """
 
 import argparse
+import asyncio
+import hashlib
 import json
 import os
 import logging
@@ -169,17 +171,26 @@ class RealtimeNewsMonitor:
                 bool(news.get("is_test_data")),
             )
             return False
+
+        # 新闻展示与触发解耦：先推送预览，再补充AI语义结果
+        self._push_news_preview(news)
         
         try:
             result = self.event_capture.run(news)
             captured = result.data.get("captured", False)
+            self._push_news_preview(
+                news,
+                ai_verdict=result.data.get("ai_verdict", ""),
+                ai_confidence=result.data.get("ai_confidence", 0),
+                ai_reason=result.data.get("ai_reason", ""),
+            )
             
             if captured:
                 logger.info(f"📰 新闻触发: {news.get('headline', '')[:50]}...")
                 logger.info(f"   - 关键词匹配: {result.data.get('matched_keywords', [])}")
                 logger.info(f"   - VIX放大: {result.data.get('vix_amplify', False)}")
                 
-                self._trigger_ab_pipeline(news)
+                self._trigger_ab_pipeline(news, publish_event_update=False)
                 return True
             else:
                 logger.debug(f"📰 新闻未触发: {news.get('headline', '')[:50]}...")
@@ -189,7 +200,7 @@ class RealtimeNewsMonitor:
             logger.error(f"处理新闻失败: {e}")
             return False
     
-    def _trigger_ab_pipeline(self, news: Dict[str, Any]):
+    def _trigger_ab_pipeline(self, news: Dict[str, Any], publish_event_update: bool = True):
         """触发A/B计算流水线"""
         if not self.workflow:
             logger.warning("⚠️ Workflow未加载，跳过A/B计算")
@@ -226,14 +237,14 @@ class RealtimeNewsMonitor:
                 opportunities = result.get("opportunities", [])
                 logger.info(f"   - 板块数: {len(sectors)}")
                 logger.info(f"   - 机会数: {len(opportunities)}")
-                self._push_sectors_to_c(result)
+                self._push_sectors_to_c(result, news=news, publish_event_update=publish_event_update)
             else:
                 logger.warning(f"⚠️ A/B计算异常: {result}")
                 
         except Exception as e:
             logger.error(f"A/B计算失败: {e}")
     
-    def _push_sectors_to_c(self, result: Dict[str, Any]):
+    def _push_sectors_to_c(self, result: Dict[str, Any], news: Optional[Dict[str, Any]] = None, publish_event_update: bool = True):
         """推送板块和机会到C模块"""
         if not self.api_url:
             return
@@ -250,6 +261,9 @@ class RealtimeNewsMonitor:
             analysis = result.get("analysis", {})
             intel = result.get("intel", {})
             event_object = intel.get("event_object", {})
+            ai_verdict = intel.get("ai_verdict", "")
+            ai_confidence = intel.get("ai_confidence", 0)
+            ai_reason = intel.get("ai_reason", "")
             ts = datetime.now(timezone.utc).isoformat()
             trace_id = str(result.get("trace_id") or event_object.get("event_id", "unknown"))
             if not trace_id.startswith(("TRC-", "REQ-", "BATCH-", "evt_")):
@@ -303,44 +317,50 @@ class RealtimeNewsMonitor:
                     if resp.status == 200:
                         logger.info(f"✅ 推送板块到C模块成功")
             
-            # 推送 event-update
-            headline = event_object.get("headline", "A/B 实时计算事件")
-            headline_cn = event_object.get("headline_cn") or self._translate_headline(headline)
-            event_data = {
-                "type": "event_update",
-                "trace_id": trace_id,
-                "request_id": request_id,
-                "batch_id": batch_id,
-                "schema_version": "v1.0",
-                "headline": headline,
-                "headline_cn": headline_cn,
-                "source": event_object.get("source_url", "A-Module"),
-                "severity": event_object.get("severity", "E3"),
-                "evidence_score": 0,
-                "narrative_state": "Fact-Driven",
-                "news_timestamp": (
-                    event_object.get("news_timestamp")
-                    or event_object.get("published_at")
-                    or event_object.get("detected_at")
-                    or event_object.get("timestamp")
-                ),
-                "timestamp": ts,
-            }
-            
-            if not self._can_publish_main_chain():
-                self._forward_to_master(event_data, "/api/ingest/event-update")
-            else:
-                endpoint = f"{self.api_url}/api/ingest/event-update"
-                req = urllib.request.Request(
-                    endpoint,
-                    data=json.dumps(event_data).encode("utf-8"),
-                    headers=self._c_ingest_headers(),
-                    method="POST"
-                )
-                
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    if resp.status == 200:
-                        logger.info(f"✅ 推送事件到C模块成功")
+            if publish_event_update:
+                # 推送 event-update
+                headline = event_object.get("headline", "A/B 实时计算事件")
+                headline_cn = event_object.get("headline_cn") or self._translate_headline(headline)
+                event_data = {
+                    "type": "event_update",
+                    "trace_id": trace_id,
+                    "request_id": request_id,
+                    "batch_id": batch_id,
+                    "schema_version": "v1.0",
+                    "headline": headline,
+                    "headline_cn": headline_cn,
+                    "source": event_object.get("source_url", "A-Module"),
+                    "source_type": (news or {}).get("source_type", event_object.get("source_type", "")),
+                    "source_mode": (news or {}).get("source_mode", event_object.get("source_mode", "")),
+                    "severity": event_object.get("severity", "E3"),
+                    "evidence_score": 0,
+                    "narrative_state": "Fact-Driven",
+                    "news_timestamp": (
+                        event_object.get("news_timestamp")
+                        or event_object.get("published_at")
+                        or event_object.get("detected_at")
+                        or event_object.get("timestamp")
+                    ),
+                    "timestamp": ts,
+                    "ai_verdict": ai_verdict,
+                    "ai_confidence": ai_confidence,
+                    "ai_reason": ai_reason,
+                }
+
+                if not self._can_publish_main_chain():
+                    self._forward_to_master(event_data, "/api/ingest/event-update")
+                else:
+                    endpoint = f"{self.api_url}/api/ingest/event-update"
+                    req = urllib.request.Request(
+                        endpoint,
+                        data=json.dumps(event_data).encode("utf-8"),
+                        headers=self._c_ingest_headers(),
+                        method="POST"
+                    )
+
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        if resp.status == 200:
+                            logger.info(f"✅ 推送事件到C模块成功")
             
             # 推送 opportunity-update
             opportunities = analysis.get("opportunity_update", {}).get("opportunities", [])
@@ -372,7 +392,62 @@ class RealtimeNewsMonitor:
                     
         except Exception as e:
             logger.error(f"推送失败: {e}")
-    
+
+    def _push_news_preview(
+        self,
+        news: Dict[str, Any],
+        ai_verdict: str = "",
+        ai_confidence: float = 0,
+        ai_reason: str = "",
+    ) -> None:
+        """Push lightweight event-update so UI can always display real news."""
+        if not self.api_url:
+            return
+
+        trace_seed = str(news.get("event_id") or self._get_news_signature(news))
+        trace_hash = hashlib.sha1(trace_seed.encode("utf-8", errors="ignore")).hexdigest()[:12]
+        trace_id = f"evt_live_{trace_hash}"
+
+        payload = {
+            "type": "event_update",
+            "trace_id": trace_id,
+            "schema_version": "v1.0",
+            "headline": news.get("headline", ""),
+            "headline_cn": news.get("headline_cn") or self._translate_headline(news.get("headline", "")),
+            "source": news.get("source_url", ""),
+            "source_type": news.get("source_type", ""),
+            "source_mode": news.get("source_mode", ""),
+            "severity": "E1",
+            "evidence_score": 0,
+            "narrative_state": "News-Only",
+            "news_timestamp": news.get("timestamp"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "ai_verdict": ai_verdict,
+            "ai_confidence": ai_confidence,
+            "ai_reason": ai_reason,
+        }
+
+        try:
+            import urllib.request
+
+            if not self._can_publish_main_chain():
+                self._forward_to_master(payload, "/api/ingest/event-update")
+                return
+
+            endpoint = f"{self.api_url}/api/ingest/event-update"
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=self._c_ingest_headers(),
+                method="POST",
+            )
+
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    logger.info("✅ 推送新闻预览到C模块成功")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"⚠️ 推送新闻预览失败: {exc}")
+
     def _push_to_c_module(self, data: Dict[str, Any], api_url: str):
         """推送到C模块"""
         if not self._can_publish_main_chain():
@@ -439,6 +514,23 @@ class RealtimeNewsMonitor:
                 break
             
             time.sleep(self.poll_interval)
+
+    async def run_loop_async(self):
+        """异步版本的持续运行"""
+        logger.info(f"🚀 启动实时新闻监控 (轮询间隔: {self.poll_interval}秒)")
+        
+        while True:
+            try:
+                triggered = self.run_once()
+                if triggered:
+                    logger.info("⏸️ 等待下一轮...")
+            except KeyboardInterrupt:
+                logger.info("🛑 用户中断")
+                break
+            except Exception as e:
+                logger.error(f"循环异常: {e}")
+            
+            await asyncio.sleep(self.poll_interval)
 
 
 def main():

@@ -1,5 +1,6 @@
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -28,7 +29,7 @@ def test_canary_source_health_falls_back_to_backup_source(tmp_path, monkeypatch)
                 {
                     "headline": "Fed signals policy shift",
                     "source_url": source_url,
-                    "timestamp": "2026-04-10T01:02:03Z",
+                    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     "source_type": "rss",
                 }
             ],
@@ -48,10 +49,10 @@ def test_canary_source_health_falls_back_to_backup_source(tmp_path, monkeypatch)
 
     assert record["is_canary"] is True
     assert record["fetch_status"] == "success"
-    assert record["source_id"] == "newsapi_us_top_headlines"
+    assert record["source_id"] == "sina_live_feed"
     assert record["new_item_count"] == 1
     assert record["source_url"] == "https://www.reuters.com/markets/rss"
-    assert record["primary_source_url"] == "https://newsapi.org/v2/top-headlines?country=us"
+    assert record["primary_source_url"] == "http://zhibo.sina.com.cn/api/zhibo/feed"
     assert len(record["attempted_sources"]) == 2
     assert calls[0] == "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
     assert calls[1] == "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
@@ -64,7 +65,7 @@ def test_canary_source_health_falls_back_to_backup_source(tmp_path, monkeypatch)
     assert (tmp_path / "canary_health_report.json").exists()
 
     summary = health.read_summary()
-    assert summary["source_id"] == "newsapi_us_top_headlines"
+    assert summary["source_id"] == "sina_live_feed"
     assert summary["windows"]["60"]["success_rate"] == 1.0
     assert summary["windows"]["60"]["new_item_count"] == 1
     assessment = health.assess(summary=summary, mode="prod")
@@ -177,3 +178,53 @@ def test_canary_source_health_yellow_without_samples(tmp_path):
     assessment = health.assess(summary=summary, mode="dev")
     assert assessment.status == "YELLOW"
     assert "No live canary samples" in assessment.summary
+
+
+def test_canary_source_health_fetches_sina_json_source_once(tmp_path, monkeypatch):
+    sina_payload = json.dumps(
+        {
+            "result": {
+                "data": {
+                    "feed": {
+                        "list": [
+                            {
+                                "rich_text": "巴西天然气储量增长4.89%",
+                                "docurl": "https://finance.sina.cn/7x24/2026-04-10/detail-test.d.html",
+                                "create_time": "2026-04-10T21:16:14Z",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    )
+
+    class FakeResponse:
+        def __init__(self, payload: str):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return self.payload.encode("utf-8")
+
+    def fake_urlopen(_req, timeout):
+        _ = timeout
+        return FakeResponse(sina_payload)
+
+    monkeypatch.setattr(csh.urllib.request, "urlopen", fake_urlopen)
+    health = CanarySourceHealth(audit_dir=str(tmp_path))
+    out = health._fetch_source_once(
+        {"url": "http://zhibo.sina.com.cn/api/zhibo/feed", "kind": "json"},
+        5,
+        10,
+    )
+
+    assert out["status"] == "success"
+    assert len(out["items"]) == 1
+    assert out["items"][0]["headline"] == "巴西天然气储量增长4.89%"
+    assert out["items"][0]["source_type"] == "sina"

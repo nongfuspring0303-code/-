@@ -18,11 +18,24 @@ import xml.etree.ElementTree as ET
 import urllib.request
 import urllib.error
 import hashlib
+import json
 from email.utils import parsedate_to_datetime
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 from pathlib import Path
 from intel_modules import SourceRankerModule
+
+SINA_DEFAULT_URL = "http://zhibo.sina.com.cn/api/zhibo/feed"
+SINA_DEFAULT_PARAMS = {
+    "page": 1,
+    "page_size": 20,
+    "zhibo_id": 152,
+    "dire": "f",
+}
+SINA_HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Referer": "http://finance.sina.com.cn/7x24/",
+}
 
 
 def _default_config_path() -> str:
@@ -58,6 +71,17 @@ def _normalize_timestamp(ts: Optional[str]) -> str:
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _infer_source_mode(source_type: str, source_url: str = "") -> str:
+    st = (source_type or "").strip().lower()
+    if st in {"sina", "push", "live"}:
+        return "push"
+    if st in {"rss", "atom", "newsapi", "fallback", "failed"}:
+        return "pull"
+    if "zhibo.sina.com.cn" in (source_url or "").lower():
+        return "push"
+    return "unknown"
+
+
 def _parse_rss(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
     root = ET.fromstring(xml_text)
     items = []
@@ -75,6 +99,7 @@ def _parse_rss(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
                 "timestamp": pub_date,
                 "raw_text": description,
                 "source_type": "rss",
+                "source_mode": "pull",
             }
         )
     items.sort(key=lambda x: _parse_datetime(x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
@@ -102,6 +127,7 @@ def _parse_atom(xml_text: str, source_url: str) -> List[Dict[str, Any]]:
                 "timestamp": updated,
                 "raw_text": summary,
                 "source_type": "atom",
+                "source_mode": "pull",
             }
         )
     items.sort(key=lambda x: _parse_datetime(x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
@@ -254,6 +280,10 @@ class NewsIngestion(EDTModule):
             except Exception:
                 continue
 
+        sina_items = self._fetch_sina(timeout)
+        if sina_items:
+            items.extend(sina_items)
+
         if not items:
             execution_mode = str(self._get_config("modules.ExecutionAdapter.params.mode", "dry_run")).lower()
             runtime_role = str(self._get_config("runtime.role", "dev")).lower()
@@ -278,6 +308,7 @@ class NewsIngestion(EDTModule):
                     "timestamp": _now_iso(),
                     "raw_text": "Fallback news item used when sources fail.",
                     "source_type": "fallback",
+                    "source_mode": "pull",
                     "is_fallback": True,
                     "is_test_data": True,  # 标记为测试数据
                 }
@@ -290,6 +321,8 @@ class NewsIngestion(EDTModule):
         min_token_overlap = int(self._get_config("modules.NewsIngestion.params.dedupe_min_token_overlap", 3))
         if dedupe_on:
             normalized = _dedupe_items(normalized, window_minutes, similarity_threshold, min_token_overlap)
+
+        normalized.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return ModuleOutput(status=ModuleStatus.SUCCESS, data={"items": normalized[:max_items]})
 
     def _normalize_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -316,6 +349,7 @@ class NewsIngestion(EDTModule):
             "timestamp": timestamp,
             "raw_text": item.get("raw_text", ""),
             "source_type": item.get("source_type", ""),
+            "source_mode": item.get("source_mode") or _infer_source_mode(item.get("source_type", ""), source_url),
             "source_rank": source_rank,
             "is_test_data": bool(item.get("is_test_data", False)),
             "metadata": item.get("metadata", {}),
@@ -323,6 +357,66 @@ class NewsIngestion(EDTModule):
             "producer": item.get("producer", "member-a"),
             "generated_at": item.get("generated_at", _now_iso()),
         }
+
+    def _fetch_sina(self, timeout: int = 8) -> List[Dict[str, Any]]:
+        """Fetch news from Sina live API."""
+        enable_sina = bool(self._get_config("modules.NewsIngestion.params.enable_sina", False))
+        if not enable_sina:
+            return []
+
+        url = self._get_config("modules.NewsIngestion.params.sina.url", SINA_DEFAULT_URL)
+        params = self._get_config("modules.NewsIngestion.params.sina.params", SINA_DEFAULT_PARAMS)
+
+        try:
+            import urllib.parse
+
+            req = urllib.request.Request(
+                f"{url}?{urllib.parse.urlencode(params)}",
+                headers=SINA_HEADERS,
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+
+            result_data = payload.get("result", {})
+            feed_data = result_data.get("data", {})
+            feed = feed_data.get("feed", {})
+            items_raw = feed.get("list", [])
+
+            if not isinstance(items_raw, list):
+                return []
+
+            items = []
+            for raw in items_raw:
+                headline = raw.get("rich_text", "")
+                if not headline:
+                    continue
+
+                docurl = raw.get("docurl", "")
+                create_time = raw.get("create_time", "")
+                item_id = raw.get("id", 0)
+
+                timestamp = create_time
+                if create_time:
+                    try:
+                        dt = datetime.strptime(create_time, "%Y-%m-%d %H:%M:%S")
+                        timestamp = dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+                    except ValueError:
+                        pass
+
+                items.append({
+                    "headline": headline,
+                    "source_url": docurl or "https://finance.sina.com.cn/7x24/",
+                    "timestamp": timestamp,
+                    "raw_text": headline,
+                    "source_type": "sina",
+                    "source_mode": "push",
+                    "event_id": f"SINA-{item_id}" if item_id else "",
+                })
+
+            return items
+
+        except Exception:
+            return []
 
 
 class EventEvidenceScorer(EDTModule):

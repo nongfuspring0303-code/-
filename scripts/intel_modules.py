@@ -5,12 +5,17 @@ Intel modules for EDT (T2.1 - T2.4).
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
+from ai_semantic_analyzer import SemanticAnalyzer
+
+
+logger = logging.getLogger(__name__)
 
 
 def _default_config_path() -> str:
@@ -60,6 +65,13 @@ class EventCapture(EDTModule):
 
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("EventCapture", "1.0.0", config_path or _default_config_path())
+        self.semantic = None
+        self._semantic_init_error = ""
+        try:
+            self.semantic = SemanticAnalyzer(config_path=config_path)
+        except Exception as exc:
+            self._semantic_init_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("EventCapture semantic analyzer init failed: %s", self._semantic_init_error)
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["headline", "source", "timestamp"]
@@ -70,7 +82,8 @@ class EventCapture(EDTModule):
 
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
-        headline = str(raw["headline"]).lower()
+        headline_text = str(raw["headline"])
+        headline = headline_text.lower()
         keywords = [k.lower() for k in self._get_config("modules.EventCapture.params.keywords", [])]
         
         # 关键词匹配才触发，VIX仅作为放大器（不单独触发）
@@ -79,8 +92,44 @@ class EventCapture(EDTModule):
         vix_amplify_threshold = float(self._get_config("modules.EventCapture.params.vix_amplify_threshold", 20))
         vix_amplify = vix_level >= vix_amplify_threshold
         
-        # 只有关键词匹配才触发，VIX仅影响严重程度
-        captured = keyword_matched
+        ai_verdict = "not_called"
+        ai_confidence = 0
+        ai_reason = "keyword_rule_hit"
+        capture_source = "rules"
+        captured = True
+
+        if not keyword_matched:
+            raw_text = str(raw.get("raw_text", "") or "")
+            if self.semantic is None:
+                semantic_out = {
+                    "verdict": "abstain",
+                    "confidence": 0,
+                    "reason": f"semantic_init_error: {self._semantic_init_error or 'unavailable'}",
+                }
+            else:
+                try:
+                    semantic_out = self.semantic.analyze(headline_text, raw_text)
+                except Exception as exc:
+                    logger.warning("EventCapture semantic analyze failed: %s", exc)
+                    semantic_out = {"verdict": "abstain", "confidence": 0, "reason": "semantic_error"}
+
+            ai_verdict = str(semantic_out.get("verdict", "abstain") or "abstain")
+            ai_confidence = _safe_float(semantic_out.get("confidence"), 0.0)
+            ai_reason = str(semantic_out.get("reason", "") or "")
+            threshold = _safe_float(
+                self._get_config(
+                    "modules.EventCapture.params.ai_confidence_threshold",
+                    self._get_config("runtime.semantic.min_confidence", 70),
+                ),
+                70.0,
+            )
+
+            if ai_verdict == "hit" and ai_confidence >= threshold:
+                captured = True
+                capture_source = "ai"
+            else:
+                captured = False
+                capture_source = "none"
 
         # Minimal category inference for skeleton.
         category = "E"
@@ -97,6 +146,10 @@ class EventCapture(EDTModule):
             status=ModuleStatus.SUCCESS,
             data={
                 "captured": captured,
+                "capture_source": capture_source,
+                "ai_verdict": ai_verdict,
+                "ai_confidence": ai_confidence,
+                "ai_reason": ai_reason,
                 "vix_amplify": vix_amplify,  # VIX是否足以放大严重程度
                 "vix_level": vix_level,
                 "headline": raw["headline"],

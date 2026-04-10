@@ -22,13 +22,17 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run pytest
+      - name: Run core pytest
         run: |
-          python -m pytest -q
+          python -m pytest tests/test_ai_semantic_analyzer.py tests/test_ai_event_intel.py tests/test_ai_event_intel_sina.py tests/test_config_center.py -q
+
+      - name: Run news-chain pytest
+        run: |
+          python -m pytest tests/test_realtime_news_monitor.py tests/test_canary_source_health.py tests/test_verify_canary_source_health.py -q
 
       - name: Run healthcheck
         run: |
-          python scripts/system_healthcheck.py
+          python scripts/system_healthcheck.py --mode dev
 
       - name: Run no-pytest verification
         run: |

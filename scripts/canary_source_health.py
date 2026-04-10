@@ -229,12 +229,17 @@ class CanarySourceHealth:
                     url = str(item.get("url", "")).strip()
                     if not url:
                         continue
-                    values.append({
+                    entry = {
                         "url": url,
                         "kind": str(item.get("kind", self.source_kind)),
-                        "api_key_env": str(item.get("api_key_env", "") or ""),
-                        "headers": item.get("headers", {}) if isinstance(item.get("headers", {}), dict) else {},
-                    })
+                    }
+                    if item.get("api_key_env"):
+                        entry["api_key_env"] = str(item.get("api_key_env", "") or "")
+                    if item.get("headers") and isinstance(item.get("headers"), dict):
+                        entry["headers"] = item.get("headers")
+                    if item.get("params") and isinstance(item.get("params"), dict):
+                        entry["params"] = item.get("params")
+                    values.append(entry)
         if not values:
             values = [{"url": self.source_url, "kind": self.source_kind}]
         if self.source_url not in [spec["url"] for spec in values]:
@@ -347,7 +352,18 @@ class CanarySourceHealth:
         source_kind = str(source_spec.get("kind", self.source_kind)).lower()
         started = time.perf_counter()
         headers = self._resolve_headers(source_spec)
+        
         try:
+            # Handle params for Sina API
+            import urllib.parse
+            params = source_spec.get("params", {})
+            if params and isinstance(params, dict):
+                query_string = urllib.parse.urlencode(params)
+                if "?" in source_url:
+                    source_url = f"{source_url}&{query_string}"
+                else:
+                    source_url = f"{source_url}?{query_string}"
+            
             req = urllib.request.Request(source_url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 payload = resp.read().decode("utf-8", errors="replace")
@@ -361,9 +377,18 @@ class CanarySourceHealth:
 
         try:
             if source_kind in {"json", "newsapi"} or "newsapi.org" in source_url:
-                items = self._parse_newsapi_items(payload, source_url)
+                if "sina.com.cn" in source_url.lower():
+                    items = self._parse_sina_json_items(payload, source_url)
+                else:
+                    items = self._parse_newsapi_items(payload, source_url)
             else:
                 items = self._parse_feed_items(payload, source_url)
+            
+            # Filter out test data for all JSON sources
+            items = [
+                item for item in items
+                if isinstance(item, dict) and item.get("headline") and not bool(item.get("is_test_data"))
+            ]
         except Exception as exc:  # noqa: BLE001
             return {
                 "status": "failed",
@@ -414,6 +439,44 @@ class CanarySourceHealth:
                     "source_name": source_name,
                 }
             )
+        return items
+
+    def _parse_sina_json_items(self, json_text: str, source_url: str) -> List[Dict[str, Any]]:
+        try:
+            payload = json.loads(json_text)
+        except json.JSONDecodeError:
+            return []
+
+        result_data = payload.get("result", {})
+        data_section = result_data.get("data", {})
+
+        if not isinstance(data_section, dict):
+            return []
+
+        feed_data = data_section.get("feed", {})
+        items_raw = feed_data.get("list", []) if isinstance(feed_data, dict) else []
+
+        if not isinstance(items_raw, list):
+            return []
+
+        items: List[Dict[str, Any]] = []
+        for raw in items_raw:
+            headline = raw.get("rich_text", "")
+            if not headline:
+                continue
+
+            docurl = raw.get("docurl", "")
+            create_time = raw.get("create_time", "")
+
+            items.append({
+                "headline": headline,
+                "source_url": docurl or source_url,
+                "timestamp": create_time,
+                "raw_text": headline,
+                "source_type": "sina",
+                "source_name": "Sina Finance",
+            })
+
         return items
 
     def _collect_feed_items(

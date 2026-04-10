@@ -103,6 +103,11 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+.last-news-at {
+  opacity: 0.9;
 }
 
 .status-dot {
@@ -178,7 +183,9 @@ body {
 
 .news-meta {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   font-size: 11px;
   color: var(--text-secondary);
   margin-bottom: 6px;
@@ -186,6 +193,23 @@ body {
 
 .news-source {
   font-weight: 500;
+  margin-right: auto;
+}
+
+.news-source-mode,
+.news-source-type {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.news-source-mode {
+  background: rgba(56, 189, 248, 0.16);
+}
+
+.news-source-type {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .news-severity {
@@ -227,6 +251,16 @@ body {
   line-height: 1.4;
   margin-top: 4px;
   color: var(--text-secondary);
+}
+
+.ai-info {
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 4px;
+  color: #9b59b6;
+  background: #f5f0fa;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .trace-id {

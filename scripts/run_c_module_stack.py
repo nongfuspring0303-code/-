@@ -3,16 +3,18 @@
 C 模块一键联调启动脚本。
 
 启动内容：
-1) WebSocket 事件总线 (8765)
-2) 配置中心/反馈/监控 API (8787)
-3) 静态页面服务 (8080)
-4) Mock 事件流生产器（持续推送 event/sector/opportunity）
+1) WebSocket 事件总线 (18765)
+2) 配置中心/反馈/监控 API (18787)
+3) 静态页面服务 (18080)
+4) 实时新闻监控（轮询 Sina 新闻源）
+5) Mock 事件流生产器（dev 模式默认开启，可禁用）
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import random
 import os
 from datetime import datetime, timezone
@@ -23,6 +25,13 @@ from threading import Thread
 import sys
 import yaml
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
+
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -31,6 +40,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from scripts.config_api_server import create_server
 from scripts.event_bus import EventBus
 from scripts.health_monitor import HealthMonitor
+from scripts.realtime_news_monitor import RealtimeNewsMonitor
 
 
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "edt-modules-config.yaml"
@@ -219,6 +229,8 @@ async def main():
     parser.add_argument("--allow-non-dev-mock", action="store_true")
     parser.add_argument("--history-file", default=None, help="jsonl history file path for EventBus")
     parser.add_argument("--no-mock", action="store_true", help="disable mock producer, wait for A/B ingest")
+    parser.add_argument("--no-news", action="store_true", help="disable real-time news monitor")
+    parser.add_argument("--news-interval", type=int, default=30, help="news poll interval in seconds")
     args = parser.parse_args()
 
     runtime_cfg = load_runtime_config(Path(args.config))
@@ -261,23 +273,39 @@ async def main():
     print(f"- Role:      {role}")
     print(f"- NodeRole:  {node_role}")
     print(f"- Mock:      {'enabled' if enable_mock else 'disabled'} ({mock_mode})")
+    print(f"- News:      {'enabled' if not args.no_news else 'disabled'}")
     print("Press Ctrl+C to stop.")
 
     bus_task = asyncio.create_task(bus.start())
     producer_task = None
+    news_task = None
+
     if enable_mock and node_role != "worker":
         producer_task = asyncio.create_task(mock_producer(bus, monitor, args.interval))
 
+    if not args.no_news and node_role != "worker":
+        news_interval = args.news_interval
+        news_monitor = RealtimeNewsMonitor(
+            config_path=str(Path(args.config)),
+            poll_interval=news_interval,
+            api_url=f"http://{args.api_host}:{args.api_port}"
+        )
+        news_task = asyncio.create_task(news_monitor.run_loop_async())
+
     try:
+        tasks = [bus_task]
         if producer_task:
-            await asyncio.gather(bus_task, producer_task)
-        else:
-            await bus_task
+            tasks.append(producer_task)
+        if news_task:
+            tasks.append(news_task)
+        await asyncio.gather(*tasks)
     except asyncio.CancelledError:
         pass
     finally:
         if producer_task:
             producer_task.cancel()
+        if news_task:
+            news_task.cancel()
         await bus.stop()
         api_server.shutdown()
         static_server.shutdown()

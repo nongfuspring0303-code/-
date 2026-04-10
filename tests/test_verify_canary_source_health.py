@@ -1,5 +1,6 @@
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -11,15 +12,17 @@ import verify_canary_source_health as verifier
 
 def test_verify_canary_source_health_green_with_fresh_sample(tmp_path, monkeypatch):
     def fake_collect(self):
+        fetched_at = datetime.now(timezone.utc)
+        published_at = fetched_at - timedelta(seconds=30)
         record = {
             "record_type": "canary_fetch",
-            "source_id": "newsapi_us_top_headlines",
-            "source_url": "https://newsapi.org/v2/top-headlines?country=us",
-            "primary_source_url": "https://newsapi.org/v2/top-headlines?country=us",
-            "source_kind": "newsapi",
+            "source_id": "sina_live_feed",
+            "source_url": "http://zhibo.sina.com.cn/api/zhibo/feed",
+            "primary_source_url": "http://zhibo.sina.com.cn/api/zhibo/feed",
+            "source_kind": "json",
             "trace_id": "CANARY-TEST",
-            "fetched_at": "2026-04-10T02:00:00Z",
-            "published_at": "2026-04-10T01:59:30Z",
+            "fetched_at": fetched_at.isoformat().replace("+00:00", "Z"),
+            "published_at": published_at.isoformat().replace("+00:00", "Z"),
             "is_canary": True,
             "fetch_status": "success",
             "fetch_latency_ms": 120.0,
@@ -27,13 +30,13 @@ def test_verify_canary_source_health_green_with_fresh_sample(tmp_path, monkeypat
             "new_item_count": 1,
             "items": [
                 {
-                    "source_id": "newsapi_us_top_headlines",
-                    "source_url": "https://www.reuters.com/world/us/fed-policy-shift",
+                    "source_id": "sina_live_feed",
+                    "source_url": "https://finance.sina.cn/7x24/2026-04-10/detail-test.d.html",
                     "headline": "Fed signals policy shift",
-                    "published_at": "2026-04-10T01:59:30Z",
+                    "published_at": published_at.isoformat().replace("+00:00", "Z"),
                     "trace_id": "CANARY-TEST-1",
                     "is_canary": True,
-                    "source_kind": "rss",
+                    "source_kind": "json",
                 }
             ],
         }

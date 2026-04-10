@@ -167,6 +167,7 @@ class DataAdapter:
                     "source": item.get("source_url", ""),
                     "source_url": item.get("source_url", ""),
                     "source_type": item.get("source_type", ""),
+                    "source_mode": item.get("source_mode", ""),
                     "timestamp": item.get("timestamp", datetime.now(timezone.utc).isoformat()),
                     "raw_text": item.get("raw_text", ""),
                     "metadata": {
@@ -182,6 +183,7 @@ class DataAdapter:
             "source": "https://www.federalreserve.gov/newsevents/2026/march/h1234567a.htm",
             "source_url": "https://www.federalreserve.gov/newsevents/2026/march/h1234567a.htm",
             "source_type": "fallback",
+            "source_mode": "pull",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "raw_text": "The Federal Reserve has announced an emergency rate cut...",
             "metadata": {

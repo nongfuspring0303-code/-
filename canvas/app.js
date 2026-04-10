@@ -416,8 +416,8 @@ function renderNews() {
         <span class="news-severity severity-${escapeHtml(news.severity)}">${escapeHtml(news.severity)}</span>
       </div>
       <div class="news-time">新闻: ${escapeHtml(formatTimestamp(news.news_timestamp || news.timestamp))} | 推送: ${escapeHtml(formatTimestamp(news.timestamp))}</div>
-      <div class="news-headline">${escapeHtml(news.headline || '')}</div>
-      ${news.headline_cn ? `<div class="news-headline-cn">${escapeHtml(news.headline_cn)}</div>` : ''}
+      <div class="news-headline">${escapeHtml(news.headline_cn || news.headline || '')}</div>
+      ${news.headline_cn && news.headline && news.headline_cn !== news.headline ? `<div class="news-headline-cn">${escapeHtml(news.headline)}</div>` : ''}
       ${news.ai_verdict ? `<div class="ai-info">AI: ${escapeHtml(news.ai_verdict)} | 置信度: ${escapeHtml(String(news.ai_confidence || 0))} | ${escapeHtml(news.ai_reason || '')}</div>` : ''}
       <div class="trace-id">${escapeHtml(news.id)}</div>
     </div>

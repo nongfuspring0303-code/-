@@ -160,3 +160,30 @@ def test_worker_node_skips_main_chain_push(monkeypatch):
     monitor._push_sectors_to_c({"analysis": {}, "intel": {}})
 
     assert called["value"] is False
+
+
+def test_translate_headline_falls_back_without_translator(monkeypatch):
+    monitor = _build_monitor(monkeypatch)
+    monitor.translator = None
+
+    translated = monitor._translate_headline("Fed rate cut amid inflation and market stress")
+
+    assert translated is not None
+    assert "美联储" in translated
+    assert "降息" in translated
+    assert "通胀" in translated
+
+
+def test_translate_headline_falls_back_when_translator_errors(monkeypatch):
+    class _BoomTranslator:
+        def translate(self, *_args, **_kwargs):
+            raise RuntimeError("translator unavailable")
+
+    monitor = _build_monitor(monkeypatch)
+    monitor.translator = _BoomTranslator()
+
+    translated = monitor._translate_headline("SEC warns about market risks")
+
+    assert translated is not None
+    assert "美国SEC" in translated
+    assert "市场" in translated

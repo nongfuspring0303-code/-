@@ -533,10 +533,10 @@ modules:
 
   NewsIngestion:
     enabled: true
-    timeout: 1
+    timeout: 5
     params:
-      timeout: 1
-      retries: 0
+      timeout: 5
+      retries: 2
       dedupe: true
       dedupe_window_minutes: 120
       dedupe_similarity_threshold: 0.78

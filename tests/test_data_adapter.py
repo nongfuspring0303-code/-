@@ -91,6 +91,25 @@ def test_fetch_market_data_returns_failed_shape_on_partial_success(monkeypatch):
 
 def test_data_adapter_health_report_records_snapshots(tmp_path):
     adapter = DataAdapter(audit_dir=str(tmp_path))
+    # Keep the test focused on snapshot persistence rather than live I/O.
+    adapter.fetch_news = lambda: {
+        "headline": "stub",
+        "source": "stub",
+        "source_url": "stub",
+        "source_type": "rss",
+        "timestamp": "2026-01-01T00:00:00Z",
+        "raw_text": "stub",
+        "metadata": {},
+    }
+    adapter.fetch_market_data = lambda: {
+        "vix_level": None,
+        "vix_change_pct": None,
+        "spx_change_pct": None,
+        "etf_volatility": {"change_pct": None},
+        "market_data_source": "failed",
+        "is_test_data": True,
+    }
+    adapter.fetch_sector_data = lambda: []
     adapter.fetch()
     adapter.fetch()
 

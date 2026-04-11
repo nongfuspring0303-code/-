@@ -1,0 +1,243 @@
+version: 1.0.0
+owner: project-stage4
+status: approved-template
+updated_at: '2026-04-11'
+description: Single source of truth for metric names, ranges, semantics, and rounding
+  rules used by the Phase 4 causal-conduction system.
+standards:
+  default_rounding_decimals: 2
+  default_score_type: float
+  default_confidence_type: float
+  naming_rules:
+  - Metric keys must remain stable across modules and tests.
+  - Any new score/confidence field must be registered here before implementation.
+  output_rules:
+  - All score/confidence fields round to 2 decimals at the output boundary.
+  - Internal intermediate precision may be higher but must not leak into final payloads.
+metrics:
+  A0:
+    label: event_base_severity_score
+    category: event
+    range:
+    - 0
+    - 100
+    polarity: higher_is_stronger
+    description: Base event severity score before downstream transmission adjustments.
+  A0_5:
+    label: liquidity_safety_score
+    category: risk
+    range:
+    - 0
+    - 100
+    polarity: higher_is_safer
+    description: Liquidity / execution safety score; lower values indicate red-zone
+      execution risk.
+  confidence:
+    label: event_confidence_score
+    category: event
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_trustworthy
+    description: Top-level event confidence used in trade-admission gating.
+  classification_confidence:
+    label: classification_confidence
+    category: event
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_trustworthy
+    description: Confidence for event taxonomy classification.
+  market_impact_confidence:
+    label: market_impact_confidence
+    category: event
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_trustworthy
+    description: Confidence that the event has tradable market impact.
+  final_sector_score:
+    label: final_sector_score
+    category: sector
+    range:
+    - -100
+    - 100
+    polarity: signed_directional
+    description: Sector composite score after factor exposure, asset validation, path
+      support, narrative support, and penalties.
+  stock_transmission_score:
+    label: stock_transmission_score
+    category: stock
+    range:
+    - 0
+    - 100
+    polarity: higher_is_better
+    description: Stock-level transmission score used for candidate ranking within
+      the premium stock pool.
+  sector_top1_top2_gap:
+    label: sector_top1_top2_gap
+    category: sector
+    range:
+    - 0
+    - 100
+    polarity: higher_is_clearer
+    description: Gap between the top-two sector scores used by admission and override
+      logic.
+  fatigue_final:
+    label: fatigue_final
+    category: event
+    range:
+    - 0
+    - 180
+    polarity: lower_is_fresher
+    description: Fatigue-adjusted event crowding score used to discount stale catalysts.
+  basket_scores.rates_basket:
+    label: rates_basket_score
+    category: cross_asset
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_confirmed
+    description: Basket score for rates-sensitive validating assets.
+  basket_scores.risk_off_basket:
+    label: risk_off_basket_score
+    category: cross_asset
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_confirmed
+    description: Basket score for defensive/risk-off validating assets.
+  basket_scores.commodity_basket:
+    label: commodity_basket_score
+    category: cross_asset
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_confirmed
+    description: Basket score for commodity and input-cost validating assets.
+  basket_scores.usd_basket:
+    label: usd_basket_score
+    category: cross_asset
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_confirmed
+    description: Basket score for USD-sensitive validating assets.
+  basket_scores.growth_vs_value_basket:
+    label: growth_vs_value_basket_score
+    category: cross_asset
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_confirmed
+    description: Basket score for style-rotation validating assets.
+  action_match_rate:
+    label: shadow_action_match_rate
+    category: shadow
+    range:
+    - 0
+    - 1
+    polarity: higher_is_better
+    description: Action agreement ratio between track A and track B during shadow
+      validation.
+  path_match_rate:
+    label: shadow_path_match_rate
+    category: shadow
+    range:
+    - 0
+    - 1
+    polarity: higher_is_better
+    description: Dominant-path agreement ratio between track A and track B during
+      shadow validation.
+  sector_match_rate:
+    label: shadow_sector_match_rate
+    category: shadow
+    range:
+    - 0
+    - 1
+    polarity: higher_is_better
+    description: Top-sector agreement ratio between track A and track B during shadow
+      validation.
+  score_delta_p95:
+    label: shadow_score_delta_p95
+    category: shadow
+    range:
+    - 0
+    - 100
+    polarity: lower_is_better
+    description: 95th percentile absolute score delta between track A and track B.
+  asset_validation:
+    score:
+      label: asset_validation_score
+      category: cross_asset
+      range:
+      - 0
+      - 100
+      polarity: higher_is_better_confirmed
+      description: Cross-asset confirmation score after basket validation and divergence
+        penalties.
+  path_dominance:
+    score:
+      label: path_dominance_score
+      category: path
+      range:
+      - 0
+      - 100
+      polarity: higher_is_clearer
+      description: Dominance score of the top transmission path after clarity, asset
+        confirmation, cross-asset consistency, template match, noise, and conflict
+        adjustments.
+required_output_fields:
+  always_include:
+  - schema_version
+  - trace_id
+  - news_timestamp
+  - score_breakdown
+  conditional_include:
+  - gate_reason
+  - gate_reason_code
+  - state_machine_step
+enumerations:
+  asset_validation:
+    status:
+    - confirmed
+    - divergent
+    - unconfirmed
+  path_adjudication:
+    path_type:
+    - fundamental
+    - asset_pricing
+    - narrative
+    horizon:
+    - intraday
+    - 1-5D
+    - multiweek
+    persistence:
+    - fast
+    - medium
+    - slow
+  state_machine:
+    action:
+    - TRADE
+    - WATCH
+    - NO_ACTION
+    step:
+    - data_integrity
+    - mixed_regime
+    - asset_validation
+    - risk_gate
+    - trade_admission
+    - fallback
+    gate_reason_code: &id001
+    - MISSING_FIELDS
+    - MIXED_REGIME
+    - ASSET_UNCONFIRMED
+    - RISK_BLOCKED
+    - ALL_PASSED
+    - DEFAULT_WATCH
+  stock:
+    classification:
+    - first_order_carrier
+    - leveraged_proxy
+    - contaminated
+  gate_reason_code: *id001

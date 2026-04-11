@@ -86,6 +86,15 @@ class DataAdapter:
         except Exception:
             logging.debug("Failed to persist data health snapshot", exc_info=True)
 
+    def _build_health_snapshot(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "news_source_type": payload.get("news", {}).get("source_type", ""),
+            "news_is_test_data": bool(payload.get("news", {}).get("metadata", {}).get("is_test_data")),
+            "market_is_test_data": bool(payload.get("market_data", {}).get("is_test_data")),
+            "sector_count": len(payload.get("sector_data", [])),
+        }
+
     def _load_health_records(self, window_days: int = 30) -> List[Dict[str, Any]]:
         if not self.health_log_file.exists():
             return []
@@ -285,25 +294,53 @@ class DataAdapter:
         if self.cache:
             cached = self.cache.run({"action": "get", "key": key}).data
             if cached.get("hit"):
-                return cached.get("value")
+                payload = cached.get("value") or {}
+                self._record_health_snapshot(self._build_health_snapshot(payload))
+                return payload
+
+        try:
+            news = self.fetch_news()
+        except Exception as exc:
+            logging.warning("news_fetch_failed reason=%s", exc)
+            news = {
+                "headline": "",
+                "source": "",
+                "source_url": "",
+                "source_type": "failed",
+                "source_mode": "failed",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "raw_text": "",
+                "metadata": {"is_test_data": True},
+            }
+
+        try:
+            market_data = self.fetch_market_data()
+        except Exception as exc:
+            logging.warning("market_fetch_failed reason=%s", exc)
+            market_data = {
+                "vix_level": None,
+                "vix_change_pct": None,
+                "spx_change_pct": None,
+                "etf_volatility": {"change_pct": None},
+                "market_data_source": "failed",
+                "is_test_data": True,
+            }
+
+        try:
+            sector_data = self.fetch_sector_data()
+        except Exception as exc:
+            logging.warning("sector_fetch_failed reason=%s", exc)
+            sector_data = []
 
         payload = {
-            "news": self.fetch_news(),
-            "market_data": self.fetch_market_data(),
-            "sector_data": self.fetch_sector_data(),
+            "news": news,
+            "market_data": market_data,
+            "sector_data": sector_data,
         }
 
         if self.cache:
             self.cache.run({"action": "set", "key": key, "value": payload, "ttl_seconds": 300})
-        self._record_health_snapshot(
-            {
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "news_source_type": payload["news"].get("source_type", ""),
-                "news_is_test_data": bool(payload["news"].get("metadata", {}).get("is_test_data")),
-                "market_is_test_data": bool(payload["market_data"].get("is_test_data")),
-                "sector_count": len(payload["sector_data"]),
-            }
-        )
+        self._record_health_snapshot(self._build_health_snapshot(payload))
         return payload
 
 

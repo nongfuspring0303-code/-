@@ -327,13 +327,32 @@ class EventBus:
     
     def _store_replay_buffer(self, message: EventMessage):
         """存储重放缓冲区"""
-        date_key = message.timestamp[:10]
+        date_key = self._replay_date_key(message.timestamp)
         self.replay_buffer[date_key].append(message)
-        
-        cutoff = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+        cutoff = self._replay_cutoff_key(message.timestamp)
+        if cutoff is None:
+            return
         for key in list(self.replay_buffer.keys()):
             if key < cutoff:
                 del self.replay_buffer[key]
+
+    @staticmethod
+    def _replay_date_key(timestamp: str) -> str:
+        if not timestamp:
+            return datetime.now().strftime("%Y-%m-%d")
+        try:
+            return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).date().isoformat()
+        except Exception:
+            return timestamp[:10] if len(timestamp) >= 10 else datetime.now().strftime("%Y-%m-%d")
+
+    @staticmethod
+    def _replay_cutoff_key(timestamp: str) -> Optional[str]:
+        try:
+            message_day = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).date()
+        except Exception:
+            return None
+        return (message_day - timedelta(days=7)).isoformat()
     
     def _get_replay_messages(self, start_time: Optional[str], end_time: Optional[str]) -> List[EventMessage]:
         """获取重放消息"""

@@ -1,0 +1,91 @@
+version: "1.0.0"
+owner: "project-stage4"
+status: "approved-template"
+updated_at: "2026-04-11"
+description: >-
+  Phase 4 causal-conduction gate policy. All runtime thresholds for admission,
+  path dominance, mixed-regime handling, signal grading, shadow validation,
+  rollback, and risk gating must be read from this file via ConfigCenter.
+
+policy_metadata:
+  source_of_truth: true
+  rounding_precision: 2
+  notes:
+    - "All score/confidence fields are rounded to 2 decimals at output boundary."
+    - "Threshold tuning must occur here, never in code."
+    - "Initial defaults are aligned to the Phase 4 v2.1 planning docs and may be tuned only through versioned config changes."
+
+asset_validation:
+  no_action_max: 45.0
+  trade_min: 65.0
+  leader_min_count: 1
+  whitelist_violation_allowed: 0
+  divergence_penalty:
+    trigger_count: 3
+    per_extra_divergence: 5.0
+    max_penalty: 20.0
+
+path_dominance:
+  min_gap: 12.0
+  score_min_for_trade_candidate: 62.0
+  narrative_top_requires_non_narrative_min: 50.0
+
+mixed_regime_override:
+  enabled: false
+  asset_validation_min: 72.0
+  path_dominance_min: 70.0
+  sector_gap_min: 10.0
+
+trade_admission:
+  A0_min: 60.0
+  confidence_min: 65.0
+  asset_validation_min: 65.0
+  path_dominance_min: 62.0
+  sector_top1_top2_gap_min: 8.0
+  A0_5_min: 60.0
+  fatigue_final_max: 90.0
+  require_asset_confirmation: true
+
+risk_gate:
+  liquidity_red_zone_A0_5_max: 35.0
+  execution_unreachable_blocks_trade: true
+  max_trade_without_asset_confirmation: 0
+
+signal_grade:
+  a_min: 75.0
+  b_min: 60.0
+  max_stock_candidates: 5
+  max_primary_sector: 1
+  max_secondary_sector: 1
+  max_avoid_sector: 2
+  downgrade_to_sector_only_when_stock_edge_below: 6.0
+
+shadow:
+  compare_window_trading_days: 10
+  min_events_per_day: 20
+  action_match_rate_min: 0.95
+  path_match_rate_min: 0.90
+  sector_match_rate_min: 0.90
+  score_delta_p95_max: 8.0
+
+rollback:
+  action_match_breach_days: 2
+  trade_without_asset_confirmation_max: 0
+  schema_required_field_missing_rate_max: 0.0
+  p95_latency_breach_minutes: 30
+
+validation_gates:
+  path_completeness_rate_min: 0.95
+  asset_whitelist_violation_max: 0
+  mixed_regime_handled_rate_min: 0.99
+  trade_without_asset_confirmation_max: 0
+
+output_limits:
+  stock_candidates_max: 5
+  sector_primary_max: 1
+  sector_secondary_max: 1
+  sector_avoid_max: 2
+
+compatibility:
+  allow_legacy_event_to_sector_mapping_alias_for_one_cycle: true
+  legacy_mapping_alias_name: "event_to_sector_mapping.yaml"

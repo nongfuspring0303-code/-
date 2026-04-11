@@ -22,6 +22,11 @@ import yaml
 
 from config_center import ConfigCenter
 
+try:
+    from transmission_engine.core.state_machine import evaluate_state
+except Exception:  # pragma: no cover
+    evaluate_state = None
+
 
 def _root_dir() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -170,10 +175,20 @@ class OpportunityScorer:
     def __init__(self, pool_config_path: Optional[str] = None):
         self.pool = PremiumStockPool(pool_config_path=pool_config_path)
         self.config = ConfigCenter()
+        self.config.register("gate_policy", _root_dir() / "configs" / "gate_policy.yaml")
+        self._gate_policy = self.config.get_registered("gate_policy", {})
         self._price_cache: Dict[str, Dict[str, Any]] = {}
         self._price_fetch_enabled = self._get_price_fetch_enabled()
         self._price_cache_ttl = self._get_price_cache_ttl()
         self._price_fetch_base = self._get_price_fetch_base()
+
+    def _gp(self, dotted_path: str, default: Any) -> Any:
+        current: Any = self._gate_policy
+        for part in dotted_path.split("."):
+            if not isinstance(current, dict) or part not in current:
+                return default
+            current = current[part]
+        return current
 
     def _get_price_fetch_enabled(self) -> bool:
         env = os.getenv("EDT_PRICE_FETCH", "").strip().lower()
@@ -213,6 +228,38 @@ class OpportunityScorer:
         beta_score = min(1.0, max(0.0, event_beta / 1.5))
         score = 0.45 * impact_score + 0.35 * sector_confidence + 0.20 * beta_score
         return max(0.0, min(1.0, score))
+
+    def _compute_transmission_score(self, candidate: Dict[str, Any], impact_score: float, sector_confidence: float) -> Dict[str, float]:
+        event_exposure = self._safe_float(candidate.get("event_exposure", impact_score * 100.0), impact_score * 100.0)
+        event_relevance = self._safe_float(candidate.get("event_relevance", sector_confidence * 100.0), sector_confidence * 100.0)
+        relative_strength = self._safe_float(candidate.get("relative_strength", 70.0), 70.0)
+        liquidity_score = self._safe_float(candidate.get("liquidity_score", 80.0), 80.0)
+        risk_filter_score = self._safe_float(candidate.get("risk_filter_score", 75.0), 75.0)
+
+        event_exposure = max(0.0, min(100.0, event_exposure))
+        event_relevance = max(0.0, min(100.0, event_relevance))
+        relative_strength = max(0.0, min(100.0, relative_strength))
+        liquidity_score = max(0.0, min(100.0, liquidity_score))
+        risk_filter_score = max(0.0, min(100.0, risk_filter_score))
+
+        score_breakdown = {
+            "event_exposure": round(0.35 * event_exposure, 2),
+            "event_relevance": round(0.25 * event_relevance, 2),
+            "relative_strength": round(0.20 * relative_strength, 2),
+            "liquidity_score": round(0.10 * liquidity_score, 2),
+            "risk_filter_score": round(0.10 * risk_filter_score, 2),
+        }
+        total = round(sum(score_breakdown.values()), 2)
+        return {"total": total, "score_breakdown": score_breakdown}
+
+    def _grade_signal(self, score_100: float) -> str:
+        a_min = self._safe_float(self._gp("signal_grade.a_min", 78.0), 78.0)
+        b_min = self._safe_float(self._gp("signal_grade.b_min", 62.0), 62.0)
+        if score_100 >= a_min:
+            return "A"
+        if score_100 >= b_min:
+            return "B"
+        return "C"
 
     def _build_entry_zone(self, last_price: float) -> Dict[str, float]:
         support_buf = self._safe_float(self.pool.rules.get("support_buffer_pct", 0.03), 0.03)
@@ -310,6 +357,9 @@ class OpportunityScorer:
     ) -> Dict[str, Any]:
         event_beta = self._safe_float(candidate.get("event_beta", 1.0), 1.0)
         score = self._compute_score(impact_score, sector_confidence, event_beta)
+        transmission = self._compute_transmission_score(candidate, impact_score, sector_confidence)
+        score_100 = transmission["total"]
+        grade = self._grade_signal(score_100)
 
         watch_threshold = self._safe_float(self.pool.rules.get("watch_score_threshold", 0.55), 0.55)
         execute_threshold = self._safe_float(self.pool.rules.get("execute_score_threshold", 0.70), 0.70)
@@ -349,6 +399,11 @@ class OpportunityScorer:
             "final_action": final_action,
             "reasoning": reasoning,
             "confidence": round(score, 2),
+            "score_100": score_100,
+            "signal_grade": grade,
+            "state_machine_step": "trade_admission" if grade == "A" and final_action == "EXECUTE" else "fallback",
+            "gate_reason_code": "ALL_PASSED" if grade == "A" and final_action == "EXECUTE" else "DEFAULT_WATCH",
+            "score_breakdown": transmission["score_breakdown"],
             "timestamp": timestamp,
         }
 
@@ -365,6 +420,7 @@ class OpportunityScorer:
             candidates_by_sector.setdefault(key, []).append(cand)
 
         max_per_sector = int(self.pool.rules.get("max_candidates_per_sector", 5))
+        max_global_candidates = int(self._safe_float(self._gp("signal_grade.max_stock_candidates", 5), 5))
         opportunities: List[Dict[str, Any]] = []
 
         for sector in sectors:
@@ -396,7 +452,41 @@ class OpportunityScorer:
                     )
                 )
 
-        opportunities.sort(key=lambda x: x.get("confidence", 0.0), reverse=True)
+        opportunities.sort(key=lambda x: x.get("score_100", 0.0), reverse=True)
+        opportunities = opportunities[: max(0, max_global_candidates)]
+
+        grade_a = 0
+        grade_b = 0
+        grade_c = 0
+        for opp in opportunities:
+            grade = str(opp.get("signal_grade", "C")).upper()
+            if grade == "A":
+                grade_a += 1
+            elif grade == "B":
+                grade_b += 1
+            else:
+                grade_c += 1
+
+        state_out = {
+            "action": "WATCH",
+            "state_machine_step": "fallback",
+            "gate_reason_code": "DEFAULT_WATCH",
+            "gate_reason": "fallback default",
+        }
+        if evaluate_state is not None:
+            gate_event = {
+                "trace_id": trace_id,
+                "schema_version": schema_version,
+                "news_timestamp": timestamp,
+                "mixed_regime": bool(payload.get("mixed_regime", False)),
+                "asset_validation": payload.get("asset_validation", {}),
+                "risk_blocked": bool(payload.get("risk_blocked", False)),
+            }
+            state_out = evaluate_state(gate_event, self._gate_policy)
+
+        for opp in opportunities:
+            opp["state_machine_step"] = state_out["state_machine_step"]
+            opp["gate_reason_code"] = state_out["gate_reason_code"]
 
         return {
             "type": "opportunity_update",
@@ -404,9 +494,18 @@ class OpportunityScorer:
             "schema_version": schema_version,
             "opportunities": opportunities,
             "timestamp": timestamp,
+            "action": state_out["action"],
+            "state_machine_step": state_out["state_machine_step"],
+            "gate_reason_code": state_out["gate_reason_code"],
+            "gate_reason": state_out["gate_reason"],
             "stats": {
                 "opportunity_count": len(opportunities),
                 "premium_pool_only": True,
+                "grade_counts": {
+                    "A": grade_a,
+                    "B": grade_b,
+                    "C": grade_c,
+                },
             },
         }
 

@@ -162,3 +162,53 @@ stocks:
     market_cap_billion: 1100
     liquidity_score: 0.83
     last_price: 1250.0
+
+  - symbol: NEE
+    name: NextEra Energy
+    sector: 公用事业
+    roe_pct: 12.5
+    roe: 16.0
+    market_cap_usd_billion: 120
+    market_cap_billion: 120
+    liquidity_score: 0.79
+    last_price: 72.0
+
+  - symbol: AMT
+    name: American Tower
+    sector: 房地产
+    roe_pct: 22.0
+    roe: 22.0
+    market_cap_usd_billion: 95
+    market_cap_billion: 95
+    liquidity_score: 0.77
+    last_price: 198.0
+
+  - symbol: LIN
+    name: Linde
+    sector: 材料
+    roe_pct: 17.0
+    roe: 17.0
+    market_cap_usd_billion: 210
+    market_cap_billion: 210
+    liquidity_score: 0.78
+    last_price: 440.0
+
+  - symbol: KO
+    name: Coca-Cola
+    sector: 消费
+    roe_pct: 41.0
+    roe: 41.0
+    market_cap_usd_billion: 275
+    market_cap_billion: 275
+    liquidity_score: 0.82
+    last_price: 63.0
+
+  - symbol: NFLX
+    name: Netflix
+    sector: 通信服务
+    roe_pct: 27.0
+    roe: 27.0
+    market_cap_usd_billion: 260
+    market_cap_billion: 260
+    liquidity_score: 0.81
+    last_price: 625.0

@@ -32,6 +32,15 @@ metrics:
     polarity: higher_is_safer
     description: Liquidity / execution safety score; lower values indicate red-zone
       execution risk.
+    alias_of: A0.5
+  A0.5:
+    label: liquidity_safety_score
+    category: risk
+    range:
+    - 0
+    - 100
+    polarity: higher_is_safer
+    description: Canonical liquidity / execution safety score key used in runtime payloads.
   confidence:
     label: event_confidence_score
     category: event

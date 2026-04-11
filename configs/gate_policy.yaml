@@ -42,11 +42,13 @@ trade_admission:
   asset_validation_min: 65.0
   path_dominance_min: 62.0
   sector_top1_top2_gap_min: 8.0
+  "A0.5_min": 60.0
   A0_5_min: 60.0
   fatigue_final_max: 90.0
   require_asset_confirmation: true
 
 risk_gate:
+  "liquidity_red_zone_A0.5_max": 35.0
   liquidity_red_zone_A0_5_max: 35.0
   execution_unreachable_blocks_trade: true
   max_trade_without_asset_confirmation: 0

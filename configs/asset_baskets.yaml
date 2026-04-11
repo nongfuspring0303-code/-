@@ -1,0 +1,118 @@
+schema_version: v1.0
+updated_at: "2026-04-11T00:00:00Z"
+asset_universe:
+  whitelist:
+    - "US Equities"
+    - "UST 2Y"
+    - "UST 10Y"
+    - "USD Index"
+    - "Gold"
+    - "Crude Oil"
+    - "Natural Gas"
+    - "Copper"
+    - "BTC"
+    - "Credit Spreads"
+    - "VIX"
+asset_baskets:
+  rates_basket:
+    weights:
+      rates: 0.60
+      liquidity: 0.20
+      growth: -0.10
+      credit_stress: -0.10
+    score_scale: 0.35
+  risk_off_basket:
+    weights:
+      risk_appetite: -0.55
+      volatility: 0.25
+      credit_stress: 0.15
+      usd: 0.05
+    score_scale: 0.35
+  commodity_basket:
+    weights:
+      inflation: 0.35
+      input_cost: 0.35
+      growth: 0.10
+      usd: -0.10
+    score_scale: 0.35
+  usd_basket:
+    weights:
+      usd: 0.60
+      rates: 0.20
+      liquidity: -0.10
+    score_scale: 0.35
+  growth_vs_value_basket:
+    weights:
+      growth: 0.45
+      rates: -0.20
+      liquidity: 0.10
+      risk_appetite: 0.10
+    score_scale: 0.35
+asset_profiles:
+  "US Equities":
+    weights:
+      growth: 0.45
+      risk_appetite: 0.35
+      liquidity: 0.20
+      volatility: -0.20
+    score_scale: 0.60
+  "UST 2Y":
+    weights:
+      rates: 0.65
+      liquidity: 0.20
+      inflation: -0.10
+      growth: -0.05
+    score_scale: 0.60
+  "UST 10Y":
+    weights:
+      rates: 0.75
+      growth: -0.10
+      inflation: -0.05
+    score_scale: 0.60
+  "USD Index":
+    weights:
+      usd: 0.75
+      liquidity: -0.05
+      risk_appetite: -0.10
+    score_scale: 0.60
+  "Gold":
+    weights:
+      inflation: 0.50
+      rates: -0.10
+      risk_appetite: -0.05
+      volatility: 0.10
+    score_scale: 0.60
+  "Crude Oil":
+    weights:
+      inflation: 0.35
+      growth: 0.25
+      input_cost: 0.20
+    score_scale: 0.60
+  "Natural Gas":
+    weights:
+      growth: 0.20
+      input_cost: 0.25
+      volatility: 0.05
+    score_scale: 0.60
+  "Copper":
+    weights:
+      growth: 0.35
+      liquidity: 0.10
+    score_scale: 0.60
+  "BTC":
+    weights:
+      risk_appetite: 0.40
+      volatility: 0.25
+      liquidity: 0.10
+    score_scale: 0.60
+  "Credit Spreads":
+    weights:
+      risk_appetite: -0.45
+      growth: -0.25
+      volatility: 0.15
+    score_scale: 0.60
+  "VIX":
+    weights:
+      volatility: 0.70
+      risk_appetite: -0.35
+    score_scale: 0.60

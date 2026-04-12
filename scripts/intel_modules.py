@@ -101,11 +101,23 @@ class EventCapture(EDTModule):
 
         raw_text = str(raw.get("raw_text", "") or "")
         
+        # 关键词分数定义
+        KEYWORD_SCORES = {
+            # 重大 (80分)
+            "war": 80, "战争": 80, "导弹": 80, "袭击": 80,
+            "关税": 80, "贸易战": 80, "疫情": 80, "病毒": 80,
+            # 重要 (70分)
+            "降息": 70, "加息": 70, "央行": 70, "利率": 70,
+            "财报": 70, "营收": 70, "盈利": 70,
+            # 一般 (60分)
+            "上涨": 60, "利好": 60, "突破": 60,
+        }
+        
+        raw_text = str(raw.get("raw_text", "") or "")
+        
         # AI 是否可用
         ai_available = self.semantic is not None
         
-        # 全部通过 AI 语义分析（如果可用）
-        DEFAULT_BASE_SCORE = 70  # 关键词基础分
         semantic_out = None
         
         if ai_available:
@@ -115,38 +127,57 @@ class EventCapture(EDTModule):
                 logger.warning("EventCapture semantic analyze failed: %s", exc)
                 semantic_out = None
         
-        # 决定使用 AI 结果还是关键词回退
-        if semantic_out and semantic_out.get("confidence", 0) > 0:
-            # AI 可用，使用 AI 结果
-            ai_verdict = str(semantic_out.get("verdict", "abstain") or "abstain")
-            base_confidence = _safe_float(semantic_out.get("confidence"), DEFAULT_BASE_SCORE)
-            ai_reason = f"ai({semantic_out.get('reason', '')})"
-            use_ai = True
-        else:
-            # AI 失效，回退到关键词分析
-            ai_verdict = "keyword_fallback"
-            base_confidence = DEFAULT_BASE_SCORE
-            ai_reason = "keyword_fallback"
-            use_ai = False
-        
-        # 额外加分：关键词命中 +20 分
+        # 额外加分：关键词命中 +20 (只有AI成功时加)
         bonus = 0
         if keyword_matched:
             matched_keywords = [k for k in keywords if _keyword_matches(headline, k)]
-            bonus = min(20, len(matched_keywords) * 10)  # 最多 +20
+            if ai_available and semantic_out:
+                bonus = min(20, len(matched_keywords) * 10)
         
-        ai_confidence = min(100, base_confidence + bonus)
-        
-        # sentiment: AI有就用AI的，没有就用关键词判断
-        if use_ai and semantic_out:
+        # 决定使用 AI 结果还是关键词回退
+        if semantic_out and semantic_out.get("confidence", 0) > 0:
+            # AI 成功: AI分 + keyword bonus
+            ai_verdict = str(semantic_out.get("verdict", "abstain") or "abstain")
+            base_confidence = _safe_float(semantic_out.get("confidence"), 60)
+            ai_reason = f"ai({semantic_out.get('reason', '')})"
+            if bonus > 0:
+                ai_reason += f"+keyword_bonus({bonus})"
+            use_ai = True
+            event_type = semantic_out.get("event_type", "unknown")
             sentiment = semantic_out.get("sentiment", "neutral")
         else:
+            # AI 失败: 用关键词本身的分数，没有 bonus
+            ai_verdict = "keyword_fallback"
+            # 取匹配的关键词中的最高分
+            max_kw_score = 60
+            for k in matched_keywords if keyword_matched else []:
+                kw_score = KEYWORD_SCORES.get(k.lower(), 60)
+                max_kw_score = max(max_kw_score, kw_score)
+            base_confidence = max_kw_score
+            ai_reason = f"keyword_fallback(score={base_confidence})"
+            use_ai = False
+            
+            # 关键词判断 event_type
+            event_type = "unknown"
+            if any(_keyword_matches(headline, k) for k in ("tariff", "关税", "贸易战", "出口管制", "进口限制")):
+                event_type = "tariff"
+            elif any(_keyword_matches(headline, k) for k in ("war", "战争", "地缘", "制裁", "导弹", "袭击")):
+                event_type = "geo_political"
+            elif any(_keyword_matches(headline, k) for k in ("疫情", "病毒", "流感")):
+                event_type = "pandemic"
+            elif any(_keyword_matches(headline, k) for k in ("降息", "加息", "央行", "利率", "QE", "量化宽松")):
+                event_type = "monetary"
+            elif any(_keyword_matches(headline, k) for k in ("财报", "营收", "盈利", "季度")):
+                event_type = "earnings"
+            
             # 关键词判断 sentiment
             sentiment = "neutral"
-            if any(_keyword_matches(headline, k) for k in ("关税", "war", "战争", "制裁", "疫情", "导弹", "袭击", "加息")):
+            if any(_keyword_matches(headline, k) for k in ("关税", "war", "战争", "制裁", "疫情", "导弹", "加息")):
                 sentiment = "negative"
-            elif any(_keyword_matches(headline, k) for k in ("降息", "QE", "量化宽松", "利好", "上涨")):
+            elif any(_keyword_matches(headline, k) for k in ("降息", "QE", "上涨", "利好")):
                 sentiment = "positive"
+        
+        ai_confidence = min(100, base_confidence + bonus)
         
         # 关键词优先判断 category
         category = "E"

@@ -1,247 +1,242 @@
-module: signal_scorer
-description: 综合信号评分模块测试用例
 cases:
-  - id: SS-001
-    name: standard_e3_signal
-    type: normal
-    description: 标准E3事件应输出可执行分数和方向
-    input:
-      event_id: "ME-C-20260330-001.V1.0"
-      severity: "E3"
-      A0: 30
-      A-1: 70
-      A1: 78
-      A1.5: 60
-      A0.5: 0
-      fatigue_final: 20
-      a_minus_1_discount_factor: 1.0
-      correlation: 0.4
-      is_crowded: false
-      narrative_mode: "Fact-Driven"
-      policy_intervention: "NONE"
-      base_direction: "long"
-      watch_mode: false
-      weights_version: "score_v1"
-    expected:
-      score_min: 40
-      score_max: 80
-      score_tier: "G3"
-      position_pct: 0.2
-      direction: "long"
-      watch_mode: false
-
-  - id: SS-002
-    name: missing_required_score_should_fail
-    type: abnormal
-    description: 缺少核心评分字段应报错
-    input:
-      event_id: "ME-C-20260330-001.V1.0"
-      severity: "E3"
-      A0: 30
-      A1: 78
-      A1.5: 60
-      A0.5: 0
-      fatigue_final: 20
-      correlation: 0.4
-    expected_error:
-      code: "MISSING_SCORES"
-
-  - id: SS-003
-    name: e4_with_correlation_breakdown
-    type: boundary
-    description: E4且相关性崩溃时，应触发A1.5折减
-    input:
-      event_id: "ME-D-20260331-002.V1.0"
-      severity: "E4"
-      A0: 40
-      A-1: 60
-      A1: 75
-      A1.5: 65
-      A0.5: 30
-      fatigue_final: 30
-      a_minus_1_discount_factor: 1.0
-      correlation: 0.85
-      is_crowded: false
-      narrative_mode: "Narrative-Driven"
-      policy_intervention: "NONE"
-      base_direction: "short"
-      watch_mode: false
-      weights_version: "score_v1"
-    expected:
-      adjustments_applied_contains:
-        - "E4_weight_adjustment"
-        - "correlation_breakdown_A1.5_discount"
-      direction: "short"
-
-  - id: SS-004
-    name: watch_mode_blocks_execution
-    type: boundary
-    description: 高疲劳进入watch_mode时，应阻断执行
-    input:
-      event_id: "ME-E-20260331-004.V1.0"
-      severity: "E3"
-      A0: 30
-      A-1: 80
-      A1: 68
-      A1.5: 55
-      A0.5: 10
-      fatigue_final: 95
-      a_minus_1_discount_factor: 0.5
-      correlation: 0.3
-      is_crowded: false
-      narrative_mode: "Fact-Driven"
-      policy_intervention: "STRONG"
-      base_direction: "short"
-      watch_mode: true
-      weights_version: "score_v1"
-    expected:
-      score_tier: "G5"
-      position_pct: 0.0
-      direction: "neutral"
-      adjustments_applied_contains:
-        - "watch_mode_block"
-      watch_mode: true
-
-  - id: SS-005
-    name: strong_policy_intervention_boosts_strength
-    type: boundary
-    description: 强政策干预且A1足够高时增强信号强度，不翻转方向
-    input:
-      event_id: "ME-E-20260331-006.V1.0"
-      severity: "E4"
-      A0: 35
-      A-1: 65
-      A1: 70
-      A1.5: 50
-      A0.5: 15
-      fatigue_final: 25
-      a_minus_1_discount_factor: 1.0
-      correlation: 0.2
-      is_crowded: false
-      narrative_mode: "Fact-Driven"
-      policy_intervention: "STRONG"
-      base_direction: "short"
-      watch_mode: false
-      weights_version: "score_v1"
-    expected:
-      adjustments_applied_contains:
-        - "policy_intervention_strength_boost"
-      direction: "short"
-
-  - id: SS-006
-    name: crowded_trade_adjustment_recorded
-    type: boundary
-    description: 拥挤交易应记录折价调整项
-    input:
-      event_id: "ME-C-20260331-012.V1.0"
-      severity: "E3"
-      A0: 30
-      A-1: 70
-      A1: 80
-      A1.5: 60
-      A0.5: 0
-      fatigue_final: 10
-      a_minus_1_discount_factor: 1.0
-      correlation: 0.3
-      is_crowded: true
-      narrative_mode: "Fact-Driven"
-      policy_intervention: "NONE"
-      base_direction: "long"
-      watch_mode: false
-      weights_version: "score_v1"
-    expected:
-      adjustments_applied_contains:
-        - "crowded_trade_discount"
-
-  - id: SS-007
-    name: non_e4_correlation_zeroes_a15
-    type: boundary
-    description: 非E4事件相关性崩溃时A1.5应归零并进入较低等级
-    input:
-      event_id: "ME-D-20260331-013.V1.0"
-      severity: "E3"
-      A0: 25
-      A-1: 45
-      A1: 40
-      A1.5: 80
-      A0.5: 20
-      fatigue_final: 20
-      a_minus_1_discount_factor: 1.0
-      correlation: 0.9
-      is_crowded: false
-      narrative_mode: "Fact-Driven"
-      policy_intervention: "NONE"
-      base_direction: "short"
-      watch_mode: false
-      weights_version: "score_v1"
-    expected:
-      adjustments_applied_contains:
-        - "correlation_breakdown_A1.5_discount"
-      score_tier: "G4"
-
-  - id: SS-008
-    name: policy_intervention_preserves_direction
-    type: boundary
-    description: 强政策干预保持基础方向不变并增强信号
-    input:
-      event_id: "ME-E-20260331-014.V1.0"
-      severity: "E4"
-      A0: 35
-      A-1: 60
-      A1: 72
-      A1.5: 40
-      A0.5: 10
-      fatigue_final: 15
-      a_minus_1_discount_factor: 1.0
-      correlation: 0.2
-      is_crowded: false
-      narrative_mode: "Fact-Driven"
-      policy_intervention: "STRONG"
-      base_direction: "long"
-      watch_mode: false
-      weights_version: "score_v1"
-    expected:
-      adjustments_applied_contains:
-        - "policy_intervention_strength_boost"
-      direction: "long"
-
-  - id: SS-009
-    name: low_score_falls_to_g5
-    type: boundary
-    description: 低分事件应归于G5并输出neutral
-    input:
-      event_id: "ME-G-20260331-015.V1.0"
-      severity: "E2"
-      A0: 5
-      A-1: 5
-      A1: 5
-      A1.5: 0
-      A0.5: 80
-      fatigue_final: 10
-      a_minus_1_discount_factor: 1.0
-      correlation: 0.1
-      is_crowded: false
-      narrative_mode: "Fact-Driven"
-      policy_intervention: "NONE"
-      base_direction: "long"
-      watch_mode: false
-      weights_version: "score_v1"
-    expected:
-      score_tier: "G5"
-      direction: "neutral"
-
-  - id: SS-010
-    name: missing_required_field_should_fail
-    type: abnormal
-    description: 缺少 severity 时应触发输入校验失败
-    input:
-      event_id: "ME-G-20260331-019.V1.0"
-      A0: 5
-      A-1: 5
-      A1: 5
-      A1.5: 0
-      A0.5: 80
-      fatigue_final: 10
-      correlation: 0.1
-    expected_error:
-      code: "INVALID_INPUT"
+- description: 标准E3事件应输出可执行分数和方向
+  expected:
+    direction: long
+    position_pct: 0.2
+    score_max: 80
+    score_min: 40
+    score_tier: G3
+    watch_mode: false
+  id: SS-001
+  input:
+    A-1: 70
+    A0: 30
+    A0.5: 0
+    A1: 78
+    A1.5: 60
+    a_minus_1_discount_factor: 1.0
+    base_direction: long
+    correlation: 0.4
+    event_id: ME-C-20260330-001.V1.0
+    fatigue_final: 20
+    is_crowded: false
+    narrative_mode: Fact-Driven
+    policy_intervention: NONE
+    severity: E3
+    watch_mode: false
+    weights_version: score_v1
+  name: standard_e3_signal
+  type: normal
+- description: 缺少核心评分字段应报错
+  expected_error:
+    code: MISSING_SCORES
+  id: SS-002
+  input:
+    A0: 30
+    A0.5: 0
+    A1: 78
+    A1.5: 60
+    correlation: 0.4
+    event_id: ME-C-20260330-001.V1.0
+    fatigue_final: 20
+    severity: E3
+  name: missing_required_score_should_fail
+  type: abnormal
+- description: E4且相关性崩溃时，应触发A1.5折减
+  expected:
+    adjustments_applied_contains:
+    - E4_weight_adjustment
+    - correlation_breakdown_A1.5_discount
+    direction: short
+  id: SS-003
+  input:
+    A-1: 60
+    A0: 40
+    A0.5: 30
+    A1: 75
+    A1.5: 65
+    a_minus_1_discount_factor: 1.0
+    base_direction: short
+    correlation: 0.85
+    event_id: ME-D-20260331-002.V1.0
+    fatigue_final: 30
+    is_crowded: false
+    narrative_mode: Narrative-Driven
+    policy_intervention: NONE
+    severity: E4
+    watch_mode: false
+    weights_version: score_v1
+  name: e4_with_correlation_breakdown
+  type: boundary
+- description: 高疲劳进入watch_mode时，应阻断执行
+  expected:
+    adjustments_applied_contains:
+    - watch_mode_block
+    direction: neutral
+    position_pct: 0.0
+    score_tier: G5
+    watch_mode: true
+  id: SS-004
+  input:
+    A-1: 80
+    A0: 30
+    A0.5: 10
+    A1: 68
+    A1.5: 55
+    a_minus_1_discount_factor: 0.5
+    base_direction: short
+    correlation: 0.3
+    event_id: ME-E-20260331-004.V1.0
+    fatigue_final: 95
+    is_crowded: false
+    narrative_mode: Fact-Driven
+    policy_intervention: STRONG
+    severity: E3
+    watch_mode: true
+    weights_version: score_v1
+  name: watch_mode_blocks_execution
+  type: boundary
+- description: 强政策干预且A1足够高时增强信号强度，不翻转方向
+  expected:
+    adjustments_applied_contains:
+    - policy_intervention_strength_boost
+    direction: short
+    position_pct: 0.2
+    score_tier: G3
+  id: SS-005
+  input:
+    A-1: 65
+    A0: 35
+    A0.5: 15
+    A1: 55
+    A1.5: 50
+    a_minus_1_discount_factor: 1.0
+    base_direction: short
+    correlation: 0.2
+    event_id: ME-E-20260331-006.V1.0
+    fatigue_final: 25
+    is_crowded: false
+    narrative_mode: Fact-Driven
+    policy_intervention: STRONG
+    severity: E4
+    watch_mode: false
+    weights_version: score_v1
+  name: strong_policy_intervention_boosts_strength
+  type: boundary
+- description: 拥挤交易应记录折价调整项
+  expected:
+    adjustments_applied_contains:
+    - crowded_trade_discount
+  id: SS-006
+  input:
+    A-1: 70
+    A0: 30
+    A0.5: 0
+    A1: 80
+    A1.5: 60
+    a_minus_1_discount_factor: 1.0
+    base_direction: long
+    correlation: 0.3
+    event_id: ME-C-20260331-012.V1.0
+    fatigue_final: 10
+    is_crowded: true
+    narrative_mode: Fact-Driven
+    policy_intervention: NONE
+    severity: E3
+    watch_mode: false
+    weights_version: score_v1
+  name: crowded_trade_adjustment_recorded
+  type: boundary
+- description: 非E4事件相关性崩溃时A1.5应归零并进入较低等级
+  expected:
+    adjustments_applied_contains:
+    - correlation_breakdown_A1.5_discount
+    score_tier: G4
+  id: SS-007
+  input:
+    A-1: 45
+    A0: 25
+    A0.5: 20
+    A1: 40
+    A1.5: 80
+    a_minus_1_discount_factor: 1.0
+    base_direction: short
+    correlation: 0.9
+    event_id: ME-D-20260331-013.V1.0
+    fatigue_final: 20
+    is_crowded: false
+    narrative_mode: Fact-Driven
+    policy_intervention: NONE
+    severity: E3
+    watch_mode: false
+    weights_version: score_v1
+  name: non_e4_correlation_zeroes_a15
+  type: boundary
+- description: 强政策干预保持基础方向不变并增强信号
+  expected:
+    adjustments_applied_contains:
+    - policy_intervention_strength_boost
+    direction: long
+    position_pct: 0.2
+    score_tier: G3
+  id: SS-008
+  input:
+    A-1: 60
+    A0: 35
+    A0.5: 10
+    A1: 57
+    A1.5: 40
+    a_minus_1_discount_factor: 1.0
+    base_direction: long
+    correlation: 0.2
+    event_id: ME-E-20260331-014.V1.0
+    fatigue_final: 15
+    is_crowded: false
+    narrative_mode: Fact-Driven
+    policy_intervention: STRONG
+    severity: E4
+    watch_mode: false
+    weights_version: score_v1
+  name: policy_intervention_preserves_direction
+  type: boundary
+- description: 低分事件应归于G5并输出neutral
+  expected:
+    direction: neutral
+    score_tier: G5
+  id: SS-009
+  input:
+    A-1: 5
+    A0: 5
+    A0.5: 80
+    A1: 5
+    A1.5: 0
+    a_minus_1_discount_factor: 1.0
+    base_direction: long
+    correlation: 0.1
+    event_id: ME-G-20260331-015.V1.0
+    fatigue_final: 10
+    is_crowded: false
+    narrative_mode: Fact-Driven
+    policy_intervention: NONE
+    severity: E2
+    watch_mode: false
+    weights_version: score_v1
+  name: low_score_falls_to_g5
+  type: boundary
+- description: 缺少 severity 时应触发输入校验失败
+  expected_error:
+    code: INVALID_INPUT
+  id: SS-010
+  input:
+    A-1: 5
+    A0: 5
+    A0.5: 80
+    A1: 5
+    A1.5: 0
+    correlation: 0.1
+    event_id: ME-G-20260331-019.V1.0
+    fatigue_final: 10
+  name: missing_required_field_should_fail
+  type: abnormal
+description: 综合信号评分模块测试用例
+module: signal_scorer

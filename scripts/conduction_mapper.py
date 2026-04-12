@@ -11,12 +11,21 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from pathlib import Path
+import sys
 import yaml
+
+# Ensure top-level packages (e.g. transmission_engine) are importable when
+# this module is loaded from script entrypoints under scripts/ in CI.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 from ai_semantic_analyzer import SemanticAnalyzer
 from ai_conduction_selector import AIConductionSelector
 from config_center import ConfigCenter
+from transmission_engine.core.shock_classifier import ShockClassifier
+from transmission_engine.core.factor_vectorizer import FactorVectorizer
 
 
 class ConductionMapper(EDTModule):
@@ -24,11 +33,28 @@ class ConductionMapper(EDTModule):
 
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("ConductionMapper", "1.0.0", config_path)
-        self.chain_config_path = Path(__file__).resolve().parent.parent / "configs" / "conduction_chain.yaml"
+        base = Path(__file__).resolve().parent.parent
+        self.chain_config_path = base / "configs" / "conduction_chain.yaml"
+        self.event_to_shock_path = base / "configs" / "event_to_shock.yaml"
+        self.factor_templates_path = base / "configs" / "factor_templates.yaml"
+        self.event_type_lv2_mapping_path = base / "configs" / "event_type_lv2_mapping.yaml"
+        self.gate_policy_path = base / "configs" / "gate_policy.yaml"
+        self.metric_dictionary_path = base / "configs" / "metric_dictionary.yaml"
+        self.backtest_protocol_path = base / "configs" / "backtest_protocol.yaml"
+
         self.config_center = ConfigCenter(config_path=config_path)
         self.config_center.register("conduction_chain", self.chain_config_path)
+        self.config_center.register("event_to_shock", self.event_to_shock_path)
+        self.config_center.register("factor_templates", self.factor_templates_path)
+        self.config_center.register("event_type_lv2_mapping", self.event_type_lv2_mapping_path)
+        self.config_center.register("gate_policy", self.gate_policy_path)
+        self.config_center.register("metric_dictionary", self.metric_dictionary_path)
+        self.config_center.register("backtest_protocol", self.backtest_protocol_path)
+
         self.semantic = SemanticAnalyzer(config_path=config_path)
         self.selector = AIConductionSelector()
+        self.shock_classifier = ShockClassifier(config_dir=base / "configs")
+        self.factor_vectorizer = FactorVectorizer(config_dir=base / "configs")
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["event_id", "category", "severity", "lifecycle_state"]
@@ -185,11 +211,12 @@ class ConductionMapper(EDTModule):
         if not stock_candidates:
             stock_candidates = []
 
-        confidence = 80
+        defaults = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
+        confidence = float(defaults.get("template_base_confidence", 80))
         if template.get("id") == "rate_cut_chain":
-            confidence = 88
+            confidence = float(defaults.get("template_rate_cut_confidence", 88))
         elif template.get("id") == "inflation_shock_chain":
-            confidence = 82
+            confidence = float(defaults.get("template_inflation_confidence", 82))
 
         return {
             "macro_factors": macro_factors,
@@ -223,7 +250,16 @@ class ConductionMapper(EDTModule):
                 {"factor": "growth", "direction": "down", "strength": "medium", "reason": "贸易摩擦压制出口和投资"},
             ],
             "asset_impacts": [
-                {"asset_class": "fx", "target": "DXY", "direction": "long", "confidence": 72},
+                {
+                    "asset_class": "fx",
+                    "target": "DXY",
+                    "direction": "long",
+                    "confidence": float(
+                        self.config_center.get_registered("gate_policy", {})
+                        .get("conduction_mapper", {})
+                        .get("tariff_asset_confidence", 72)
+                    ),
+                },
             ],
             "sector_impacts": [
                 {
@@ -244,7 +280,11 @@ class ConductionMapper(EDTModule):
                 }
             ],
             "conduction_path": ["关税升级", "通胀压力上升", "增长预期下降", "出口链承压", "进口替代链受益"],
-            "confidence": 78,
+            "confidence": float(
+                self.config_center.get_registered("gate_policy", {})
+                .get("conduction_mapper", {})
+                .get("tariff_confidence", 78)
+            ),
         }
 
     def _safe_float(self, value: Any, default: float = 0.0) -> float:
@@ -306,15 +346,27 @@ class ConductionMapper(EDTModule):
                 }
             )
 
-        confidence = 74
+        policy_cfg = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
+        confidence = float(policy_cfg.get("policy_base_confidence", 74))
         if sector_impacts:
             abs_moves = [abs(self._safe_float(x.get("change_pct"), 0.0)) for x in sector_impacts]
             if abs_moves:
-                confidence = int(min(95, max(55, 55 + sum(abs_moves) / len(abs_moves) * 8)))
+                lower = float(policy_cfg.get("policy_confidence_min", 55))
+                upper = float(policy_cfg.get("policy_confidence_max", 95))
+                scale = float(policy_cfg.get("policy_confidence_scale", 8))
+                base = float(policy_cfg.get("policy_confidence_base", 55))
+                confidence = min(upper, max(lower, base + sum(abs_moves) / len(abs_moves) * scale))
 
         return {
             "macro_factors": macro_factors,
-            "asset_impacts": [{"asset_class": "equity_index", "target": "SPY", "direction": "long", "confidence": 68}],
+            "asset_impacts": [
+                {
+                    "asset_class": "equity_index",
+                    "target": "SPY",
+                    "direction": "long",
+                    "confidence": float(policy_cfg.get("policy_asset_confidence", 68)),
+                }
+            ],
             "sector_impacts": sector_impacts,
             "stock_candidates": stock_candidates,
             "conduction_path": conduction_path,
@@ -329,6 +381,20 @@ class ConductionMapper(EDTModule):
         summary = raw.get("summary", "")
         policy_intervention = raw.get("policy_intervention", "NONE")
         sector_data = raw.get("sector_data", []) or []
+
+        classification = self.shock_classifier.classify(
+            category=category,
+            headline=headline,
+            summary=summary,
+            severity=raw.get("severity"),
+        )
+        raw_macro_factor_vector = self.factor_vectorizer.vectorize(
+            event_type_lv2=classification.get("event_type_lv2", "macro_generic"),
+            severity=raw.get("severity"),
+            lifecycle_state=raw.get("lifecycle_state"),
+            novelty_score=raw.get("novelty_score"),
+            fatigue_final=raw.get("fatigue_final"),
+        )
 
         if not headline and not summary:
             return ModuleOutput(
@@ -353,13 +419,14 @@ class ConductionMapper(EDTModule):
         elif category == "E":
             mapping = self._policy_mapping(policy_intervention, sector_data)
         else:
+            fallback_cfg = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
             mapping = {
                 "macro_factors": [],
                 "asset_impacts": [],
                 "sector_impacts": [],
                 "stock_candidates": [],
                 "conduction_path": ["事件信息不足，需人工补充传导路径"],
-                "confidence": 35,
+                "confidence": float(fallback_cfg.get("fallback_confidence", 35)),
             }
 
         self._apply_sector_mapping(mapping["sector_impacts"], sector_data)
@@ -374,10 +441,17 @@ class ConductionMapper(EDTModule):
             status=ModuleStatus.SUCCESS,
             data={
                 "event_id": raw["event_id"],
+                "schema_version": raw.get("schema_version", "v1.1"),
                 "macro_factors": mapping["macro_factors"],
                 "asset_impacts": mapping["asset_impacts"],
                 "sector_impacts": mapping["sector_impacts"],
                 "stock_candidates": mapping["stock_candidates"],
+                "shock_profile": classification.get("shock_profile"),
+                "raw_macro_factor_vector": raw_macro_factor_vector,
+                "event_type_lv1": classification.get("event_type_lv1"),
+                "event_type_lv2": classification.get("event_type_lv2"),
+                "classification_confidence": classification.get("classification_confidence"),
+                "market_impact_confidence": classification.get("market_impact_confidence"),
                 "time_horizons": {
                     "intraday": "headline冲击主导",
                     "overnight": "等待二次验证",

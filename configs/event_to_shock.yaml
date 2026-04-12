@@ -1,0 +1,43 @@
+version: v1
+mappings:
+  tariff_shock:
+    primary: ["inflationary_shock"]
+    secondary: ["growth_negative"]
+    narrative: ["risk_off"]
+  rates_down:
+    primary: ["rates_down"]
+    secondary: ["liquidity_easing"]
+    narrative: ["risk_on"]
+  liquidity_tightening:
+    primary: ["liquidity_tightening"]
+    secondary: ["rates_up"]
+    narrative: ["risk_off"]
+  inflation_up:
+    primary: ["inflationary_shock"]
+    secondary: ["rates_up"]
+    narrative: ["risk_off"]
+  growth_negative:
+    primary: ["demand_negative"]
+    secondary: ["risk_off"]
+    narrative: ["risk_off"]
+  macro_growth_positive:
+    primary: ["demand_positive"]
+    secondary: ["risk_on"]
+    narrative: ["risk_on"]
+  geo_risk:
+    primary: ["supply_negative"]
+    secondary: ["risk_off"]
+    narrative: ["risk_off"]
+  volatility_spike:
+    primary: ["risk_off"]
+    secondary: ["liquidity_tightening"]
+    narrative: ["risk_off"]
+  risk_off:
+    primary: ["risk_off"]
+    secondary: []
+    narrative: ["risk_off"]
+
+defaults:
+  primary: ["risk_off"]
+  secondary: []
+  narrative: []

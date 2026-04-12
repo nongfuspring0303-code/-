@@ -1,0 +1,118 @@
+version: v1
+factors:
+  - risk_appetite
+  - rates
+  - inflation
+  - growth
+  - usd
+  - liquidity
+  - volatility
+  - input_cost
+  - credit_stress
+
+coefficients:
+  severity:
+    E1: 0.4
+    E2: 0.7
+    E3: 1.0
+    E4: 1.35
+  lifecycle:
+    Detected: 0.35
+    Verified: 0.60
+    Active: 1.00
+    Continuation: 0.75
+    Exhaustion: 0.40
+    Dead: 0.10
+
+templates:
+  tariff_shock:
+    risk_appetite: -40
+    rates: 10
+    inflation: 60
+    growth: -50
+    usd: 15
+    liquidity: -10
+    volatility: 30
+    input_cost: 70
+    credit_stress: 15
+  rates_down:
+    risk_appetite: 35
+    rates: -55
+    inflation: 10
+    growth: 25
+    usd: -15
+    liquidity: 40
+    volatility: -10
+    input_cost: 0
+    credit_stress: -15
+  liquidity_tightening:
+    risk_appetite: -45
+    rates: 20
+    inflation: 5
+    growth: -30
+    usd: 20
+    liquidity: -50
+    volatility: 35
+    input_cost: 5
+    credit_stress: 30
+  inflation_up:
+    risk_appetite: -20
+    rates: 30
+    inflation: 70
+    growth: -25
+    usd: 20
+    liquidity: -10
+    volatility: 25
+    input_cost: 60
+    credit_stress: 15
+  growth_negative:
+    risk_appetite: -35
+    rates: 10
+    inflation: -15
+    growth: -60
+    usd: 10
+    liquidity: -10
+    volatility: 30
+    input_cost: -10
+    credit_stress: 25
+  macro_growth_positive:
+    risk_appetite: 40
+    rates: -10
+    inflation: 10
+    growth: 60
+    usd: -5
+    liquidity: 20
+    volatility: -15
+    input_cost: 5
+    credit_stress: -20
+  geo_risk:
+    risk_appetite: -50
+    rates: 10
+    inflation: 15
+    growth: -30
+    usd: 25
+    liquidity: -15
+    volatility: 40
+    input_cost: 30
+    credit_stress: 30
+  volatility_spike:
+    risk_appetite: -55
+    rates: 5
+    inflation: 0
+    growth: -20
+    usd: 10
+    liquidity: -20
+    volatility: 60
+    input_cost: 0
+    credit_stress: 35
+
+defaults:
+  risk_appetite: 0
+  rates: 0
+  inflation: 0
+  growth: 0
+  usd: 0
+  liquidity: 0
+  volatility: 0
+  input_cost: 0
+  credit_stress: 0

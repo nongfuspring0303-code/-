@@ -695,10 +695,10 @@ runtime:
   hurt_to_short: false
   semantic:
     enabled: true
-    provider: glm-4.7-flash
-    model: glm-4.7-flash
+    provider: glm-4-flash
+    model: glm-4-flash
     min_confidence: 70
-    timeout_ms: 1500
+    timeout_ms: 10000
     full_enable: true
     emergency_disable: false
   c_module_stack:

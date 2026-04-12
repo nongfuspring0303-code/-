@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import time
 from typing import Any, Dict
 
 import requests
 from config_center import ConfigCenter
 
-ZAI_BASE_URL = "https://api.z.ai/api/paas/v4"
+ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 
 
 class SemanticAnalyzer:
@@ -57,13 +58,26 @@ class SemanticAnalyzer:
         return str(model or "")
 
     def _api_key(self) -> str:
-        semantic = self._semantic_cfg()
-        env_name = str(semantic.get("api_key_env", "ZAI_API_KEY") or "ZAI_API_KEY").strip()
-        env_names = [env_name, "GLM_API_KEY", "OPENCLAW_GLM_API_KEY"]
-        for name in env_names:
-            value = os.getenv(name, "").strip()
-            if value:
-                return value
+        # Priority: env > .env.local > (none)
+        env_name = "ZAI_API_KEY"
+        
+        # 1. Environment variable
+        value = os.getenv(env_name, "").strip()
+        if value:
+            return value
+        
+        # 2. .env.local file (项目根目录，不提交git)
+        project_root = Path(__file__).parent.parent
+        env_local = project_root / ".env.local"
+        if env_local.exists():
+            with open(env_local) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, val = line.split("=", 1)
+                        if key.strip() == env_name:
+                            return val.strip().strip('"')
+        
         return ""
 
     def _abstain_response(
@@ -121,7 +135,7 @@ class SemanticAnalyzer:
     ) -> Dict[str, Any]:
         text = f"{headline} {raw_text}"
 
-        if provider in ("glm_4", "glm-4.7-flash", "glm-4.7", "gemini_flash_lite") or model:
+        if provider in ("glm_4", "glm-4.7-flash", "glm-4.7", "glm-4-flash", "gemini_flash_lite") or "glm" in model.lower():
             return self._call_glm_api(text, timeout_ms, model=model)
 
         text_lower = text.lower()
@@ -150,18 +164,12 @@ class SemanticAnalyzer:
         }
 
     def _call_glm_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
-        prompt = f"""你是一个金融新闻语义分析专家。请分析以下新闻标题和内容，判断其是否可能触发交易机会。
+        prompt = f"""分析这条金融新闻，返回纯JSON：
+{{"event_type":"tariff","sentiment":"negative","confidence":90,"recommended_chain":"","reason":"..."}}
 
-新闻内容：{text}
+新闻：{text}
 
-请返回一个JSON格式的分析结果，包含以下字段：
-- event_type: 事件类型（如：earnings, product_launch, regulatory, merger_acquisition, trade_talks, tariff, etc.）
-- sentiment: 情绪（positive/negative/neutral）
-- confidence: 置信度（0-100的整数）
-- recommended_chain: 推荐的应对链名称（如果有）
-- reason: 判断理由
-
-        如果新闻内容不足以做出判断，请返回confidence为0并说明原因。"""
+直接返回JSON，不要任何解释或markdown。"""
 
         api_key = self._api_key()
         if not api_key:
@@ -186,7 +194,7 @@ class SemanticAnalyzer:
                 "temperature": 0.3,
                 "max_tokens": 500,
             }
-            timeout_seconds = timeout_ms / 1000.0
+            timeout_seconds = max(5.0, timeout_ms / 1000.0)
             response = requests.post(
                 f"{ZAI_BASE_URL}/chat/completions",
                 headers=headers,
@@ -198,6 +206,14 @@ class SemanticAnalyzer:
 
             if "choices" in result and len(result["choices"]) > 0:
                 content = result["choices"][0]["message"]["content"]
+                content = content.strip()
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                if content.startswith("```"):
+                    content = content[3:]
+                content = content.strip()
                 try:
                     parsed = json.loads(content)
                     return {

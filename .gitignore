@@ -21,6 +21,7 @@ configs/edt-modules-config.yaml.guard_backup
 
 # local env
 .env
+.env.local
 .venv/
 
 # runtime logs / reports

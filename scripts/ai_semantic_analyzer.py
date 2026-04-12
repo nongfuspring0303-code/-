@@ -186,12 +186,30 @@ class SemanticAnalyzer:
         }
 
     def _call_glm_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
-        prompt = f"""分析这条金融新闻，返回纯JSON：
+        prompt = f"""分析这条金融新闻，判断是否影响金融市场，返回纯JSON。
+
+event_type 可选：
+- tariff: 关税、贸易战
+- geo_political: 地缘政治、军事冲突
+- earnings: 财报、业绩
+- monetary: 央行、利率
+- energy: 能源、油气
+- shipping: 航运、海运
+- industrial: 工业、制造
+- tech: 科技
+- healthcare: 医疗
+- other: 其他
+
+sentiment: positive/negative/neutral
+confidence: 0-100
+recommended_chain: 推荐的分析链（可选）
+
+示例：
 {{"event_type":"tariff","sentiment":"negative","confidence":90,"recommended_chain":"","reason":"..."}}
 
 新闻：{text}
 
-直接返回JSON，不要任何解释或markdown。"""
+只返回JSON，不要解释。"""
 
         api_key = self._api_key()
         if not api_key:

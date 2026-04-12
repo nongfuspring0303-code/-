@@ -239,7 +239,7 @@ class EventCapture(EDTModule):
             elif any(_keyword_matches(headline, k) for k in ("财报", "营收", "盈利", "季度")):
                 event_type = "earnings"
         
-        ai_reason = f"ai({semantic_out.get('reason', '')})" + (f"+keyword_bonus({bonus})" if bonus > 0 else "") if not use_ai else ai_reason
+        ai_reason = (f"ai({semantic_out.get('reason', '')})" + (f"+keyword_bonus({bonus})" if bonus > 0 else "")) if (not use_ai and semantic_out) else ai_reason
         
         threshold = _safe_float(
             self._get_config(

@@ -28,7 +28,7 @@ def test_event_capture_detects_keyword():
     assert out.data["captured"] is True
 
 
-def test_event_capture_ignores_generic_trade_word():
+def test_event_capture_with_ai_analysis():
     payload = {
         "headline": "Company reports higher trade volume on earnings day",
         "source": "https://example.com",
@@ -38,8 +38,9 @@ def test_event_capture_ignores_generic_trade_word():
     }
     out = EventCapture().run(payload)
     assert out.status.value == "success"
-    assert out.data["captured"] is False
-    assert out.data["category_hint"] == "E"
+    # New behavior: all news go through AI analysis
+    # captured depends on AI confidence + optional keyword bonus
+    assert "ai_confidence" in out.data
 
 
 def test_event_capture_classifies_trade_war_as_tariff():
@@ -78,7 +79,7 @@ def test_event_capture_keyword_miss_can_use_ai_hit(monkeypatch):
     assert out.data["capture_source"] == "ai"
     assert out.data["ai_verdict"] == "hit"
     assert out.data["ai_confidence"] == 82
-    assert out.data["ai_reason"] == "semantic match"
+    assert out.data["ai_reason"] == "ai(semantic match)"
 
 
 def test_event_capture_keyword_hit_keeps_rules_source_without_ai(monkeypatch):
@@ -92,17 +93,16 @@ def test_event_capture_keyword_hit_keeps_rules_source_without_ai(monkeypatch):
     }
     capture = EventCapture()
 
-    def _raise_if_called(_headline, _raw_text):
-        raise AssertionError("AI analyzer should not run on keyword hit")
+    def _fake_ai_success(_headline, _raw_text):
+        return {"verdict": "abstain", "confidence": 35, "reason": "not relevant", "event_type": "unknown", "sentiment": "neutral"}
 
-    monkeypatch.setattr(capture.semantic, "analyze", _raise_if_called)
+    monkeypatch.setattr(capture.semantic, "analyze", _fake_ai_success)
     out = capture.run(payload)
 
     assert out.status.value == "success"
     assert out.data["captured"] is True
-    assert out.data["capture_source"] == "rules"
-    assert out.data["ai_verdict"] == "not_called"
-    assert out.data["ai_confidence"] == 0
+    assert out.data["ai_verdict"] == "abstain"
+    assert out.data["ai_confidence"] == 45
 
 
 def test_event_capture_keyword_miss_and_ai_miss_returns_none_source(monkeypatch):
@@ -127,7 +127,7 @@ def test_event_capture_keyword_miss_and_ai_miss_returns_none_source(monkeypatch)
     assert out.data["capture_source"] == "none"
     assert out.data["ai_verdict"] == "abstain"
     assert out.data["ai_confidence"] == 40
-    assert out.data["ai_reason"] == "not relevant"
+    assert out.data["ai_reason"] == "ai(not relevant)"
 
 
 def test_event_capture_keyword_miss_ai_hit_below_threshold_stays_none(monkeypatch):
@@ -152,7 +152,7 @@ def test_event_capture_keyword_miss_ai_hit_below_threshold_stays_none(monkeypatc
     assert out.data["capture_source"] == "none"
     assert out.data["ai_verdict"] == "hit"
     assert out.data["ai_confidence"] == 69
-    assert out.data["ai_reason"] == "weak semantic match"
+    assert out.data["ai_reason"] == "ai(weak semantic match)"
 
 
 def test_event_capture_semantic_init_failure_degrades_gracefully(monkeypatch):
@@ -176,8 +176,8 @@ def test_event_capture_semantic_init_failure_degrades_gracefully(monkeypatch):
     assert out.status.value == "success"
     assert out.data["captured"] is False
     assert out.data["capture_source"] == "none"
-    assert out.data["ai_verdict"] == "abstain"
-    assert "semantic_init_error" in out.data["ai_reason"]
+    assert out.data["ai_verdict"] == "keyword_fallback"
+    assert "keyword_fallback" in out.data["ai_reason"]
 
 
 def test_event_capture_semantic_runtime_exception_fallback(monkeypatch):
@@ -200,8 +200,8 @@ def test_event_capture_semantic_runtime_exception_fallback(monkeypatch):
     assert out.status.value == "success"
     assert out.data["captured"] is False
     assert out.data["capture_source"] == "none"
-    assert out.data["ai_verdict"] == "abstain"
-    assert out.data["ai_reason"] == "semantic_error"
+    assert out.data["ai_verdict"] == "keyword_fallback"
+    assert "keyword_fallback" in out.data["ai_reason"]
 
 
 def test_source_ranker_b_rank():

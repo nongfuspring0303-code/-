@@ -572,6 +572,7 @@ def main() -> int:
     parser.add_argument("--self-heal", action="store_true", help="Attempt self-heal between self-check and project checks.")
     parser.add_argument("--self-only", action="store_true", help="Only run health-system self-check stages.")
     parser.add_argument("--mode", choices=["dev", "prod"], default="dev", help="Healthcheck strictness mode.")
+    parser.add_argument("--skip-env-check", action="store_true", help="Skip slow ENV check (runs full pytest).")
     args = parser.parse_args()
 
     LOGS_DIR.mkdir(parents=True, exist_ok=True)

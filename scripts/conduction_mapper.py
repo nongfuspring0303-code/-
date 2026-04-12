@@ -11,7 +11,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from pathlib import Path
+import sys
 import yaml
+
+# Ensure top-level packages (e.g. transmission_engine) are importable when
+# this module is loaded from script entrypoints under scripts/ in CI.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 from ai_semantic_analyzer import SemanticAnalyzer

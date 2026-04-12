@@ -103,15 +103,28 @@ class EventCapture(EDTModule):
         
         # 关键词分数定义
         KEYWORD_SCORES = {
-            # 重大 (80分)
+            # 国家 (80分)
+            "US": 80, "USA": 80, "America": 80, "American": 80,
+            "Iran": 80, "Iranian": 80,
+            "Israel": 80, "Israeli": 80,
+            "Russia": 80, "Russian": 80,
+            "China": 80, "Chinese": 80,
+            "Ukraine": 80, "Ukrainian": 80,
+            "Taiwan": 80, "Taiwanese": 80,
+            "North Korea": 80, "Kim": 80,
+            "美国": 80, "伊朗": 80, "以色列": 80, "俄罗斯": 80,
+            "中国": 80, "乌克兰": 80, "台湾": 80, "朝鲜": 80,
+            
+            # 重大事件 (80分)
             "war": 80, " Wars ": 80, " Wars": 80,
-            "missile": 80, "attack": 80, "strike": 80,
+            "missile": 80, "missiles": 80, "attack": 80, "strike": 80,
             "tariff": 80, "trade war": 80,
             "pandemic": 80, "epidemic": 80, "outbreak": 80,
             "sanction": 80, "embargo": 80,
+            "nuclear": 80, "核": 80,
             "战争": 80, "导弹": 80, "袭击": 80,
-            "关税": 80, "贸易战": 80, "疫情": 80, "病毒": 80,
-            "制裁": 80,
+            "关税": 80, "贸易战": 80, "疫情": 80, "病毒": 80, "制裁": 80,
+            
             # 重要 (70分)
             "rate": 70, "interest rate": 70, "fed": 70, "FOMC": 70,
             "cut": 70, "hike": 70, "easing": 70, "tightening": 70,
@@ -119,6 +132,7 @@ class EventCapture(EDTModule):
             "QE": 70, "quantitative": 70,
             "降息": 70, "加息": 70, "央行": 70, "利率": 70,
             "财报": 70, "营收": 70, "盈利": 70, "季度": 70,
+            
             # 一般 (60分)
             "rise": 60, "fall": 60, "gain": 60, "loss": 60,
             "up": 60, "down": 60, "surge": 60, "drop": 60,

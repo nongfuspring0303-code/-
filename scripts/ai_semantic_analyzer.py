@@ -114,6 +114,7 @@ class SemanticAnalyzer:
             "sentiment": "neutral",
             "confidence": 0,
             "recommended_chain": "",
+            "recommended_stocks": [],
             "verdict": "abstain",
             "reason": fallback_reason,
             "provider": provider,
@@ -138,6 +139,7 @@ class SemanticAnalyzer:
             "sentiment": str(payload.get("sentiment", "neutral") or "neutral"),
             "confidence": confidence,
             "recommended_chain": str(payload.get("recommended_chain", "") or ""),
+            "recommended_stocks": payload.get("recommended_stocks", []),
             "verdict": "abstain",
             "reason": str(payload.get("reason", "") or ""),
             "provider": str(payload.get("provider", provider) or provider),
@@ -167,6 +169,7 @@ class SemanticAnalyzer:
                 "sentiment": "neutral",
                 "confidence": 80,
                 "recommended_chain": "trade_talks_chain",
+                "recommended_stocks": [],
                 "reason": "deterministic keyword match",
             }
         if any(k in text_lower for k in ["tariff", "trade war", "关税", "贸易战"]):
@@ -175,6 +178,7 @@ class SemanticAnalyzer:
                 "sentiment": "negative",
                 "confidence": 82,
                 "recommended_chain": "tariff_chain",
+                "recommended_stocks": [],
                 "reason": "deterministic keyword match",
             }
         return {
@@ -182,6 +186,7 @@ class SemanticAnalyzer:
             "sentiment": "neutral",
             "confidence": 50,
             "recommended_chain": "",
+            "recommended_stocks": [],
             "reason": "deterministic fallback",
         }
 
@@ -221,9 +226,10 @@ event_type 可选：
 
 confidence: 0-100
 recommended_chain: 推荐的分析链（可选）
+recommended_stocks: 推荐的股票列表（可选），格式为股票代码数组，如["NVDA","AAPL","MSFT"]
 
 示例：
-{{"event_type":"monetary","sentiment":"positive","confidence":90,"recommended_chain":"","reason":"美联储降息，流动性宽松，利好股市"}}
+{{"event_type":"monetary","sentiment":"positive","confidence":90,"recommended_chain":"rate_cut_chain","recommended_stocks":["NVDA","AAPL"],"reason":"美联储降息，流动性宽松，利好科技股"}}
 
 新闻：{text}
 
@@ -236,6 +242,7 @@ recommended_chain: 推荐的分析链（可选）
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": "glm-4.7-flash api key missing",
             }
 
@@ -279,6 +286,7 @@ recommended_chain: 推荐的分析链（可选）
                         "sentiment": parsed.get("sentiment", "neutral"),
                         "confidence": parsed.get("confidence", 50),
                         "recommended_chain": parsed.get("recommended_chain", ""),
+                        "recommended_stocks": parsed.get("recommended_stocks", []),
                         "reason": parsed.get("reason", "glm-4.7-flash api response"),
                     }
                 except json.JSONDecodeError:
@@ -287,6 +295,7 @@ recommended_chain: 推荐的分析链（可选）
                         "sentiment": "neutral",
                         "confidence": 50,
                         "recommended_chain": "",
+                        "recommended_stocks": [],
                         "reason": f"glm-4.7-flash response parsing failed: {content[:200]}",
                     }
 
@@ -295,6 +304,7 @@ recommended_chain: 推荐的分析链（可选）
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": "glm-4.7-flash no choices returned",
             }
 
@@ -304,6 +314,7 @@ recommended_chain: 推荐的分析链（可选）
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": "glm-4.7-flash timeout",
             }
         except requests.exceptions.RequestException as e:
@@ -312,6 +323,7 @@ recommended_chain: 推荐的分析链（可选）
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": f"glm-4.7-flash API error: {str(e)[:100]}",
             }
         except Exception as e:
@@ -320,6 +332,7 @@ recommended_chain: 推荐的分析链（可选）
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": f"glm-4.7-flash error: {str(e)[:100]}",
             }
 

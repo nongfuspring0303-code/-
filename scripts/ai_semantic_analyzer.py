@@ -78,6 +78,7 @@ class SemanticAnalyzer:
             "sentiment": "neutral",
             "confidence": 0,
             "recommended_chain": "",
+            "recommended_stocks": [],
             "verdict": "abstain",
             "reason": fallback_reason,
             "provider": provider,
@@ -102,6 +103,7 @@ class SemanticAnalyzer:
             "sentiment": str(payload.get("sentiment", "neutral") or "neutral"),
             "confidence": confidence,
             "recommended_chain": str(payload.get("recommended_chain", "") or ""),
+            "recommended_stocks": payload.get("recommended_stocks", []),
             "verdict": "abstain",
             "reason": str(payload.get("reason", "") or ""),
             "provider": str(payload.get("provider", provider) or provider),
@@ -131,6 +133,7 @@ class SemanticAnalyzer:
                 "sentiment": "neutral",
                 "confidence": 80,
                 "recommended_chain": "trade_talks_chain",
+                "recommended_stocks": [],
                 "reason": "deterministic keyword match",
             }
         if any(k in text_lower for k in ["tariff", "trade war", "关税", "贸易战"]):
@@ -139,6 +142,7 @@ class SemanticAnalyzer:
                 "sentiment": "negative",
                 "confidence": 82,
                 "recommended_chain": "tariff_chain",
+                "recommended_stocks": [],
                 "reason": "deterministic keyword match",
             }
         return {
@@ -146,6 +150,7 @@ class SemanticAnalyzer:
             "sentiment": "neutral",
             "confidence": 50,
             "recommended_chain": "",
+            "recommended_stocks": [],
             "reason": "deterministic fallback",
         }
 
@@ -161,7 +166,35 @@ class SemanticAnalyzer:
 - recommended_chain: 推荐的应对链名称（如果有）
 - reason: 判断理由
 
-        如果新闻内容不足以做出判断，请返回confidence为0并说明原因。"""
+event_type 可选：
+- tariff: 关税、贸易战
+- geo_political: 地缘政治、军事冲突
+- earnings: 财报、业绩
+- monetary: 央行、利率
+- energy: 能源、油气
+- shipping: 航运、海运
+- industrial: 工业、制造
+- tech: 科技
+- healthcare: 医疗
+- regulatory: 监管政策、法规
+- merger: 并购、重组
+- inflation: 通胀
+- commodity: 大宗商品
+- credit: 信用违约、债券
+- natural_disaster: 自然灾害
+- pandemic: 疫情、公共卫生
+- other: 其他
+
+confidence: 0-100
+recommended_chain: 推荐的分析链（可选）
+recommended_stocks: 推荐的股票列表（可选），格式为股票代码数组，如["NVDA","AAPL","MSFT"]
+
+示例：
+{{"event_type":"monetary","sentiment":"positive","confidence":90,"recommended_chain":"rate_cut_chain","recommended_stocks":["NVDA","AAPL"],"reason":"美联储降息，流动性宽松，利好科技股"}}
+
+新闻：{text}
+
+只返回JSON，不要解释。"""
 
         api_key = self._api_key()
         if not api_key:
@@ -170,6 +203,7 @@ class SemanticAnalyzer:
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": "glm-4.7-flash api key missing",
             }
 
@@ -205,6 +239,7 @@ class SemanticAnalyzer:
                         "sentiment": parsed.get("sentiment", "neutral"),
                         "confidence": parsed.get("confidence", 50),
                         "recommended_chain": parsed.get("recommended_chain", ""),
+                        "recommended_stocks": parsed.get("recommended_stocks", []),
                         "reason": parsed.get("reason", "glm-4.7-flash api response"),
                     }
                 except json.JSONDecodeError:
@@ -213,6 +248,7 @@ class SemanticAnalyzer:
                         "sentiment": "neutral",
                         "confidence": 50,
                         "recommended_chain": "",
+                        "recommended_stocks": [],
                         "reason": f"glm-4.7-flash response parsing failed: {content[:200]}",
                     }
 
@@ -221,6 +257,7 @@ class SemanticAnalyzer:
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": "glm-4.7-flash no choices returned",
             }
 
@@ -230,6 +267,7 @@ class SemanticAnalyzer:
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": "glm-4.7-flash timeout",
             }
         except requests.exceptions.RequestException as e:
@@ -238,6 +276,7 @@ class SemanticAnalyzer:
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": f"glm-4.7-flash API error: {str(e)[:100]}",
             }
         except Exception as e:
@@ -246,6 +285,7 @@ class SemanticAnalyzer:
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
+                "recommended_stocks": [],
                 "reason": f"glm-4.7-flash error: {str(e)[:100]}",
             }
 

@@ -162,71 +162,247 @@ class ConductionMapper(EDTModule):
                     return list(level.get("themes", []))
         return []
 
-    def _build_template_mapping(self, template: Dict[str, Any], sector_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        levels = template.get("levels", []) or []
-        conduction_path = [str(level.get("name", "")) for level in levels if level.get("name")]
+    def _build_template_mapping(self, template: Dict[str, Any], sector_data: List[Dict[str, Any]], semantic_output: Dict[str, Any] = None) -> Dict[str, Any]:
 
-        macro_factors = []
-        for item in self._level_items(levels, "macro"):
-            macro_factors.append(
-                {
-                    "factor": item.get("factor"),
-                    "direction": item.get("direction"),
-                    "strength": item.get("strength"),
-                    "reason": f"模板 {template.get('id', 'unknown')} 命中",
-                }
-            )
+            levels = template.get("levels", []) or []
 
-        sector_impacts = []
-        for item in self._level_items(levels, "sector"):
-            sector_impacts.append(
-                {
-                    "sector": item.get("name"),
-                    "direction": item.get("direction"),
-                    "driver_type": "template",
-                    "reason": f"模板 {template.get('id', 'unknown')} 命中",
-                    "impact_score": item.get("impact_score", 0.0),
-                }
-            )
+            conduction_path = [str(level.get("name", "")) for level in levels if level.get("name")]
 
-        stock_candidates = []
-        for item in self._level_items(levels, "sector"):
-            sector_name = str(item.get("name", ""))
-            for candidate in sector_data:
-                candidate_sector = str(candidate.get("sector") or candidate.get("industry") or "")
-                if not candidate_sector:
-                    continue
-                if sector_name and sector_name.lower() in candidate_sector.lower():
-                    stock_candidates.append(
-                        {
-                            "symbol": candidate.get("symbol", ""),
-                            "sector": candidate_sector,
-                            "direction": item.get("direction", "benefit"),
-                            "event_beta": 1.0,
-                            "liquidity_tier": "high",
-                            "reason": f"模板 {template.get('id', 'unknown')} 关联",
-                        }
-                    )
+    
 
-        if not stock_candidates:
+            macro_factors = []
+
+            for item in self._level_items(levels, "macro"):
+
+                macro_factors.append(
+
+                    {
+
+                        "factor": item.get("factor"),
+
+                        "direction": item.get("direction"),
+
+                        "strength": item.get("strength"),
+
+                        "reason": f"模板 {template.get('id', 'unknown')} 命中",
+
+                    }
+
+                )
+
+    
+
+            sector_impacts = []
+
+            for item in self._level_items(levels, "sector"):
+
+                sector_impacts.append(
+
+                    {
+
+                        "sector": item.get("name"),
+
+                        "direction": item.get("direction"),
+
+                        "driver_type": "template",
+
+                        "reason": f"模板 {template.get('id', 'unknown')} 命中",
+
+                        "impact_score": item.get("impact_score", 0.0),
+
+                    }
+
+                )
+
+    
+
+            # 配置推荐的股票（基于板块映射）
+
             stock_candidates = []
 
-        defaults = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
-        confidence = float(defaults.get("template_base_confidence", 80))
-        if template.get("id") == "rate_cut_chain":
-            confidence = float(defaults.get("template_rate_cut_confidence", 88))
-        elif template.get("id") == "inflation_shock_chain":
-            confidence = float(defaults.get("template_inflation_confidence", 82))
+            for item in self._level_items(levels, "sector"):
 
-        return {
-            "macro_factors": macro_factors,
-            "asset_impacts": [],
-            "sector_impacts": sector_impacts,
-            "stock_candidates": stock_candidates,
-            "conduction_path": conduction_path or [template.get("name", "模板链路")],
-            "confidence": confidence,
-            "mapping_source": f"template:{template.get('id', 'unknown')}",
+                sector_name = str(item.get("name", ""))
+
+                for candidate in sector_data:
+
+                    candidate_sector = str(candidate.get("sector") or candidate.get("industry") or "")
+
+                    if not candidate_sector:
+
+                        continue
+
+                    if sector_name and sector_name.lower() in candidate_sector.lower():
+
+                        stock_candidates.append(
+
+                            {
+
+                                "symbol": candidate.get("symbol", ""),
+
+                                "sector": candidate_sector,
+
+                                "direction": item.get("direction", "benefit"),
+
+                                "event_beta": 1.0,
+
+                                "liquidity_tier": "high",
+
+                                "reason": f"模板 {template.get('id', 'unknown')} 关联",
+
+                                "source": "config",  # 标记为配置推荐
+
+                            }
+
+                        )
+
+    
+
+            # AI推荐的股票（如果语义分析有推荐）
+
+            ai_stocks = []
+
+            if semantic_output and isinstance(semantic_output, dict):
+
+                ai_recommended = semantic_output.get("recommended_stocks", [])
+
+                if ai_recommended and isinstance(ai_recommended, list):
+
+                    for symbol in ai_recommended:
+
+                        # 从股票池中查找该股票的信息
+
+                        stock_info = next(
+
+                            (s for s in sector_data if str(s.get("symbol", "")).upper() == str(symbol).upper()),
+
+                            None
+
+                        )
+
+                        if stock_info:
+
+                            ai_stocks.append(
+
+                                {
+
+                                    "symbol": stock_info.get("symbol", ""),
+
+                                    "sector": stock_info.get("sector", ""),
+
+                                    "direction": self._convert_sentiment_to_direction(semantic_output.get("sentiment", "neutral")),
+
+                                    "event_beta": 1.2,  # AI推荐的股票给更高的beta
+
+                                    "liquidity_tier": "high",
+
+                                    "reason": f"AI语义分析推荐 (置信度: {semantic_output.get('confidence', 0)})",
+
+                                    "source": "ai",  # 标记为AI推荐
+
+                                    "ai_confidence": semantic_output.get("confidence", 0)
+
+                                }
+
+                            )
+
+    
+
+            # 合并配置推荐和AI推荐
+
+            # AI推荐的股票优先级更高，放在前面
+
+            merged_candidates = []
+
+            
+
+            # 先添加AI推荐的股票（去重）
+
+            seen_symbols = set()
+
+            for stock in ai_stocks:
+
+                symbol = stock.get("symbol", "").upper()
+
+                if symbol and symbol not in seen_symbols:
+
+                    merged_candidates.append(stock)
+
+                    seen_symbols.add(symbol)
+
+            
+
+            # 再添加配置推荐的股票（去重）
+
+            for stock in stock_candidates:
+
+                symbol = stock.get("symbol", "").upper()
+
+                if symbol and symbol not in seen_symbols:
+
+                    merged_candidates.append(stock)
+
+                    seen_symbols.add(symbol)
+
+    
+
+            if not merged_candidates:
+
+                merged_candidates = []
+
+    
+
+            defaults = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
+
+            confidence = float(defaults.get("template_base_confidence", 80))
+
+            if template.get("id") == "rate_cut_chain":
+
+                confidence = float(defaults.get("template_rate_cut_confidence", 88))
+
+            elif template.get("id") == "inflation_shock_chain":
+
+                confidence = float(defaults.get("template_inflation_confidence", 82))
+
+    
+
+            return {
+
+                "macro_factors": macro_factors,
+
+                "asset_impacts": [],
+
+                "sector_impacts": sector_impacts,
+
+                "stock_candidates": merged_candidates,
+
+                "conduction_path": conduction_path or [template.get("name", "模板链路")],
+
+                "confidence": confidence,
+
+                "mapping_source": f"template:{template.get('id', 'unknown')}",
+
+                "ai_enhanced": len(ai_stocks) > 0,  # 标记是否使用了AI增强
+
+                "ai_stocks_count": len(ai_stocks),
+
+                "config_stocks_count": len(stock_candidates)
+
+            }
+
+    def _convert_sentiment_to_direction(self, sentiment: str) -> str:
+        """将情感转换为方向"""
+        sentiment_map = {
+            "positive": "long",
+            "long": "long",
+            "benefit": "long",
+            "negative": "short",
+            "short": "short",
+
+                "hurt": "short",
+            "neutral": "watch"
         }
+        return sentiment_map.get(sentiment.lower(), "watch")
 
     def _apply_sector_mapping(self, sector_impacts: List[Dict[str, Any]], sector_data: List[Dict[str, Any]]) -> None:
         if not sector_data:
@@ -382,6 +558,9 @@ class ConductionMapper(EDTModule):
         policy_intervention = raw.get("policy_intervention", "NONE")
         sector_data = raw.get("sector_data", []) or []
 
+        # 执行语义分析，获取AI推荐的股票
+        semantic_out = self.semantic.analyze(headline, summary)
+
         classification = self.shock_classifier.classify(
             category=category,
             headline=headline,
@@ -413,7 +592,7 @@ class ConductionMapper(EDTModule):
             mapping["mapping_source"] = "template:rate_cut_chain"
             mapping["conduction_path"] = ["政策干预预期", "流动性改善预期", "受益资产反弹"]
         elif template:
-            mapping = self._build_template_mapping(template, sector_data)
+            mapping = self._build_template_mapping(template, sector_data, semantic_out)
         elif category == "C":
             mapping = self._tariff_mapping()
         elif category == "E":

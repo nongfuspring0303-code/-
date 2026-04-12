@@ -1,0 +1,31 @@
+schema_version: v1.0
+version: "v1.0"
+updated_at: "2026-04-11T00:00:00Z"
+
+# ticker x event_type_lv2 exposure matrix (0-100)
+matrix:
+  NVDA:
+    AI_CAPEX_UP: 96
+    EXPORT_RESTRICTION: 62
+  AVGO:
+    AI_CAPEX_UP: 82
+  XOM:
+    OIL_SUPPLY_CUT: 91
+    INVENTORY_DRAW: 86
+  SLB:
+    OIL_SUPPLY_CUT: 95
+  DAL:
+    OIL_SUPPLY_CUT: 28
+  JPM:
+    RATES_UP: 75
+    CREDIT_TIGHTENING: 55
+  NEE:
+    RATES_DOWN: 68
+  AMT:
+    RATES_DOWN: 72
+  META:
+    AI_CAPEX_UP: 74
+  KO:
+    CPI_HOT: 66
+  LIN:
+    PMI_RECOVERY: 71

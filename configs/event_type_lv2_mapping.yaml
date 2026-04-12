@@ -1,0 +1,39 @@
+version: v1
+category_defaults:
+  A: {lv1: liquidity, lv2: liquidity_tightening}
+  B: {lv1: public_health, lv2: public_health_risk}
+  C: {lv1: trade_policy, lv2: tariff_shock}
+  D: {lv1: geo_politics, lv2: geo_risk}
+  E: {lv1: monetary_policy, lv2: rates_down}
+  F: {lv1: macro_data, lv2: macro_growth_positive}
+  G: {lv1: market_structure, lv2: volatility_spike}
+
+mappings:
+  - id: tariff
+    lv1: trade_policy
+    lv2: tariff_shock
+    keywords: ["tariff", "关税", "加征", "进口税"]
+  - id: rate_cut
+    lv1: monetary_policy
+    lv2: rates_down
+    keywords: ["rate cut", "降息", "降准", "宽松"]
+  - id: inflation_up
+    lv1: macro_data
+    lv2: inflation_up
+    keywords: ["inflation", "通胀", "CPI", "PPI"]
+  - id: growth_down
+    lv1: macro_data
+    lv2: growth_negative
+    keywords: ["recession", "衰退", "放缓", "经济下行"]
+  - id: geo_risk
+    lv1: geo_politics
+    lv2: geo_risk
+    keywords: ["conflict", "战争", "地缘", "制裁"]
+  - id: liquidity_tight
+    lv1: liquidity
+    lv2: liquidity_tightening
+    keywords: ["liquidity", "流动性", "缩表", "taper"]
+  - id: risk_off
+    lv1: risk_sentiment
+    lv2: risk_off
+    keywords: ["risk off", "避险", "panic", "恐慌"]

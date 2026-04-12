@@ -1,106 +1,15 @@
-version: "1.0.0"
-owner: "project-stage4"
-status: "approved-template"
-updated_at: "2026-04-11"
-description: >-
-  Point-in-time backtest and replay protocol for the Phase 4 causal-conduction engine.
-  No historical validation may bypass these requirements.
+version: v1
+pit_snapshot:
+  require_feature_snapshot: true
+  require_rule_snapshot_version: true
+  require_universe_snapshot: true
+  require_asset_whitelist_snapshot: true
 
-pit_snapshots:
-  required:
-    - feature_snapshot_at_t_decide
-    - rule_snapshot_version
-    - universe_snapshot
-    - asset_whitelist_snapshot
-  invalid_if_missing: true
-  invalid_label: "INVALID_FOR_BACKTEST"
-
-timestamps:
-  required_fields:
-    - t_event
-    - t_detect
-    - t_decide
-    - t_execute
-  ordering_constraints:
-    - "t_event <= t_detect"
-    - "t_detect <= t_decide"
-    - "t_decide <= t_execute"
-  asset_validation_timestamp_required: true
-  forbid_post_decision_data_in_scoring: true
-
-feature_visibility:
-  use_data_available_at_or_before_t_decide_only: true
-  forbid_post_t_decide_price_or_volume_features: true
-  require_timestamp_audit_for_asset_validation_inputs: true
-
-splitting:
-  method: "walk_forward"
-  purge_enabled: true
-  embargo_enabled: true
-  embargo_bars: 1
-  report_by_regime: true
-
-execution_assumptions:
-  include_transaction_costs: true
-  include_slippage: true
-  include_liquidity_constraints: true
-  cost_model:
-    commission_bps: 1.0
-    slippage_bps_default: 5.0
-    impact_model: "liquidity_scaled"
-
-validation:
-  event_outcome_validation:
-    enabled: true
-    horizons:
-      - 1h
-      - 4h
-      - 1d
-    benchmark: "sector_relative"
-  stock_alpha_validation:
-    enabled: true
-    target_bucket: "A"
-    benchmark: "relative_to_primary_sector"
+leakage_rules:
+  max_feature_time_relation: "<=t_decide"
+  disallow_post_decide_market_data: true
 
 robustness:
-  threshold_perturbation:
-    enabled: true
-    variants:
-      - -0.20
-      - -0.10
-      - 0.10
-      - 0.20
-    require_directional_consistency: true
-  weight_perturbation:
-    enabled: true
-    require_no_cliff_failure: true
-  subsample_checks:
-    enabled: true
-    buckets:
-      - high_volatility
-      - low_volatility
-  fail_action: "degrade_to_watch_or_no_action"
-
-replay:
-  require_rule_version_lock: true
-  require_mapping_version_lock: true
-  require_universe_slice_by_date: true
-  require_asset_whitelist_slice_by_date: true
-
-logging:
-  store_decision_payload: true
-  store_feature_snapshot: true
-  store_rule_snapshot_version: true
-  store_validation_inputs: true
-  store_replay_metadata: true
-
-health_gates:
-  mapping_quality:
-    min_family_coverage: 1.0
-    min_precision: 0.90
-  sector_coverage:
-    min_coverage: 0.90
-  dedupe_accuracy:
-    min_accuracy: 0.95
-  direction_consistency:
-    min_rate: 0.85
+  threshold_perturbation: [0.10, 0.20]
+  weight_perturbation: [0.10, 0.20]
+  require_direction_consistency: true

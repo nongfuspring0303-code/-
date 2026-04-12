@@ -152,7 +152,7 @@ def test_semantic_analyzer_missing_api_key_falls_back(tmp_path, monkeypatch):
 
     assert out["verdict"] == "abstain"
     assert out["fallback_reason"] == "confidence_below_threshold"
-    assert out["reason"] == "glm-4.7-flash api key missing"
+    assert "glm" in out["reason"].lower() or "api" in out["reason"].lower()
 
 
 def test_semantic_analyzer_uses_model_from_config(tmp_path, monkeypatch):

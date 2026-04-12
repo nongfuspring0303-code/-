@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict
 from pathlib import Path
+from typing import Any, Dict
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -21,27 +21,38 @@ from lifecycle_manager import LifecycleManager
 from market_validator import MarketValidator
 from opportunity_score import OpportunityScorer
 from signal_scorer import SignalScorer
+from state_store import EventStateStore
 from workflow_runner import WorkflowRunner
 
 
 class FullWorkflowRunner:
     """End-to-end runner across all implemented layers."""
 
-    def __init__(self):
+    def __init__(self, config_path: str | None = None, state_db_path: str | None = None):
         self.intel = IntelPipeline()
-        self.lifecycle = LifecycleManager()
-        self.fatigue = FatigueCalculator()
-        self.conduction = ConductionMapper()
-        self.validation = MarketValidator()
-        self.scorer = SignalScorer()
+        self.lifecycle = LifecycleManager(config_path=config_path)
+        self.state_store = EventStateStore(db_path=state_db_path)
+
+        fatigue_config_path = Path(__file__).resolve().parent.parent / "configs" / "fatigue_config.yaml"
+        self.fatigue = FatigueCalculator(config_path=str(fatigue_config_path), state_store=self.state_store)
+        self.conduction = ConductionMapper(config_path=config_path)
+        self.validation = MarketValidator(config_path=config_path)
+        self.scorer = SignalScorer(config_path=config_path)
         self.opportunity = OpportunityScorer()
         self.execution = WorkflowRunner()
+        self.config_path = config_path
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         intel_out = self.intel.run(payload)
 
         event_object = intel_out["event_object"]
         source_rank = intel_out["source_rank"]
+        event_id = event_object["event_id"]
+
+        prev_state = self.state_store.get_state(event_id)
+        previous_lifecycle = prev_state["lifecycle_state"] if prev_state else None
+        previous_internal = prev_state["internal_state"] if prev_state else None
+        retry_count = prev_state["retry_count"] if prev_state else 0
 
         lifecycle_out = self.lifecycle.run(
             {
@@ -55,6 +66,9 @@ class FullWorkflowRunner:
                 "market_validated": payload.get("market_validated", True),
                 "has_material_update": payload.get("has_material_update", True),
                 "elapsed_hours": payload.get("elapsed_hours", 2),
+                "previous_lifecycle_state": previous_lifecycle,
+                "previous_internal_state": previous_internal,
+                "retry_count": retry_count,
             }
         ).data
 
@@ -171,6 +185,16 @@ class FullWorkflowRunner:
             "human_confirmed": payload.get("human_confirmed", False),
         }
         execution_out = self.execution.run(execution_in)
+
+        self.state_store.upsert_state(event_id, {
+            "internal_state": lifecycle_out["internal_state"],
+            "lifecycle_state": lifecycle_out["lifecycle_state"],
+            "catalyst_state": lifecycle_out["catalyst_state"],
+            "retry_count": retry_count + 1,
+            "metadata": {
+                "category": event_object["category"],
+            },
+        })
 
         return {"intel": intel_out, "analysis": analysis_out, "execution": execution_out}
 

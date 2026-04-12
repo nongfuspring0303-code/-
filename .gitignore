@@ -31,3 +31,7 @@ logs/*.txt
 logs/canary_live/
 !logs/.gitkeep
 !logs/README.md
+.env.local
+
+# SQLite state store
+data/*.db

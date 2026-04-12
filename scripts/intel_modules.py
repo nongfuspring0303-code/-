@@ -97,41 +97,39 @@ class EventCapture(EDTModule):
         ai_reason = "keyword_rule_hit"
         capture_source = "rules"
         captured = True
+        matched_keywords = []
 
-        if not keyword_matched:
-            raw_text = str(raw.get("raw_text", "") or "")
-            if self.semantic is None:
-                semantic_out = {
-                    "verdict": "abstain",
-                    "confidence": 0,
-                    "reason": f"semantic_init_error: {self._semantic_init_error or 'unavailable'}",
-                }
-            else:
-                try:
-                    semantic_out = self.semantic.analyze(headline_text, raw_text)
-                except Exception as exc:
-                    logger.warning("EventCapture semantic analyze failed: %s", exc)
-                    semantic_out = {"verdict": "abstain", "confidence": 0, "reason": "semantic_error"}
+        raw_text = str(raw.get("raw_text", "") or "")
+        
+        # 全部通过 AI 语义分析
+        if self.semantic is None:
+            semantic_out = {
+                "verdict": "abstain",
+                "confidence": 50,
+                "reason": f"semantic_init_error: {self._semantic_init_error or 'unavailable'}",
+            }
+        else:
+            try:
+                semantic_out = self.semantic.analyze(headline_text, raw_text)
+            except Exception as exc:
+                logger.warning("EventCapture semantic analyze failed: %s", exc)
+                semantic_out = {"verdict": "abstain", "confidence": 50, "reason": "semantic_error"}
 
-            ai_verdict = str(semantic_out.get("verdict", "abstain") or "abstain")
-            ai_confidence = _safe_float(semantic_out.get("confidence"), 0.0)
-            ai_reason = str(semantic_out.get("reason", "") or "")
-            threshold = _safe_float(
-                self._get_config(
-                    "modules.EventCapture.params.ai_confidence_threshold",
-                    self._get_config("runtime.semantic.min_confidence", 70),
-                ),
-                70.0,
-            )
-
-            if ai_verdict == "hit" and ai_confidence >= threshold:
-                captured = True
-                capture_source = "ai"
-            else:
-                captured = False
-                capture_source = "none"
-
-        # Minimal category inference for skeleton.
+        ai_verdict = str(semantic_out.get("verdict", "abstain") or "abstain")
+        base_confidence = _safe_float(semantic_out.get("confidence"), 50)
+        
+        # 额外加分：关键词命中 +20 分
+        bonus = 0
+        if keyword_matched:
+            matched_keywords = [k for k in keywords if _keyword_matches(headline, k)]
+            bonus = min(20, len(matched_keywords) * 10)  # 最多 +20
+        
+        ai_confidence = min(100, base_confidence + bonus)
+        
+        # sentiment 从语义分析获取
+        sentiment = semantic_out.get("sentiment", "neutral")
+        
+        # 关键词优先判断 category
         category = "E"
         if any(_keyword_matches(headline, k) for k in ("tariff", "trade war", "关税", "进口限制", "出口管制")):
             category = "C"
@@ -141,6 +139,29 @@ class EventCapture(EDTModule):
             category = "B"
         elif any(_keyword_matches(headline, k) for k in ("fed", "rate", "policy", "fomc")):
             category = "E"
+        
+        # event_type 从语义分析获取
+        event_type = semantic_out.get("event_type", "unknown")
+        
+        ai_reason = f"ai({semantic_out.get('reason', '')})" + (f"+keyword_bonus({bonus})" if bonus > 0 else "")
+        
+        threshold = _safe_float(
+            self._get_config(
+                "modules.EventCapture.params.ai_confidence_threshold",
+                self._get_config("runtime.semantic.min_confidence", 70),
+            ),
+            70.0,
+        )
+
+        if ai_verdict == "hit" and ai_confidence >= threshold:
+            captured = True
+            capture_source = "ai"
+        elif keyword_matched:
+            captured = True
+            capture_source = "rules"
+        else:
+            captured = False
+            capture_source = "none"
 
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,
@@ -149,14 +170,18 @@ class EventCapture(EDTModule):
                 "capture_source": capture_source,
                 "ai_verdict": ai_verdict,
                 "ai_confidence": ai_confidence,
+                "base_confidence": base_confidence,
+                "keyword_bonus": bonus,
                 "ai_reason": ai_reason,
-                "vix_amplify": vix_amplify,  # VIX是否足以放大严重程度
+                "vix_amplify": vix_amplify,
                 "vix_level": vix_level,
                 "headline": raw["headline"],
                 "source": raw["source"],
                 "timestamp": raw["timestamp"],
                 "category_hint": category,
-                "matched_keywords": [k for k in keywords if _keyword_matches(headline, k)],
+                "event_type": event_type,
+                "sentiment": sentiment,
+                "matched_keywords": matched_keywords,
             },
         )
 

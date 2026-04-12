@@ -104,13 +104,26 @@ class EventCapture(EDTModule):
         # 关键词分数定义
         KEYWORD_SCORES = {
             # 重大 (80分)
-            "war": 80, "战争": 80, "导弹": 80, "袭击": 80,
+            "war": 80, " Wars ": 80, " Wars": 80,
+            "missile": 80, "attack": 80, "strike": 80,
+            "tariff": 80, "trade war": 80,
+            "pandemic": 80, "epidemic": 80, "outbreak": 80,
+            "sanction": 80, "embargo": 80,
+            "战争": 80, "导弹": 80, "袭击": 80,
             "关税": 80, "贸易战": 80, "疫情": 80, "病毒": 80,
+            "制裁": 80,
             # 重要 (70分)
+            "rate": 70, "interest rate": 70, "fed": 70, "FOMC": 70,
+            "cut": 70, "hike": 70, "easing": 70, "tightening": 70,
+            "earnings": 70, "revenue": 70, "profit": 70, "quarterly": 70,
+            "QE": 70, "quantitative": 70,
             "降息": 70, "加息": 70, "央行": 70, "利率": 70,
-            "财报": 70, "营收": 70, "盈利": 70,
+            "财报": 70, "营收": 70, "盈利": 70, "季度": 70,
             # 一般 (60分)
-            "上涨": 60, "利好": 60, "突破": 60,
+            "rise": 60, "fall": 60, "gain": 60, "loss": 60,
+            "up": 60, "down": 60, "surge": 60, "drop": 60,
+            "bullish": 60, "bearish": 60,
+            "上涨": 60, "利好": 60, "突破": 60, "下跌": 60,
         }
         
         raw_text = str(raw.get("raw_text", "") or "")

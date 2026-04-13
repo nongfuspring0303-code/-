@@ -155,43 +155,22 @@ def test_semantic_analyzer_missing_api_key_falls_back(tmp_path, monkeypatch):
     assert out["reason"] == "glm-4.7-flash api key missing"
 
 
-def test_semantic_analyzer_respects_api_key_env_and_legacy_aliases(tmp_path, monkeypatch):
+def test_semantic_analyzer_ignores_bash_profile_key(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.yaml"
     cfg.write_text(
-        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n    api_key_env: CUSTOM_GLM_API_KEY\n    min_confidence: 10\n",
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n",
         encoding="utf-8",
     )
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".bash_profile").write_text('export ZAI_API_KEY="shell_key"\n', encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("ZAI_API_KEY", raising=False)
-    monkeypatch.delenv("GLM_API_KEY", raising=False)
-    monkeypatch.delenv("OPENCLAW_GLM_API_KEY", raising=False)
-    monkeypatch.setenv("GLM_API_KEY", "legacy_glm_key")
-    monkeypatch.setenv("CUSTOM_GLM_API_KEY", "")
-    captured = {}
 
-    class _Resp:
-        def raise_for_status(self):
-            return None
+    out = SemanticAnalyzer(config_path=str(cfg)).analyze("headline", "raw")
 
-        def json(self):
-            return {
-                "choices": [
-                    {
-                        "message": {
-                            "content": '{"event_type":"trade_talks","sentiment":"neutral","confidence":90,"recommended_chain":"trade_talks_chain","reason":"ok"}'
-                        }
-                    }
-                ]
-            }
-
-    def _fake_post(_url, headers=None, json=None, timeout=None):
-        captured["headers"] = headers
-        return _Resp()
-
-    monkeypatch.setattr(semmod.requests, "post", _fake_post)
-    out = SemanticAnalyzer(config_path=str(cfg)).analyze("Trump-Xi trade meeting", "capital flows")
-
-    assert out["verdict"] == "hit"
-    assert captured["headers"]["Authorization"] == "Bearer legacy_glm_key"
+    assert out["verdict"] == "abstain"
+    assert out["reason"] == "glm-4.7-flash api key missing"
 
 
 def test_semantic_analyzer_uses_model_from_config(tmp_path, monkeypatch):

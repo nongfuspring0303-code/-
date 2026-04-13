@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Any, Dict
 
 import requests
+
 from config_center import ConfigCenter
 
 ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
@@ -58,14 +59,13 @@ class SemanticAnalyzer:
         return str(model or "")
 
     def _api_key(self) -> str:
-        semantic = self._semantic_cfg()
-        env_name = str(semantic.get("api_key_env", "ZAI_API_KEY") or "ZAI_API_KEY").strip()
-        env_names = [env_name, "GLM_API_KEY", "OPENCLAW_GLM_API_KEY"]
+        # Priority: env > .env.local > (none)
+        env_name = "ZAI_API_KEY"
 
-        for name in env_names:
-            value = os.getenv(name, "").strip()
-            if value:
-                return value
+        # 1. Environment variable
+        value = os.getenv(env_name, "").strip()
+        if value:
+            return value
 
         # 2. .env.local file (项目根目录，不提交git)
         project_root = Path(__file__).parent.parent
@@ -76,10 +76,9 @@ class SemanticAnalyzer:
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
                         key, val = line.split("=", 1)
-                        key = key.strip()
-                        if key in env_names:
+                        if key.strip() == env_name:
                             return val.strip().strip('"')
-        
+
         return ""
 
     def _abstain_response(
@@ -87,6 +86,7 @@ class SemanticAnalyzer:
         *,
         fallback_reason: str,
         provider: str,
+        model: str = "",
         latency_ms: int = 0,
     ) -> Dict[str, Any]:
         return {
@@ -95,13 +95,15 @@ class SemanticAnalyzer:
             "confidence": 0,
             "recommended_chain": "",
             "verdict": "abstain",
+            "semantic_status": "fallback",
             "reason": fallback_reason,
             "provider": provider,
+            "model": model,
             "latency_ms": int(max(0, latency_ms)),
             "fallback_reason": fallback_reason,
         }
 
-    def _coerce_output(self, payload: Dict[str, Any], provider: str, latency_ms: int) -> Dict[str, Any]:
+    def _coerce_output(self, payload: Dict[str, Any], provider: str, model: str, latency_ms: int) -> Dict[str, Any]:
         try:
             confidence = int(float(payload.get("confidence", 0) or 0))
         except (TypeError, ValueError):
@@ -119,8 +121,10 @@ class SemanticAnalyzer:
             "confidence": confidence,
             "recommended_chain": str(payload.get("recommended_chain", "") or ""),
             "verdict": "abstain",
+            "semantic_status": str(payload.get("semantic_status", "fallback") or "fallback"),
             "reason": str(payload.get("reason", "") or ""),
             "provider": str(payload.get("provider", provider) or provider),
+            "model": str(payload.get("model", model) or model),
             "latency_ms": int(max(0, parsed_latency)),
             "fallback_reason": str(payload.get("fallback_reason", "") or ""),
         }
@@ -166,12 +170,37 @@ class SemanticAnalyzer:
         }
 
     def _call_glm_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
-        prompt = f"""分析这条金融新闻，返回纯JSON：
+        prompt = f"""分析这条金融新闻，判断是否影响金融市场，返回纯JSON。
+
+event_type 可选：
+- tariff: 关税、贸易战
+- geo_political: 地缘政治、军事冲突
+- earnings: 财报、业绩
+- monetary: 央行、利率
+- energy: 能源、油气
+- shipping: 航运、海运
+- industrial: 工业、制造
+- tech: 科技
+- healthcare: 医疗
+- regulatory: 监管政策、法规
+- merger: 并购、重组
+- inflation: 通胀
+- commodity: 大宗商品
+- credit: 信用违约、债券
+- natural_disaster: 自然灾害
+- pandemic: 疫情、公共卫生
+- other: 其他
+
+sentiment: positive/negative/neutral
+confidence: 0-100
+recommended_chain: 推荐的分析链（可选）
+
+示例：
 {{"event_type":"tariff","sentiment":"negative","confidence":90,"recommended_chain":"","reason":"..."}}
 
 新闻：{text}
 
-直接返回JSON，不要任何解释或markdown。"""
+只返回JSON，不要解释。"""
 
         api_key = self._api_key()
         if not api_key:
@@ -194,7 +223,7 @@ class SemanticAnalyzer:
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.3,
-                "max_tokens": 500,
+                "max_tokens": 200,
             }
             timeout_seconds = max(5.0, timeout_ms / 1000.0)
             response = requests.post(
@@ -276,18 +305,21 @@ class SemanticAnalyzer:
             return self._abstain_response(
                 fallback_reason="semantic_disabled",
                 provider=provider,
+                model=model,
             )
 
         if self._emergency_disabled():
             return self._abstain_response(
                 fallback_reason="emergency_disabled",
                 provider=provider,
+                model=model,
             )
 
         if not self._full_enabled():
             return self._abstain_response(
                 fallback_reason="full_enable_disabled",
                 provider=provider,
+                model=model,
             )
 
         started = time.perf_counter()
@@ -304,6 +336,7 @@ class SemanticAnalyzer:
             return self._abstain_response(
                 fallback_reason="timeout",
                 provider=provider,
+                model=model,
                 latency_ms=elapsed,
             )
         except Exception:
@@ -311,14 +344,16 @@ class SemanticAnalyzer:
             return self._abstain_response(
                 fallback_reason="provider_error",
                 provider=provider,
+                model=model,
                 latency_ms=elapsed,
             )
 
         elapsed = int((time.perf_counter() - started) * 1000.0)
-        out = self._coerce_output(payload if isinstance(payload, dict) else {}, provider, elapsed)
+        out = self._coerce_output(payload if isinstance(payload, dict) else {}, provider, model, elapsed)
 
         if out["confidence"] < self._min_confidence():
             out["verdict"] = "abstain"
+            out["semantic_status"] = "fallback"
             out["fallback_reason"] = "confidence_below_threshold"
             if not out["reason"]:
                 out["reason"] = "confidence below threshold"
@@ -326,12 +361,14 @@ class SemanticAnalyzer:
 
         if out["recommended_chain"]:
             out["verdict"] = "hit"
+            out["semantic_status"] = "hit"
             if not out["reason"]:
                 out["reason"] = "semantic hit"
             out["fallback_reason"] = ""
             return out
 
         out["verdict"] = "abstain"
+        out["semantic_status"] = "fallback"
         out["fallback_reason"] = "chain_missing"
         if not out["reason"]:
             out["reason"] = "missing recommended chain"

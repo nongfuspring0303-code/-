@@ -8,7 +8,7 @@ AI event intelligence modules for A-layer.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -22,6 +22,11 @@ import json
 import logging
 from email.utils import parsedate_to_datetime
 import os
+
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 from pathlib import Path
@@ -64,12 +69,19 @@ def _parse_datetime(ts: Optional[str]) -> Optional[datetime]:
             return None
 
 
-def _normalize_timestamp(ts: Optional[str]) -> str:
+def _normalize_timestamp(ts: Optional[str], source_type: Optional[str] = None) -> str:
     dt = _parse_datetime(ts)
     if not dt:
         return _now_iso()
     if not dt.tzinfo:
-        dt = dt.replace(tzinfo=timezone.utc)
+        src = str(source_type or "").strip().lower()
+        if src == "sina":
+            if ZoneInfo is not None:
+                dt = dt.replace(tzinfo=ZoneInfo("Asia/Shanghai"))
+            else:
+                dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
+        else:
+            dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -350,7 +362,7 @@ class NewsIngestion(EDTModule):
 
     def _normalize_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         trace_id = item.get("trace_id") or _new_trace_id()
-        timestamp = _normalize_timestamp(item.get("timestamp"))
+        timestamp = _normalize_timestamp(item.get("timestamp"), item.get("source_type"))
         source_url = item.get("source_url", "")
         source_rank = item.get("source_rank", "")
         if self._ranker and source_url:
@@ -417,14 +429,7 @@ class NewsIngestion(EDTModule):
                 docurl = raw.get("docurl", "")
                 create_time = raw.get("create_time", "")
                 item_id = raw.get("id", 0)
-
-                timestamp = create_time
-                if create_time:
-                    try:
-                        dt = datetime.strptime(create_time, "%Y-%m-%d %H:%M:%S")
-                        timestamp = dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
-                    except ValueError:
-                        pass
+                timestamp = _normalize_timestamp(create_time, "sina") if create_time else _now_iso()
 
                 items.append({
                     "headline": headline,

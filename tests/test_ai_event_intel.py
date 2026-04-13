@@ -71,6 +71,40 @@ def test_news_ingestion_timestamp_normalize_and_dedupe():
     datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
+def test_news_ingestion_sina_naive_timestamp_interpreted_as_beijing_time():
+    items = [
+        {
+            "headline": "Pakistan foreign minister statement",
+            "source_url": "https://finance.sina.cn/7x24/2026-04-12/detail-inhufean5806858.d.html",
+            "timestamp": "2026-04-12 11:55:44",
+            "raw_text": "sina live",
+            "source_type": "sina",
+        }
+    ]
+    out = NewsIngestion().run({"items_override": items, "max_items": 1})
+    assert out.status == ModuleStatus.SUCCESS
+    ts = out.data["items"][0]["timestamp"]
+    assert ts.startswith("2026-04-12T03:55:44")
+    assert ts.endswith("Z")
+
+
+def test_news_ingestion_non_sina_naive_timestamp_keeps_utc_default_behavior():
+    items = [
+        {
+            "headline": "Generic source naive timestamp",
+            "source_url": "https://example.com/news",
+            "timestamp": "2026-04-12 11:55:44",
+            "raw_text": "example",
+            "source_type": "rss",
+        }
+    ]
+    out = NewsIngestion().run({"items_override": items, "max_items": 1})
+    assert out.status == ModuleStatus.SUCCESS
+    ts = out.data["items"][0]["timestamp"]
+    assert ts.startswith("2026-04-12T11:55:44")
+    assert ts.endswith("Z")
+
+
 def test_event_evidence_scorer_abnormal_penalty():
     payload = {
         "trace_id": "TRC-TEST-0002",

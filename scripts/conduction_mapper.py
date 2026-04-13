@@ -431,7 +431,11 @@ class ConductionMapper(EDTModule):
 
         self._apply_sector_mapping(mapping["sector_impacts"], sector_data)
 
-        if not mapping["macro_factors"] or not mapping["sector_impacts"]:
+        if category not in {"C", "E"}:
+            mapping["conduction_path"] = ["事件信息不足，需人工补充传导路径"]
+            mapping["stock_candidates"] = []
+            needs_manual_review = True
+        elif not mapping["macro_factors"] or not mapping["sector_impacts"] or not mapping["stock_candidates"]:
             mapping["stock_candidates"] = []
             needs_manual_review = True
         else:

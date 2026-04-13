@@ -60,9 +60,8 @@ class SemanticAnalyzer:
         model = self._semantic_cfg().get("model", "")
         return str(model or "")
 
-    def _load_env_from_bash_profile(self) -> None:
+    def _load_env_from_bash_profile(self, env_name: str) -> None:
         """Load env from ~/.bash_profile if not set."""
-        env_name = "ZAI_API_KEY"
         if os.getenv(env_name):
             return
         
@@ -77,18 +76,21 @@ class SemanticAnalyzer:
                         break
 
     def _api_key(self) -> str:
+        semantic = self._semantic_cfg()
+        env_name = str(semantic.get("api_key_env", "ZAI_API_KEY") or "ZAI_API_KEY").strip()
+        env_names = [env_name, "GLM_API_KEY", "OPENCLAW_GLM_API_KEY"]
+
         # Auto-load from bash_profile if needed
-        self._load_env_from_bash_profile()
-        
-        # Priority: env > .env.local > (none)
-        env_name = "ZAI_API_KEY"
-        
-        # 1. Environment variable
-        value = os.getenv(env_name, "").strip()
-        if value:
-            return value
-        
-        # 2. .env.local file (项目根目录，不提交git)
+        for name in env_names:
+            self._load_env_from_bash_profile(name)
+
+        # Priority: configured env > legacy envs > .env.local > (none)
+        for name in env_names:
+            value = os.getenv(name, "").strip()
+            if value:
+                return value
+
+        # .env.local file (项目根目录，不提交git)
         project_root = Path(__file__).parent.parent
         env_local = project_root / ".env.local"
         if env_local.exists():
@@ -97,7 +99,7 @@ class SemanticAnalyzer:
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
                         key, val = line.split("=", 1)
-                        if key.strip() == env_name:
+                        if key.strip() in env_names:
                             return val.strip().strip('"')
         
         return ""

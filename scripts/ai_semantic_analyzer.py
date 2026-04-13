@@ -60,34 +60,15 @@ class SemanticAnalyzer:
         model = self._semantic_cfg().get("model", "")
         return str(model or "")
 
-    def _load_env_from_bash_profile(self) -> None:
-        """Load env from ~/.bash_profile if not set."""
-        env_name = "ZAI_API_KEY"
-        if os.getenv(env_name):
-            return
-        
-        bash_profile = Path.home() / ".bash_profile"
-        if bash_profile.exists():
-            with open(bash_profile) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(f"export {env_name}="):
-                        _, value = line.split("=", 1)
-                        os.environ[env_name] = value.strip().strip('"')
-                        break
-
     def _api_key(self) -> str:
-        # Auto-load from bash_profile if needed
-        self._load_env_from_bash_profile()
-        
         # Priority: env > .env.local > (none)
         env_name = "ZAI_API_KEY"
-        
-        # 1. Environment variable (重新读取，因为 _load_env_from_bash_profile 可能已经设置了)
+
+        # 1. Environment variable
         value = os.getenv(env_name, "").strip()
         if value:
             return value
-        
+
         # 2. .env.local file (项目根目录，不提交git)
         project_root = Path(__file__).parent.parent
         env_local = project_root / ".env.local"
@@ -99,7 +80,7 @@ class SemanticAnalyzer:
                         key, val = line.split("=", 1)
                         if key.strip() == env_name:
                             return val.strip().strip('"')
-        
+
         return ""
 
     def _abstain_response(

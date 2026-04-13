@@ -155,6 +155,24 @@ def test_semantic_analyzer_missing_api_key_falls_back(tmp_path, monkeypatch):
     assert out["reason"] == "glm-4.7-flash api key missing"
 
 
+def test_semantic_analyzer_ignores_bash_profile_key(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n",
+        encoding="utf-8",
+    )
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".bash_profile").write_text('export ZAI_API_KEY="shell_key"\n', encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
+
+    out = SemanticAnalyzer(config_path=str(cfg)).analyze("headline", "raw")
+
+    assert out["verdict"] == "abstain"
+    assert out["reason"] == "glm-4.7-flash api key missing"
+
+
 def test_semantic_analyzer_uses_model_from_config(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.yaml"
     cfg.write_text(

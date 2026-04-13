@@ -58,14 +58,15 @@ class SemanticAnalyzer:
         return str(model or "")
 
     def _api_key(self) -> str:
-        # Priority: env > .env.local > (none)
-        env_name = "ZAI_API_KEY"
-        
-        # 1. Environment variable
-        value = os.getenv(env_name, "").strip()
-        if value:
-            return value
-        
+        semantic = self._semantic_cfg()
+        env_name = str(semantic.get("api_key_env", "ZAI_API_KEY") or "ZAI_API_KEY").strip()
+        env_names = [env_name, "GLM_API_KEY", "OPENCLAW_GLM_API_KEY"]
+
+        for name in env_names:
+            value = os.getenv(name, "").strip()
+            if value:
+                return value
+
         # 2. .env.local file (项目根目录，不提交git)
         project_root = Path(__file__).parent.parent
         env_local = project_root / ".env.local"
@@ -75,7 +76,8 @@ class SemanticAnalyzer:
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
                         key, val = line.split("=", 1)
-                        if key.strip() == env_name:
+                        key = key.strip()
+                        if key in env_names:
                             return val.strip().strip('"')
         
         return ""

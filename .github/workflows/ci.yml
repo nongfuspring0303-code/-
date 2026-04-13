@@ -32,7 +32,7 @@ jobs:
 
       - name: Run healthcheck
         run: |
-          python scripts/system_healthcheck.py --mode dev --self-only
+          python scripts/system_healthcheck.py --mode dev
 
       - name: Run no-pytest verification
         run: |

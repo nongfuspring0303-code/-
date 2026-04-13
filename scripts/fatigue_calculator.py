@@ -65,9 +65,9 @@ class FatigueCalculator(EDTModule):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            # 查询非 Dead 状态的事件
+            # 查询非 Dead 状态的事件；分类信息保存在 metadata 中而不是独立列
             cursor.execute(
-                "SELECT category, metadata FROM event_states WHERE lifecycle_state != 'Dead'"
+                "SELECT metadata FROM event_states WHERE lifecycle_state != 'Dead'"
             )
             rows = cursor.fetchall()
             conn.close()
@@ -75,7 +75,16 @@ class FatigueCalculator(EDTModule):
             # 统计类别活跃数
             category_count = 0
             if category:
-                category_count = sum(1 for row in rows if row["category"] == category)
+                import json
+
+                category_count = 0
+                for row in rows:
+                    try:
+                        metadata = json.loads(row["metadata"]) if row["metadata"] else {}
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    if metadata.get("category") == category:
+                        category_count += 1
 
             # 统计标签活跃数
             tag_counts: Dict[str, int] = {}

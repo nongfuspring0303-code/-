@@ -28,7 +28,13 @@ logs/*.log
 logs/*.json
 logs/*.jsonl
 logs/*.txt
+logs/*.pid
 logs/canary_live/
+logs/local_stack.pid
+logs/realtime_monitor.pid
 !logs/.gitkeep
 !logs/README.md
 .env.local
+
+# runtime data
+data/*.db

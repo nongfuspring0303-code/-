@@ -98,6 +98,30 @@ class TestSinaNormalization:
         assert normalized["source_mode"] == "push"
         assert normalized["source_url"] == "https://finance.sina.com.cn/article.html"
 
+    def test_normalize_sina_item_without_zoneinfo_falls_back_to_beijing_offset(self):
+        """When ZoneInfo is unavailable, Sina naive timestamps still map to UTC+8."""
+        import sys
+        sys.path.insert(0, "scripts")
+        import ai_event_intel
+        from ai_event_intel import NewsIngestion
+
+        sina_item = {
+            "headline": "新浪财经新闻",
+            "source_url": "https://finance.sina.com.cn/article.html",
+            "timestamp": "2026-04-10 06:00:19",
+            "raw_text": "新浪财经新闻内容",
+            "source_type": "sina",
+            "event_id": "SINA-12345",
+        }
+
+        ni = NewsIngestion()
+        with patch.object(ai_event_intel, "ZoneInfo", None):
+            normalized = ni._normalize_item(sina_item)
+
+        assert normalized["timestamp"] == "2026-04-09T22:00:19Z"
+        assert normalized["source_type"] == "sina"
+        assert normalized["source_mode"] == "push"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

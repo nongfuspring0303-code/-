@@ -8,7 +8,7 @@ AI event intelligence modules for A-layer.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -79,7 +79,7 @@ def _normalize_timestamp(ts: Optional[str], source_type: Optional[str] = None) -
             if ZoneInfo is not None:
                 dt = dt.replace(tzinfo=ZoneInfo("Asia/Shanghai"))
             else:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
         else:
             dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -426,14 +426,7 @@ class NewsIngestion(EDTModule):
                 docurl = raw.get("docurl", "")
                 create_time = raw.get("create_time", "")
                 item_id = raw.get("id", 0)
-
-                timestamp = create_time
-                if create_time:
-                    try:
-                        dt = datetime.strptime(create_time, "%Y-%m-%d %H:%M:%S")
-                        timestamp = dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
-                    except ValueError:
-                        pass
+                timestamp = _normalize_timestamp(create_time, "sina") if create_time else _now_iso()
 
                 items.append({
                     "headline": headline,

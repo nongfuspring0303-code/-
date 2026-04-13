@@ -75,8 +75,28 @@ class LiquidityChecker(EDTModule):
             or (yellow.get("correlation_min", 0.6) <= corr <= yellow.get("correlation_max", 0.8))
             or spread_pct >= micro.get("spread_warning", 0.005)
         ):
-            state = "YELLOW"
-            reason = "Liquidity warning, position should be reduced."
+            # 检查严重程度：多个指标同时警告 或 接近危险阈值
+            warning_count = sum([
+                yellow.get("vix_min", 20) <= vix <= yellow.get("vix_max", 30),
+                yellow.get("ted_min", 50) <= ted <= yellow.get("ted_max", 100),
+                yellow.get("correlation_min", 0.6) <= corr <= yellow.get("correlation_max", 0.8),
+                spread_pct >= micro.get("spread_warning", 0.005)
+            ])
+            
+            # 检查是否接近危险阈值
+            near_danger = (
+                vix >= 28 or  # 接近 RED 的 30
+                ted >= 90 or  # 接近 RED 的 100
+                corr >= 0.75 or  # 接近 RED 的 0.8
+                spread_pct >= 0.008  # 接近 RED 的 0.01
+            )
+            
+            if warning_count >= 2 or near_danger:
+                state = "YELLOW_STRONG"
+                reason = "Severe liquidity warning, multiple indicators in warning range or near danger."
+            else:
+                state = "YELLOW"
+                reason = "Liquidity warning, position should be reduced."
         elif (
             vix <= green.get("vix_max", 20)
             and ted <= green.get("ted_max", 50)

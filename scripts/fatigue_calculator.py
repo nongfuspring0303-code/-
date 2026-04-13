@@ -8,6 +8,7 @@ fatigue constraint used by scoring and execution decisions.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
@@ -16,8 +17,104 @@ from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 class FatigueCalculator(EDTModule):
     """Narrative fatigue calculator."""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, state_store: Optional[Any] = None):
+        self.state_store = state_store
         super().__init__("FatigueCalculator", "1.0.0", config_path)
+        self._init_fatigue_config()
+
+    def _init_fatigue_config(self) -> None:
+        """Initialize fatigue-specific configuration from loaded config."""
+        if not self.config:
+            # 默认配置（向后兼容）
+            self.count_thresholds = {2: 0, 3: 20, 4: 40, 5: 60, 6: 80, 7: 100}
+            self.fatigue_discount_threshold = 70
+            self.fatigue_discount_factor = 0.5
+            self.watch_mode_threshold = 85
+            self.dead_event_reset_days = 30
+            self.take_profit_penalty_factor = 0.5
+        else:
+            self.count_thresholds = self.config.get("count_to_fatigue_score", {})
+            self.fatigue_discount_threshold = self.config.get("fatigue_discount_threshold", 70)
+            self.fatigue_discount_factor = self.config.get("fatigue_discount_factor", 0.5)
+            self.watch_mode_threshold = self.config.get("watch_mode_threshold", 85)
+            self.dead_event_reset_days = self.config.get("dead_event_reset_days", 30)
+            self.take_profit_penalty_factor = self.config.get("take_profit_penalty_factor", 0.5)
+
+    def _get_active_counts_from_db(self, category: Optional[str] = None,
+                                   narrative_tags: Optional[list] = None) -> tuple[int, Dict[str, int]]:
+        """
+        从 SQLite 状态表查询活跃事件数。
+
+        Args:
+            category: 事件类别（可选）
+            narrative_tags: 叙事标签列表（可选）
+
+        Returns:
+            (category_active_count, tag_active_counts)
+        """
+        if self.state_store is None:
+            return 0, {}
+
+        try:
+            import sqlite3
+            db_path = self.state_store._db_path if hasattr(self.state_store, '_db_path') else None
+            if not db_path:
+                return 0, {}
+
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # 查询非 Dead 状态的事件；分类信息保存在 metadata 中而不是独立列
+            cursor.execute(
+                "SELECT metadata FROM event_states WHERE lifecycle_state != 'Dead'"
+            )
+            rows = cursor.fetchall()
+            conn.close()
+
+            # 统计类别活跃数
+            category_count = 0
+            if category:
+                import json
+
+                category_count = 0
+                for row in rows:
+                    try:
+                        metadata = json.loads(row["metadata"]) if row["metadata"] else {}
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    if metadata.get("category") == category:
+                        category_count += 1
+
+            # 统计标签活跃数
+            tag_counts: Dict[str, int] = {}
+            if narrative_tags:
+                import json
+                for row in rows:
+                    try:
+                        metadata = json.loads(row["metadata"]) if row["metadata"] else {}
+                        row_tags = metadata.get("narrative_tags", [])
+                        for tag in narrative_tags:
+                            if tag in row_tags:
+                                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+
+            return category_count, tag_counts
+        except Exception as e:
+            # 查询失败时返回空值，不影响主流程
+            print(f"Warning: Failed to query active counts from DB: {e}")
+            return 0, {}
+
+    def _score_from_count(self, count: int) -> int:
+        """根据配置的阈值计算疲劳度分数。"""
+        # 找到最接近的阈值
+        thresholds = sorted(self.count_thresholds.keys())
+        for threshold in reversed(thresholds):
+            if count >= threshold:
+                return self.count_thresholds[threshold]
+        # 如果小于所有阈值，返回 0
+        return 0
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["event_id", "category", "lifecycle_state"]
@@ -26,22 +123,20 @@ class FatigueCalculator(EDTModule):
                 return False, f"Missing required field: {key}"
         return True, None
 
-    @staticmethod
-    def _score_from_count(count: int) -> int:
-        if count <= 2:
-            return 0
-        if count == 3:
-            return 20
-        if count == 4:
-            return 40
-        if count == 5:
-            return 60
-        if count == 6:
-            return 80
-        return 100
-
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
+
+        # 尝试从数据库查询活跃事件数（如果提供了 state_store）
+        if self.state_store and "category_active_count" not in raw:
+            narrative_tags = raw.get("narrative_tags", [])
+            category_count, tag_counts = self._get_active_counts_from_db(
+                category=raw.get("category"),
+                narrative_tags=narrative_tags if narrative_tags else None
+            )
+            # 使用查询结果作为默认值
+            raw.setdefault("category_active_count", category_count)
+            if tag_counts:
+                raw.setdefault("tag_active_counts", tag_counts)
 
         if "category_active_count" not in raw:
             return ModuleOutput(
@@ -57,7 +152,7 @@ class FatigueCalculator(EDTModule):
         fatigue_category = self._score_from_count(category_count)
         fatigue_tag = max((self._score_from_count(int(count)) for count in tag_counts.values()), default=0)
 
-        if raw.get("lifecycle_state") == "Dead" and days_since_last_dead >= 30:
+        if raw.get("lifecycle_state") == "Dead" and days_since_last_dead >= self.dead_event_reset_days:
             fatigue_category = 0
             fatigue_tag = 0
             reset_eligible = True
@@ -65,11 +160,11 @@ class FatigueCalculator(EDTModule):
             reset_eligible = False
 
         fatigue_final = max(fatigue_category, fatigue_tag)
-        watch_mode = fatigue_final > 85
+        watch_mode = fatigue_final > self.watch_mode_threshold
 
-        if fatigue_final > 70:
-            discount = 0.5
-            take_profit_penalty = 0.5
+        if fatigue_final > self.fatigue_discount_threshold:
+            discount = self.fatigue_discount_factor
+            take_profit_penalty = self.take_profit_penalty_factor
         else:
             discount = 1.0
             take_profit_penalty = 0.0
@@ -88,7 +183,7 @@ class FatigueCalculator(EDTModule):
                 "reasoning": "最终疲劳度取类别疲劳与标签疲劳的最大值",
                 "audit": {
                     "module": self.name,
-                    "rule_version": "fatigue_v1",
+                    "rule_version": "fatigue_v2",
                     "decision_trace": [fatigue_category, fatigue_tag, fatigue_final, watch_mode],
                 },
             },

@@ -1,0 +1,32 @@
+# FatigueCalculator 配置文件
+# 控制疲劳度计算的阈值和参数
+
+# 疲劳度分数阈值（基于活跃事件数量）
+# format: count -> fatigue_score
+count_to_fatigue_score:
+  2: 0
+  3: 20
+  4: 40
+  5: 60
+  6: 80
+  7: 100
+
+# 疲劳度折扣阈值
+# 超过此分数时启用折扣
+fatigue_discount_threshold: 70
+
+# 疲劳度折扣系数
+# 当疲劳度超过阈值时，A-1 折扣系数
+fatigue_discount_factor: 0.5
+
+# 看守模式阈值
+# 超过此分数时进入看守模式
+watch_mode_threshold: 85
+
+# 死亡事件重置天数
+# 死亡事件达到此天数后重置疲劳度为 0
+dead_event_reset_days: 30
+
+# Take Profit 惩罚系数
+# 当疲劳度超过折扣阈值时的止盈惩罚
+take_profit_penalty_factor: 0.5

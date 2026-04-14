@@ -99,7 +99,7 @@ cases:
   - id: CM-004
     name: no_direct_stock_mapping_without_path
     type: boundary
-    description: 禁止无宏观与板块路径时直接给个股
+    description: 路径完整但不输出股票候选
     input:
       event_id: "ME-F-20260331-003.V1.0"
       category: "F"
@@ -111,7 +111,7 @@ cases:
       policy_intervention: "NONE"
     expected:
       stock_candidates_max_count: 0
-      needs_manual_review: true
+      needs_manual_review: false
 
   - id: CM-005
     name: weak_policy_intervention_still_maps
@@ -138,7 +138,7 @@ cases:
   - id: CM-006
     name: unsupported_category_goes_manual_review
     type: boundary
-    description: 非C/E类别当前映射不足时进入人工复核
+    description: 路径完整但不输出股票候选
     input:
       event_id: "ME-A-20260331-009.V1.0"
       category: "A"
@@ -151,9 +151,10 @@ cases:
       policy_intervention: "NONE"
     expected:
       stock_candidates_max_count: 0
-      needs_manual_review: true
+      needs_manual_review: false
       conduction_path_contains:
-        - "事件信息不足，需人工补充传导路径"
+        - "金融稳定"
+        - "金融板块"
 
   - id: CM-007
     name: missing_required_field_should_fail

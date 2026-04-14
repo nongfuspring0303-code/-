@@ -114,6 +114,17 @@ class PremiumStockPool:
         # 合并两个池（静态池优先）
         self._stocks_by_symbol = {**self._dynamic_stocks_by_symbol, **self._static_stocks_by_symbol}
 
+    def _dynamic_cache_dir(self) -> Path:
+        runtime = self._cfg.get("runtime", {}) if isinstance(self._cfg, dict) else {}
+        stock_pool_cfg = runtime.get("stock_pool", {}) if isinstance(runtime, dict) else {}
+        configured = str(stock_pool_cfg.get("dynamic_cache_dir", "") or "").strip()
+        if not configured:
+            return _root_dir().parent / "stock_cache"
+        path = Path(configured)
+        if path.is_absolute():
+            return path
+        return _root_dir().parent / path
+
     def canonical_sector(self, name: Any) -> str:
         return self.sector_aliases.canonical(name)
 
@@ -159,7 +170,7 @@ class PremiumStockPool:
             return out
         
         # stock_cache 目录路径
-        stock_cache_dir = _root_dir().parent / "stock_cache"
+        stock_cache_dir = self._dynamic_cache_dir()
         if not stock_cache_dir.exists():
             logger.warning(f"Stock cache directory not found: {stock_cache_dir}")
             return out

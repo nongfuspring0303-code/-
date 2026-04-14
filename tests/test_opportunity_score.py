@@ -1,10 +1,45 @@
 import sys
+import csv
 from pathlib import Path
+from typing import Dict, List, Optional
+
+import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from opportunity_score import OpportunityScorer, PremiumStock, PremiumStockPool, evaluate_direction_consistency
+
+
+def _write_pool_config(path: Path, *, dynamic_cache_dir: str, stocks: Optional[List[Dict[str, object]]] = None) -> None:
+    payload = {
+        "schema_version": "v1.0",
+        "version": "v1.0",
+        "filters": {
+            "roe_min": 15.0,
+            "market_cap_billion_min": 50.0,
+            "liquidity_score_min": 0.60,
+        },
+        "price_source": "reference_snapshot",
+        "runtime": {"stock_pool": {"dynamic_cache_dir": dynamic_cache_dir}},
+        "opportunity_rules": {
+            "watch_score_threshold": 0.55,
+            "execute_score_threshold": 0.70,
+            "support_buffer_pct": 0.03,
+            "resistance_buffer_pct": 0.03,
+            "max_candidates_per_sector": 5,
+        },
+        "stocks": stocks or [],
+    }
+    path.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
+def _write_history_csv(path: Path, rows: List[Dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def test_premium_pool_filters_by_threshold_and_membership():
@@ -69,6 +104,84 @@ def test_premium_pool_reports_stock_sources():
     assert pool.get_stock_source("STATIC") == "static"
     assert pool.get_stock_source("DYNAMIC") == "dynamic"
     assert pool.get_stock_source("UNKNOWN") == "unknown"
+
+
+def test_dynamic_stock_cache_loads_from_configured_directory(tmp_path):
+    stock_cache_dir = tmp_path / "stock_cache"
+    _write_history_csv(
+        stock_cache_dir / "DYNAMIC_history.csv",
+        [
+            {"close": 101.25, "volume": 1000},
+            {"close": 102.50, "volume": 1100},
+        ],
+    )
+    config_path = tmp_path / "pool.yaml"
+    _write_pool_config(config_path, dynamic_cache_dir=str(stock_cache_dir))
+
+    pool = PremiumStockPool(pool_config_path=str(config_path))
+    stock = pool.get_stock("DYNAMIC")
+
+    assert stock is not None
+    assert stock.symbol == "DYNAMIC"
+    assert stock.last_price == 102.5
+    assert pool.get_stock_source("DYNAMIC") == "dynamic"
+
+
+def test_static_pool_takes_priority_over_dynamic_pool(tmp_path):
+    stock_cache_dir = tmp_path / "stock_cache"
+    _write_history_csv(
+        stock_cache_dir / "NVDA_history.csv",
+        [
+            {"close": 99.0, "volume": 1000},
+            {"close": 100.0, "volume": 1200},
+        ],
+    )
+    config_path = tmp_path / "pool.yaml"
+    _write_pool_config(
+        config_path,
+        dynamic_cache_dir=str(stock_cache_dir),
+        stocks=[
+            {
+                "symbol": "NVDA",
+                "name": "Static NVDA",
+                "sector": "科技",
+                "roe": 30.0,
+                "market_cap_billion": 1000.0,
+                "liquidity_score": 0.95,
+                "last_price": 999.0,
+            }
+        ],
+    )
+
+    pool = PremiumStockPool(pool_config_path=str(config_path))
+    stock = pool.get_stock("NVDA")
+
+    assert stock is not None
+    assert stock.name == "Static NVDA"
+    assert stock.last_price == 999.0
+    assert pool.get_stock_source("NVDA") == "static"
+
+
+def test_dynamic_load_failure_is_observable(tmp_path, monkeypatch, caplog):
+    import pandas as pd
+
+    stock_cache_dir = tmp_path / "stock_cache"
+    _write_history_csv(
+        stock_cache_dir / "BROKEN_history.csv",
+        [{"close": 88.0, "volume": 1000}],
+    )
+    config_path = tmp_path / "pool.yaml"
+    _write_pool_config(config_path, dynamic_cache_dir=str(stock_cache_dir))
+
+    def _boom(*_args, **_kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(pd, "read_csv", _boom)
+    with caplog.at_level("WARNING"):
+        pool = PremiumStockPool(pool_config_path=str(config_path))
+
+    assert pool.get_stock("BROKEN") is None
+    assert any("Failed to load stock data for BROKEN" in record.message for record in caplog.records)
 
 
 def test_opportunity_card_fields_complete_and_premium_only():

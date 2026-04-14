@@ -16,6 +16,10 @@ price_source: reference_snapshot
 # stock-level last_price below is static reference only;
 # runtime scoring should prefer candidate realtime_price when available.
 
+runtime:
+  stock_pool:
+    dynamic_cache_dir: stock_cache
+
 opportunity_rules:
   watch_score_threshold: 0.55
   execute_score_threshold: 0.70

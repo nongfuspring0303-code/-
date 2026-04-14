@@ -16,6 +16,12 @@ def test_liquidity_checker_red():
     assert out.data["liquidity_state"] == "RED"
 
 
+def test_liquidity_checker_near_danger_stays_yellow():
+    mod = LiquidityChecker()
+    out = mod.run({"vix": 28, "ted": 90, "correlation": 0.75, "spread_pct": 0.008})
+    assert out.data["liquidity_state"] == "YELLOW"
+
+
 def test_risk_gatekeeper_block_on_dead():
     mod = RiskGatekeeper()
     out = mod.run(

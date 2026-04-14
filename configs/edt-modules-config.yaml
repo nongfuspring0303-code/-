@@ -290,6 +290,11 @@ modules:
         depth_danger: 0.3       # 30%日均
         impact_cost_warning: 0.003
         impact_cost_danger: 0.005
+      near_danger:
+        vix_min: 28
+        ted_min: 90
+        correlation_min: 0.75
+        spread_pct_min: 0.008
 
   RiskGatekeeper:
     enabled: true
@@ -411,7 +416,6 @@ modules:
       liquidity_adjustments:
         GREEN: 1.0
         YELLOW: 0.5
-        YELLOW_STRONG: 0.3  # Score>60时保留30%
         RED: 0
       # 单日风控
       daily:

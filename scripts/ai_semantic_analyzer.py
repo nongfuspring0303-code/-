@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import Any, Dict
 
 import requests
-import os
-from pathlib import Path
 
 from config_center import ConfigCenter
 
@@ -61,26 +59,7 @@ class SemanticAnalyzer:
         model = self._semantic_cfg().get("model", "")
         return str(model or "")
 
-    def _load_env_from_bash_profile(self) -> None:
-        """Load env from ~/.bash_profile if not set."""
-        env_name = "ZAI_API_KEY"
-        if os.getenv(env_name):
-            return
-        
-        bash_profile = Path.home() / ".bash_profile"
-        if bash_profile.exists():
-            with open(bash_profile) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(f"export {env_name}="):
-                        _, value = line.split("=", 1)
-                        os.environ[env_name] = value.strip().strip('"')
-                        break
-
     def _api_key(self) -> str:
-        # Auto-load from bash_profile if needed
-        self._load_env_from_bash_profile()
-        
         # Priority: env > .env.local > (none)
         env_name = "ZAI_API_KEY"
         
@@ -108,6 +87,7 @@ class SemanticAnalyzer:
         *,
         fallback_reason: str,
         provider: str,
+        model: str = "",
         latency_ms: int = 0,
     ) -> Dict[str, Any]:
         return {
@@ -119,6 +99,8 @@ class SemanticAnalyzer:
             "verdict": "abstain",
             "reason": fallback_reason,
             "provider": provider,
+            "model": str(model or self.model_name or ""),
+            "semantic_status": "fallback",
             "latency_ms": int(max(0, latency_ms)),
             "fallback_reason": fallback_reason,
         }
@@ -144,6 +126,8 @@ class SemanticAnalyzer:
             "verdict": "abstain",
             "reason": str(payload.get("reason", "") or ""),
             "provider": str(payload.get("provider", provider) or provider),
+            "model": str(payload.get("model", self.model_name) or self.model_name),
+            "semantic_status": str(payload.get("semantic_status", "") or ""),
             "latency_ms": int(max(0, parsed_latency)),
             "fallback_reason": str(payload.get("fallback_reason", "") or ""),
         }
@@ -238,14 +222,11 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
 
         api_key = self._api_key()
         if not api_key:
-            return {
-                "event_type": "unknown",
-                "sentiment": "neutral",
-                "confidence": 50,
-                "recommended_chain": "",
-                "recommended_stocks": [],
-                "reason": f"{self.model_name} api key missing",
-            }
+            return self._abstain_response(
+                fallback_reason="api_key_missing",
+                provider=self._provider_name(),
+                model=model or self.model_name,
+            )
 
         try:
             headers = {
@@ -346,18 +327,21 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
             return self._abstain_response(
                 fallback_reason="semantic_disabled",
                 provider=provider,
+                model=model,
             )
 
         if self._emergency_disabled():
             return self._abstain_response(
                 fallback_reason="emergency_disabled",
                 provider=provider,
+                model=model,
             )
 
         if not self._full_enabled():
             return self._abstain_response(
                 fallback_reason="full_enable_disabled",
                 provider=provider,
+                model=model,
             )
 
         started = time.perf_counter()
@@ -374,6 +358,7 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
             return self._abstain_response(
                 fallback_reason="timeout",
                 provider=provider,
+                model=model,
                 latency_ms=elapsed,
             )
         except Exception:
@@ -381,6 +366,7 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
             return self._abstain_response(
                 fallback_reason="provider_error",
                 provider=provider,
+                model=model,
                 latency_ms=elapsed,
             )
 
@@ -389,20 +375,26 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
 
         if out["confidence"] < self._min_confidence():
             out["verdict"] = "abstain"
-            out["fallback_reason"] = "confidence_below_threshold"
+            out["semantic_status"] = "fallback"
+            if not out.get("fallback_reason"):
+                out["fallback_reason"] = "confidence_below_threshold"
             if not out["reason"]:
                 out["reason"] = "confidence below threshold"
             return out
 
         if out["recommended_chain"]:
             out["verdict"] = "hit"
+            out["semantic_status"] = "hit"
             if not out["reason"]:
                 out["reason"] = "semantic hit"
-            out["fallback_reason"] = ""
+            if not out.get("fallback_reason"):
+                out["fallback_reason"] = ""
             return out
 
         out["verdict"] = "abstain"
-        out["fallback_reason"] = "chain_missing"
+        out["semantic_status"] = "fallback"
+        if not out.get("fallback_reason"):
+            out["fallback_reason"] = "chain_missing"
         if not out["reason"]:
             out["reason"] = "missing recommended chain"
         return out

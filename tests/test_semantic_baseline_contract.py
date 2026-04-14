@@ -56,6 +56,20 @@ def test_contract_provider_model_timeout_are_config_only(tmp_path, monkeypatch):
     assert analyzer._semantic_cfg().get("api_key_env") == "CUSTOM_KEY"
 
 
+def test_contract_uses_custom_api_key_env_from_config(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n    api_key_env: CUSTOM_KEY\n    min_confidence: 10\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
+    monkeypatch.delenv("CUSTOM_KEY", raising=False)
+    monkeypatch.setenv("CUSTOM_KEY", "custom_key_value")
+    analyzer = SemanticAnalyzer(config_path=str(cfg))
+
+    assert analyzer._api_key() == "custom_key_value"
+
+
 def test_contract_semantic_failure_uses_unified_fallback(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.yaml"
     cfg.write_text(

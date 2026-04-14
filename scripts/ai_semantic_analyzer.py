@@ -61,8 +61,8 @@ class SemanticAnalyzer:
 
     def _api_key(self) -> str:
         # Priority: env > .env.local > (none)
-        env_name = "ZAI_API_KEY"
-        
+        env_name = str(self._semantic_cfg().get("api_key_env") or "ZAI_API_KEY")
+
         # 1. Environment variable
         value = os.getenv(env_name, "").strip()
         if value:

@@ -182,6 +182,46 @@ def test_semantic_analyzer_missing_api_key_falls_back(tmp_path, monkeypatch):
     assert out["semantic_status"] == "fallback"
 
 
+def test_semantic_analyzer_uses_custom_api_key_env(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n    api_key_env: CUSTOM_KEY\n    min_confidence: 10\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
+    monkeypatch.delenv("CUSTOM_KEY", raising=False)
+    monkeypatch.setenv("CUSTOM_KEY", "custom_key_value")
+    captured = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"event_type":"trade_talks","sentiment":"neutral","confidence":90,"recommended_chain":"trade_talks_chain","reason":"ok"}'
+                        }
+                    }
+                ]
+            }
+
+    def _fake_post(_url, headers=None, json=None, timeout=None):
+        captured["headers"] = headers
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return _Resp()
+
+    monkeypatch.setattr(semmod.requests, "post", _fake_post)
+    out = SemanticAnalyzer(config_path=str(cfg)).analyze("headline", "raw")
+
+    assert out["verdict"] == "hit"
+    assert captured["headers"]["Authorization"] == "Bearer custom_key_value"
+    assert captured["json"]["model"] == "glm-4.7-flash"
+
+
 def test_semantic_analyzer_uses_model_from_config(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.yaml"
     cfg.write_text(

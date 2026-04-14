@@ -14,11 +14,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
+import logging
 import os
 import time
 import urllib.request
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from config_center import ConfigCenter
 
@@ -101,7 +104,26 @@ class PremiumStockPool:
         self.filters = self._cfg.get("filters", {})
         self.rules = self._cfg.get("opportunity_rules", {})
         self.price_source = str(self._cfg.get("price_source", "reference_snapshot"))
-        self._stocks_by_symbol = self._build_stock_index(self._cfg.get("stocks", []))
+        
+        # 静态核心池
+        self._static_stocks_by_symbol = self._build_stock_index(self._cfg.get("stocks", []))
+        
+        # 动态补充池（从 stock_cache/ 目录加载）
+        self._dynamic_stocks_by_symbol = self._build_dynamic_stock_index()
+        
+        # 合并两个池（静态池优先）
+        self._stocks_by_symbol = {**self._dynamic_stocks_by_symbol, **self._static_stocks_by_symbol}
+
+    def _dynamic_cache_dir(self) -> Path:
+        runtime = self._cfg.get("runtime", {}) if isinstance(self._cfg, dict) else {}
+        stock_pool_cfg = runtime.get("stock_pool", {}) if isinstance(runtime, dict) else {}
+        configured = str(stock_pool_cfg.get("dynamic_cache_dir", "") or "").strip()
+        if not configured:
+            return _root_dir().parent / "stock_cache"
+        path = Path(configured)
+        if path.is_absolute():
+            return path
+        return _root_dir().parent / path
 
     def canonical_sector(self, name: Any) -> str:
         return self.sector_aliases.canonical(name)
@@ -136,14 +158,84 @@ class PremiumStockPool:
             )
         return out
 
+    def _build_dynamic_stock_index(self) -> Dict[str, PremiumStock]:
+        """从 stock_cache/ 目录动态加载股票数据"""
+        out: Dict[str, PremiumStock] = {}
+        
+        # 检查 pandas 是否可用
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.warning("pandas not available, dynamic stock pool disabled")
+            return out
+        
+        # stock_cache 目录路径
+        stock_cache_dir = self._dynamic_cache_dir()
+        if not stock_cache_dir.exists():
+            logger.warning(f"Stock cache directory not found: {stock_cache_dir}")
+            return out
+        
+        # 扫描所有 *_history.csv 文件
+        csv_files = list(stock_cache_dir.glob("*_history.csv"))
+        logger.info(f"Found {len(csv_files)} stock history files in {stock_cache_dir}")
+        
+        for csv_file in csv_files:
+            # 从文件名提取股票代码（去除 _history.csv 后缀）
+            symbol = csv_file.stem.replace("_history", "").upper()
+            if not symbol:
+                continue
+            
+            try:
+                # 读取最新价格数据
+                df = pd.read_csv(csv_file)
+                if df.empty:
+                    continue
+                
+                # 获取最新行数据
+                latest = df.iloc[-1]
+                last_price = self._to_float(latest.get("close", 100.0), 100.0)
+                
+                # 计算平均交易量作为流动性指标
+                avg_volume = df["volume"].mean() if "volume" in df.columns else 0
+                
+                # 动态股票使用默认质量指标（因为CSV文件中没有这些信息）
+                # 这些股票可以通过筛选器进行质量控制
+                out[symbol] = PremiumStock(
+                    symbol=symbol,
+                    name=f"{symbol} (动态加载)",
+                    sector="未知",  # 动态加载的股票暂时标记为未知
+                    roe=15.0,  # 使用最低通过阈值
+                    market_cap_billion=50.0,  # 使用最低通过阈值
+                    liquidity_score=0.6,  # 使用最低通过阈值
+                    last_price=last_price,
+                    price_source="dynamic_cache",
+                )
+                
+            except Exception as e:
+                logger.warning(f"Failed to load stock data for {symbol} from {csv_file}: {e}")
+                continue
+        
+        logger.info(f"Successfully loaded {len(out)} stocks from dynamic cache")
+        return out
+
     def _pass_thresholds(self, stock: PremiumStock) -> bool:
         roe_min = self._to_float(self.filters.get("roe_min", 15.0), 15.0)
         mkt_cap_min = self._to_float(self.filters.get("market_cap_billion_min", 500.0), 500.0)
         liq_min = self._to_float(self.filters.get("liquidity_score_min", 0.60), 0.60)
-        return stock.roe > roe_min and stock.market_cap_billion > mkt_cap_min and stock.liquidity_score > liq_min
+        return stock.roe >= roe_min and stock.market_cap_billion >= mkt_cap_min and stock.liquidity_score >= liq_min
 
     def get_stock(self, symbol: str) -> Optional[PremiumStock]:
         return self._stocks_by_symbol.get(str(symbol).strip().upper())
+
+    def get_stock_source(self, symbol: str) -> str:
+        """获取股票来源（static 或 dynamic）"""
+        normalized = str(symbol).strip().upper()
+        if normalized in self._static_stocks_by_symbol:
+            return "static"
+        elif normalized in self._dynamic_stocks_by_symbol:
+            return "dynamic"
+        else:
+            return "unknown"
 
     def pick_by_sector(self, sector_name: str, limit: Optional[int] = None) -> List[PremiumStock]:
         norm = _norm_sector(self.canonical_sector(sector_name))

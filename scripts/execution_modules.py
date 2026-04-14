@@ -57,6 +57,11 @@ class LiquidityChecker(EDTModule):
         green = thresholds.get("green", {})
         yellow = thresholds.get("yellow", {})
         red = thresholds.get("red", {})
+        near_danger = self._get_config("modules.LiquidityChecker.params.near_danger", {})
+        near_danger_vix = near_danger.get("vix_min", 28)
+        near_danger_ted = near_danger.get("ted_min", 90)
+        near_danger_corr = near_danger.get("correlation_min", 0.75)
+        near_danger_spread = near_danger.get("spread_pct_min", 0.008)
 
         state = "GREEN"
         reason = "Within normal liquidity range."
@@ -75,8 +80,23 @@ class LiquidityChecker(EDTModule):
             or (yellow.get("correlation_min", 0.6) <= corr <= yellow.get("correlation_max", 0.8))
             or spread_pct >= micro.get("spread_warning", 0.005)
         ):
+            warning_count = sum([
+                yellow.get("vix_min", 20) <= vix <= yellow.get("vix_max", 30),
+                yellow.get("ted_min", 50) <= ted <= yellow.get("ted_max", 100),
+                yellow.get("correlation_min", 0.6) <= corr <= yellow.get("correlation_max", 0.8),
+                spread_pct >= micro.get("spread_warning", 0.005)
+            ])
+            near_danger = (
+                vix >= near_danger_vix
+                or ted >= near_danger_ted
+                or corr >= near_danger_corr
+                or spread_pct >= near_danger_spread
+            )
             state = "YELLOW"
-            reason = "Liquidity warning, position should be reduced."
+            if warning_count >= 2 or near_danger:
+                reason = "Severe liquidity warning, multiple indicators in warning range or near danger."
+            else:
+                reason = "Liquidity warning, position should be reduced."
         elif (
             vix <= green.get("vix_max", 20)
             and ted <= green.get("ted_max", 50)

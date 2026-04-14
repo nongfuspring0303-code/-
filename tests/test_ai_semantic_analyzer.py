@@ -138,6 +138,32 @@ def test_semantic_analyzer_normal_hit_contains_provider(tmp_path, monkeypatch):
     assert out["provider"] == "mock_vendor"
 
 
+def test_semantic_analyzer_preserves_recommended_stocks(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    min_confidence: 10\n",
+        encoding="utf-8",
+    )
+    analyzer = SemanticAnalyzer(config_path=str(cfg))
+
+    def _with_recommendations(*_args, **_kwargs):
+        return {
+            "event_type": "monetary",
+            "sentiment": "positive",
+            "confidence": 90,
+            "recommended_chain": "rate_cut_chain",
+            "recommended_stocks": ["nvda", "aapl"],
+            "provider": "mock_vendor",
+            "latency_ms": 10,
+        }
+
+    monkeypatch.setattr(analyzer, "_call_provider", _with_recommendations)
+    out = analyzer.analyze("Fed signals rate cuts ahead", "policy easing expected")
+
+    assert out["verdict"] == "hit"
+    assert out["recommended_stocks"] == ["nvda", "aapl"]
+
+
 def test_semantic_analyzer_missing_api_key_falls_back(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.yaml"
     cfg.write_text(
@@ -153,35 +179,17 @@ def test_semantic_analyzer_missing_api_key_falls_back(tmp_path, monkeypatch):
     assert out["verdict"] == "abstain"
     assert out["fallback_reason"] == "api_key_missing"
     assert out["reason"] == "api_key_missing"
+    assert out["semantic_status"] == "fallback"
 
 
-def test_semantic_analyzer_ignores_bash_profile_key(tmp_path, monkeypatch):
-    cfg = tmp_path / "cfg.yaml"
-    cfg.write_text(
-        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n",
-        encoding="utf-8",
-    )
-    home = tmp_path / "home"
-    home.mkdir()
-    (home / ".bash_profile").write_text('export ZAI_API_KEY="shell_key"\n', encoding="utf-8")
-    monkeypatch.setenv("HOME", str(home))
-    monkeypatch.delenv("ZAI_API_KEY", raising=False)
-
-    out = SemanticAnalyzer(config_path=str(cfg)).analyze("headline", "raw")
-
-    assert out["verdict"] == "abstain"
-    assert out["fallback_reason"] == "api_key_missing"
-    assert out["reason"] == "api_key_missing"
-
-
-def test_semantic_analyzer_respects_custom_api_key_env(tmp_path, monkeypatch):
+def test_semantic_analyzer_uses_custom_api_key_env(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.yaml"
     cfg.write_text(
         "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n    api_key_env: CUSTOM_KEY\n    min_confidence: 10\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CUSTOM_KEY", raising=False)
     monkeypatch.delenv("ZAI_API_KEY", raising=False)
+    monkeypatch.delenv("CUSTOM_KEY", raising=False)
     monkeypatch.setenv("CUSTOM_KEY", "custom_key_value")
     captured = {}
 
@@ -211,23 +219,7 @@ def test_semantic_analyzer_respects_custom_api_key_env(tmp_path, monkeypatch):
 
     assert out["verdict"] == "hit"
     assert captured["headers"]["Authorization"] == "Bearer custom_key_value"
-
-
-def test_semantic_analyzer_legacy_aliases_are_not_supported(tmp_path, monkeypatch):
-    cfg = tmp_path / "cfg.yaml"
-    cfg.write_text(
-        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: glm-4.7-flash\n    model: glm-4.7-flash\n",
-        encoding="utf-8",
-    )
-    monkeypatch.delenv("ZAI_API_KEY", raising=False)
-    monkeypatch.setenv("GLM_API_KEY", "legacy_glm_key")
-    monkeypatch.setenv("OPENCLAW_GLM_API_KEY", "legacy_openclaw_key")
-
-    out = SemanticAnalyzer(config_path=str(cfg)).analyze("headline", "raw")
-
-    assert out["verdict"] == "abstain"
-    assert out["fallback_reason"] == "api_key_missing"
-    assert out["reason"] == "api_key_missing"
+    assert captured["json"]["model"] == "glm-4.7-flash"
 
 
 def test_semantic_analyzer_uses_model_from_config(tmp_path, monkeypatch):

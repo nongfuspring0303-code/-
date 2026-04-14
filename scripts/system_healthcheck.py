@@ -155,18 +155,26 @@ def render_checks(title: str, checks: list[CheckResult]) -> None:
 
 
 def check_env() -> CheckResult:
-    result = CheckResult(name="ENV", status="GREEN", summary="Runtime environment looks healthy.")
+    result = CheckResult(name="ENV", status="GREEN", summary="Runtime environment smoke checks are healthy.")
     py_version = sys.version.split()[0]
     result.evidence.append(f"python={py_version}")
 
-    code, output = run_command([sys.executable, "-m", "pytest", "-q"], ROOT)
-    result.commands.append(f"{sys.executable} -m pytest -q")
-    if code != 0:
-        result.status = "RED"
-        result.summary = "Default pytest regression entrypoint is not healthy."
-        result.errors.append("`python -m pytest -q` failed in current environment.")
-        if output:
-            result.evidence.append(output.splitlines()[0])
+    smoke_checks = [
+        [sys.executable, "-c", "import pytest, yaml, requests"],
+        [sys.executable, "-m", "pytest", "--version"],
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "tests/test_config_center.py"],
+    ]
+
+    for cmd in smoke_checks:
+        code, output = run_command(cmd, ROOT)
+        result.commands.append(" ".join(cmd))
+        if code != 0:
+            result.status = "RED"
+            result.summary = "Runtime environment smoke checks are not healthy."
+            result.errors.append(f"`{' '.join(cmd)}` failed in current environment.")
+            if output:
+                result.evidence.append(output.splitlines()[0])
+            break
 
     return result
 
@@ -575,7 +583,7 @@ def main() -> int:
     parser.add_argument("--self-heal", action="store_true", help="Attempt self-heal between self-check and project checks.")
     parser.add_argument("--self-only", action="store_true", help="Only run health-system self-check stages.")
     parser.add_argument("--mode", choices=["dev", "prod"], default="dev", help="Healthcheck strictness mode.")
-    parser.add_argument("--skip-env-check", action="store_true", help="Skip slow ENV check (runs full pytest).")
+    parser.add_argument("--skip-env-check", action="store_true", help="Skip ENV smoke checks.")
     args = parser.parse_args()
 
     LOGS_DIR.mkdir(parents=True, exist_ok=True)

@@ -105,7 +105,13 @@ class ConductionMapper(EDTModule):
     def _matches_any(cls, text: str, keywords: List[str]) -> bool:
         return any(cls._keyword_match_strength(text, kw) > 0 for kw in keywords)
 
-    def _match_chain_template(self, category: str, headline: str, summary: str) -> Optional[Dict[str, Any]]:
+    def _match_chain_template(
+        self,
+        category: str,
+        headline: str,
+        summary: str,
+        semantic_output: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
         chain_cfg = self._load_chain_config()
         templates = {item.get("id"): item for item in chain_cfg.get("chain_templates", []) if isinstance(item, dict)}
         mapping_rules = chain_cfg.get("event_to_chain_mapping", []) or []
@@ -122,7 +128,7 @@ class ConductionMapper(EDTModule):
                 selected_strength = strength
                 selected_chain_id = rule.get("chain_id")
 
-        semantic_out = self.semantic.analyze(headline, summary)
+        semantic_out = semantic_output if isinstance(semantic_output, dict) else self.semantic.analyze(headline, summary)
         chosen = self.selector.choose_chain(semantic_out, selected_chain_id)
         semantic_selected = str(chosen.get("chain_id") or "")
         if semantic_selected in templates:
@@ -161,6 +167,23 @@ class ConductionMapper(EDTModule):
                 if target_level == "theme":
                     return list(level.get("themes", []))
         return []
+
+    @staticmethod
+    def _normalize_recommended_stocks(semantic_output: Optional[Dict[str, Any]]) -> List[str]:
+        if not semantic_output or not isinstance(semantic_output, dict):
+            return []
+        recommended = semantic_output.get("recommended_stocks", [])
+        if not isinstance(recommended, list):
+            return []
+        normalized: List[str] = []
+        seen = set()
+        for symbol in recommended:
+            normalized_symbol = str(symbol or "").strip().upper()
+            if not normalized_symbol or normalized_symbol in seen:
+                continue
+            seen.add(normalized_symbol)
+            normalized.append(normalized_symbol)
+        return normalized
 
     def _build_template_mapping(self, template: Dict[str, Any], sector_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         levels = template.get("levels", []) or []
@@ -205,11 +228,9 @@ class ConductionMapper(EDTModule):
                             "event_beta": 1.0,
                             "liquidity_tier": "high",
                             "reason": f"模板 {template.get('id', 'unknown')} 关联",
+                            "source": "config",
                         }
                     )
-
-        if not stock_candidates:
-            stock_candidates = []
 
         defaults = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
         confidence = float(defaults.get("template_base_confidence", 80))
@@ -293,7 +314,11 @@ class ConductionMapper(EDTModule):
         except (TypeError, ValueError):
             return default
 
-    def _policy_mapping(self, policy_intervention: str, sector_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _policy_mapping(
+        self,
+        policy_intervention: str,
+        sector_data: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         macro_factors: List[Dict[str, Any]] = [
             {"factor": "liquidity", "direction": "up", "strength": "high", "reason": "强政策干预预期改善流动性"},
             {"factor": "rates", "direction": "down", "strength": "medium", "reason": "刺激预期对应宽松利率环境"},
@@ -403,7 +428,10 @@ class ConductionMapper(EDTModule):
                 errors=[{"code": "INSUFFICIENT_EVENT_CONTEXT", "message": "Headline or summary is required"}],
             )
 
-        template = self._match_chain_template(category, headline, summary)
+        semantic_out = self.semantic.analyze(headline, summary)
+        ai_recommended_stocks = self._normalize_recommended_stocks(semantic_out)
+
+        template = self._match_chain_template(category, headline, summary, semantic_out)
         if template and template.get("id") == "tariff_chain":
             mapping = self._tariff_mapping()
             mapping["mapping_source"] = "template:tariff_chain"
@@ -452,6 +480,10 @@ class ConductionMapper(EDTModule):
                 "event_type_lv2": classification.get("event_type_lv2"),
                 "classification_confidence": classification.get("classification_confidence"),
                 "market_impact_confidence": classification.get("market_impact_confidence"),
+                "ai_recommendation_source": "semantic_analyzer" if ai_recommended_stocks else "none",
+                "ai_recommended_stocks": ai_recommended_stocks,
+                "ai_recommendation_chain": semantic_out.get("recommended_chain", ""),
+                "ai_recommendation_confidence": semantic_out.get("confidence", 0),
                 "time_horizons": {
                     "intraday": "headline冲击主导",
                     "overnight": "等待二次验证",

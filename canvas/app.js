@@ -440,8 +440,15 @@ function selectNews(id) {
   if (!news) return;
   
   STATE.selectedNews = news;
-  STATE.sectors = STATE.sectorsByTrace[id] || { trace_id: id, sectors: [], conduction_chain: [] };
-  STATE.opportunities = STATE.opportunitiesByTrace[id] || { trace_id: id, opportunities: [] };
+  
+  // 优先使用最新的 sector 和 opportunity 数据（来自最新的 sector_update/opportunity_update）
+  // 因为 trace_id 可能不匹配（event 用 evt_live_xxx，sector/opportunity 用 TRC-ME-E-xxx）
+  const latestSector = STATE.sectors;
+  const latestOpp = STATE.opportunities;
+  
+  STATE.sectors = STATE.sectorsByTrace[id] || latestSector || { trace_id: id, sectors: [], conduction_chain: [] };
+  STATE.opportunities = STATE.opportunitiesByTrace[id] || latestOpp || { trace_id: id, opportunities: [] };
+  
   renderNews();
   renderSectors();
   renderOpportunities();

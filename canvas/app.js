@@ -441,33 +441,36 @@ function selectNews(id) {
   STATE.selectedNews = news;
   
   // 后端所有 sector/opportunity 用同一个 trace_id，按时间戳匹配
-  // 找到与新闻时间最接近的 sector/opportunity 数据
   const newsTime = new Date(news.timestamp || news.news_timestamp || 0).getTime();
+  
+  console.log('news timestamp:', news.timestamp, 'news_time:', news.news_timestamp, 'parsed:', newsTime);
+  console.log('sector keys:', Object.keys(STATE.sectorsByTrace));
+  Object.entries(STATE.sectorsByTrace).forEach(([k, v]) => {
+    console.log('sector', k, 'timestamp:', v.timestamp, 'parsed:', new Date(v.timestamp || 0).getTime());
+  });
   
   let bestSector = null;
   let bestOpp = null;
   let bestDiff = Infinity;
   
-  // 遍历所有 sector 数据，找时间最接近的
   Object.values(STATE.sectorsByTrace).forEach(sectorData => {
     const sectorTime = new Date(sectorData.timestamp || 0).getTime();
     const diff = Math.abs(sectorTime - newsTime);
-    if (diff < bestDiff && diff < 60000) { // 60秒内
+    console.log('diff:', diff, 'bestDiff:', bestDiff);
+    if (diff < bestDiff && diff < 120000) { // 2分钟内
       bestDiff = diff;
       bestSector = sectorData;
     }
   });
   
-  // 遍历所有 opportunity 数据
   if (bestSector) {
-    const sectorTraceId = bestSector.trace_id;
-    bestOpp = STATE.opportunitiesByTrace[sectorTraceId] || null;
+    bestOpp = STATE.opportunitiesByTrace[bestSector.trace_id] || null;
   }
   
   STATE.sectors = bestSector || { trace_id: id, sectors: [], conduction_chain: [] };
   STATE.opportunities = bestOpp || { trace_id: id, opportunities: [] };
   
-  console.log('selectNews:', id, 'newsTime:', newsTime, 'bestSector:', bestSector?.timestamp);
+  console.log('bestSector:', bestSector?.timestamp, 'bestOpp:', bestOpp?.timestamp);
   
   renderNews();
   renderSectors();

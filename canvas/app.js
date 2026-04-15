@@ -440,12 +440,17 @@ function selectNews(id) {
   
   STATE.selectedNews = news;
   
-  // sector_update 和 opportunity_update 的 trace_id 是固定格式 TRC-ME-E-xxx
-  // 需要用这个固定格式来获取数据
-  const sectorTraceId = Object.keys(STATE.sectorsByTrace)[0] || 'TRC-ME-E-20260415-001.V1.0';
+  // sector/opportunity 数据按时间更新，用最新的即可（trace_id 是固定的 TRC-ME-E-xxx）
+  const sectorTraceId = Object.keys(STATE.sectorsByTrace)[0];
+  const sectorData = STATE.sectorsByTrace[sectorTraceId];
+  const oppData = STATE.opportunitiesByTrace[sectorTraceId];
   
-  STATE.sectors = STATE.sectorsByTrace[sectorTraceId] || { trace_id: id, sectors: [], conduction_chain: [] };
-  STATE.opportunities = STATE.opportunitiesByTrace[sectorTraceId] || { trace_id: id, opportunities: [] };
+  STATE.sectors = sectorData || { trace_id: id, sectors: [], conduction_chain: [] };
+  STATE.opportunities = oppData || { trace_id: id, opportunities: [] };
+  
+  console.log('selectNews:', id);
+  console.log('sectors:', STATE.sectors);
+  console.log('opportunities:', STATE.opportunities);
   
   renderNews();
   renderSectors();

@@ -29,9 +29,9 @@ parent_doc: 主题板块催化持续性引擎 v1.0
 | conflict_type | routing merge | 统一裁决 / 盘前 | 是 | 冲突分类 | 记录为 unknown_conflict |
 | final_decision_source | routing merge | 统一裁决 | 否 | 最终裁决来源 | 视为 mainchain_only |
 | macro_regime | main chain | 统一裁决 / 盘前 | 否 | 宏观风险环境 | 视为 MIXED 并保守处理 |
-| theme_capped_by_macro | routing merge | 统一裁决 | 否 | 是否触发主链封顶 | 默认 true |
+| theme_capped_by_macro | routing merge | 统一裁决 | 否 | 是否触发主链封顶 | 默认 false；仅在宏观回避 / 冲突明确命中时置 true |
 | macro_override_reason | main chain | 统一裁决 | 是 | 主链覆盖原因 | 记录 unknown_override_reason |
-| final_trade_cap | routing merge | 统一裁决 / 执行前审查 | 否 | 评级/周期封顶结果 | 默认 INTRADAY_CAP |
+| final_trade_cap | routing merge | 统一裁决 / 执行前审查 | 否 | 评级/周期封顶结果 | 默认 INTRADAY |
 | fallback_reason | all modules | 全部消费端 | 是 | 降级解释 | 记录 unknown_fallback |
 | safe_to_consume | all modules | 全部消费端 | 否 | 安全消费开关 | 默认 false |
 | contract_name | output envelope | 全部消费端 | 否 | 契约识别 | 拒绝消费 |

@@ -1,0 +1,36 @@
+{
+  "case_id": "low_trust_pseudo_official_001",
+  "category": "low_trust",
+  "risk_level": "C",
+  "description": "Source URL looks official (fed domain) but content is vague and lacks real event evidence. Must stay conservative.",
+  "input": {
+    "headline": "Federal Reserve officials discuss economic outlook at conference",
+    "raw_text": "Multiple Fed speakers gave remarks at an academic conference, touching on various topics without policy announcements or specific guidance.",
+    "source_type": "official",
+    "source_url": "https://www.federalreserve.gov/newsevents/speeches.htm",
+    "timestamp": "2026-04-15T14:30:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "pseudo_narr", "path_name": "conference_narrative", "path_type": "narrative", "confidence": 72.0},
+      {"path_id": "pseudo_fund", "path_name": "weak_fundamental_signal", "path_type": "fundamental", "confidence": 44.0},
+      {"path_id": "pseudo_asset", "path_name": "weak_asset_signal", "path_type": "asset_pricing", "confidence": 46.0}
+    ],
+    "sectors": [
+      {"name": "金融", "direction": "WATCH", "impact_score": 0.48, "confidence": 0.50}
+    ],
+    "stock_candidates": [
+      {"symbol": "JPM", "sector": "金融", "direction": "WATCH", "event_beta": 0.8}
+    ],
+    "asset_validation": {"score": 42}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["WATCH"],
+    "forbidden_signals": ["LONG", "SHORT"],
+    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

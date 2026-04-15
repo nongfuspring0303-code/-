@@ -1,0 +1,6 @@
+chain_completeness_min: 0.95
+required_fields_missing_rate_max: 0.01
+direction_consistency_min: 0.80
+path_consistency_min: 0.75
+high_risk_false_release_max: 0.05
+disallow_regression_degradation: true

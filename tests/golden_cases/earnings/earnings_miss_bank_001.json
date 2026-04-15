@@ -1,0 +1,36 @@
+{
+  "case_id": "earnings_miss_bank_001",
+  "category": "earnings",
+  "risk_level": "A",
+  "description": "Bank earnings miss should not be interpreted as broad long.",
+  "input": {
+    "headline": "Major US bank misses earnings estimates",
+    "raw_text": "Net interest income and credit quality trends disappointed analysts.",
+    "source_type": "wire",
+    "source_url": "https://www.wsj.com/finance",
+    "timestamp": "2026-04-15T19:40:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "bank_fund", "path_name": "credit_fundamental", "path_type": "fundamental", "confidence": 81.0},
+      {"path_id": "bank_asset", "path_name": "banking_repricing", "path_type": "asset_pricing", "confidence": 75.0},
+      {"path_id": "bank_narr", "path_name": "bank_narrative", "path_type": "narrative", "confidence": 59.0}
+    ],
+    "sectors": [
+      {"name": "金融", "direction": "SHORT", "impact_score": 0.82, "confidence": 0.86}
+    ],
+    "stock_candidates": [
+      {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.25, "realtime_price": 180.0}
+    ],
+    "asset_validation": {"score": 84}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["SHORT", "WATCH"],
+    "forbidden_signals": ["LONG"],
+    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

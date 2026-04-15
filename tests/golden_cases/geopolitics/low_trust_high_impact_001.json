@@ -1,0 +1,36 @@
+{
+  "case_id": "geopolitics_low_trust_high_impact_001",
+  "category": "geopolitics",
+  "risk_level": "A",
+  "description": "Low source_rank report claims a major geopolitical event. Even if impact is high, low trust must force conservative output.",
+  "input": {
+    "headline": "Reports suggest major pipeline explosion in critical energy corridor",
+    "raw_text": "Unconfirmed social media posts claim a significant pipeline disruption affecting regional energy supply. Official sources have not confirmed.",
+    "source_type": "social",
+    "source_url": "https://twitter.com/energy_analyst/status/999",
+    "timestamp": "2026-04-15T08:15:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "pipe_asset", "path_name": "energy_disruption_repricing", "path_type": "asset_pricing", "confidence": 78.0},
+      {"path_id": "pipe_fund", "path_name": "supply_fundamental", "path_type": "fundamental", "confidence": 42.0},
+      {"path_id": "pipe_narr", "path_name": "pipeline_fear_narrative", "path_type": "narrative", "confidence": 65.0}
+    ],
+    "sectors": [
+      {"name": "能源", "direction": "LONG", "impact_score": 0.82, "confidence": 0.55}
+    ],
+    "stock_candidates": [
+      {"symbol": "XOM", "sector": "能源", "direction": "LONG", "event_beta": 1.4}
+    ],
+    "asset_validation": {"score": 48}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["LONG", "WATCH"],
+    "forbidden_signals": ["SHORT"],
+    "expected_path_types_any_of": ["asset_pricing", "fundamental"],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

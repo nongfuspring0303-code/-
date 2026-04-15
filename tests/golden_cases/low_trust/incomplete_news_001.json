@@ -1,0 +1,36 @@
+{
+  "case_id": "low_trust_incomplete_news_001",
+  "category": "low_trust",
+  "risk_level": "C",
+  "description": "Abnormal timestamp and incomplete payload should be forced into conservative handling.",
+  "input": {
+    "headline": "Breaking: important event happened",
+    "raw_text": "Details unavailable.",
+    "source_type": "unknown",
+    "source_url": "https://telegram.me/some_channel",
+    "timestamp": "not-a-valid-time"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "inc_narr", "path_name": "incomplete_narrative", "path_type": "narrative", "confidence": 70.0},
+      {"path_id": "inc_fund", "path_name": "incomplete_fundamental", "path_type": "fundamental", "confidence": 46.0},
+      {"path_id": "inc_asset", "path_name": "incomplete_asset", "path_type": "asset_pricing", "confidence": 47.0}
+    ],
+    "sectors": [
+      {"name": "科技", "direction": "WATCH", "impact_score": 0.48, "confidence": 0.5}
+    ],
+    "stock_candidates": [
+      {"symbol": "MSFT", "sector": "科技", "direction": "WATCH", "event_beta": 0.8}
+    ],
+    "asset_validation": {"score": 40}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["WATCH"],
+    "forbidden_signals": ["LONG", "SHORT"],
+    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

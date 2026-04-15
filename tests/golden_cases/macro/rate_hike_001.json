@@ -1,0 +1,36 @@
+{
+  "case_id": "macro_rate_hike_001",
+  "category": "macro",
+  "risk_level": "A",
+  "description": "Fed hike should not flip into long-only optimism.",
+  "input": {
+    "headline": "Fed raises rates by 25 basis points",
+    "raw_text": "The Federal Reserve raised benchmark rates to combat inflation.",
+    "source_type": "official",
+    "source_url": "https://www.federalreserve.gov/newsevents/pressreleases.htm",
+    "timestamp": "2026-04-15T14:05:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "hike_fund", "path_name": "tightening_fundamental", "path_type": "fundamental", "horizon": "1-5D", "persistence": "medium", "confidence": 80.0},
+      {"path_id": "hike_asset", "path_name": "risk_off_repricing", "path_type": "asset_pricing", "horizon": "intraday", "persistence": "fast", "confidence": 74.0},
+      {"path_id": "hike_narr", "path_name": "macro_headline", "path_type": "narrative", "confidence": 54.0}
+    ],
+    "sectors": [
+      {"name": "科技", "direction": "SHORT", "impact_score": 0.79, "confidence": 0.83}
+    ],
+    "stock_candidates": [
+      {"symbol": "NVDA", "sector": "科技", "direction": "SHORT", "event_beta": 1.15, "realtime_price": 970.0}
+    ],
+    "asset_validation": {"score": 82}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["SHORT", "WATCH"],
+    "forbidden_signals": ["LONG"],
+    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

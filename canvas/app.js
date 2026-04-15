@@ -440,13 +440,12 @@ function selectNews(id) {
   
   STATE.selectedNews = news;
   
-  // 优先使用最新的 sector 和 opportunity 数据（来自最新的 sector_update/opportunity_update）
-  // 因为 trace_id 可能不匹配（event 用 evt_live_xxx，sector/opportunity 用 TRC-ME-E-xxx）
-  const latestSector = STATE.sectors;
-  const latestOpp = STATE.opportunities;
+  // sector_update 和 opportunity_update 的 trace_id 是固定格式 TRC-ME-E-xxx
+  // 需要用这个固定格式来获取数据
+  const sectorTraceId = Object.keys(STATE.sectorsByTrace)[0] || 'TRC-ME-E-20260415-001.V1.0';
   
-  STATE.sectors = STATE.sectorsByTrace[id] || latestSector || { trace_id: id, sectors: [], conduction_chain: [] };
-  STATE.opportunities = STATE.opportunitiesByTrace[id] || latestOpp || { trace_id: id, opportunities: [] };
+  STATE.sectors = STATE.sectorsByTrace[sectorTraceId] || { trace_id: id, sectors: [], conduction_chain: [] };
+  STATE.opportunities = STATE.opportunitiesByTrace[sectorTraceId] || { trace_id: id, opportunities: [] };
   
   renderNews();
   renderSectors();

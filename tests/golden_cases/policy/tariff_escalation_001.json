@@ -1,4 +1,5 @@
 {
+  "group": "policy",
   "case_id": "policy_tariff_escalation_001",
   "category": "policy",
   "risk_level": "A",
@@ -12,23 +13,65 @@
   },
   "scenario": {
     "transmission_paths": [
-      {"path_id": "tariff_fund", "path_name": "cost_push_fundamental", "path_type": "fundamental", "confidence": 79.0},
-      {"path_id": "tariff_asset", "path_name": "risk_repricing", "path_type": "asset_pricing", "confidence": 74.0},
-      {"path_id": "tariff_narr", "path_name": "trade_war_narrative", "path_type": "narrative", "confidence": 65.0}
+      {
+        "path_id": "tariff_fund",
+        "path_name": "cost_push_fundamental",
+        "path_type": "fundamental",
+        "confidence": 79.0
+      },
+      {
+        "path_id": "tariff_asset",
+        "path_name": "risk_repricing",
+        "path_type": "asset_pricing",
+        "confidence": 74.0
+      },
+      {
+        "path_id": "tariff_narr",
+        "path_name": "trade_war_narrative",
+        "path_type": "narrative",
+        "confidence": 65.0
+      }
     ],
     "sectors": [
-      {"name": "工业", "direction": "SHORT", "impact_score": 0.8, "confidence": 0.82}
+      {
+        "name": "工业",
+        "direction": "SHORT",
+        "impact_score": 0.8,
+        "confidence": 0.82
+      }
     ],
     "stock_candidates": [
-      {"symbol": "CAT", "sector": "工业", "direction": "SHORT", "event_beta": 1.2}
+      {
+        "symbol": "CAT",
+        "sector": "工业",
+        "direction": "SHORT",
+        "event_beta": 1.2
+      }
     ],
-    "asset_validation": {"score": 76}
+    "asset_validation": {
+      "score": 76
+    }
   },
   "expect": {
-    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
-    "allowed_signals": ["SHORT", "WATCH"],
-    "forbidden_signals": ["LONG"],
-    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "required_fields": [
+      "source_rank",
+      "dominant_path",
+      "mixed_regime",
+      "opportunities",
+      "state_machine_step",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "SHORT",
+      "WATCH"
+    ],
+    "forbidden_signals": [
+      "LONG"
+    ],
+    "expected_path_types_any_of": [
+      "fundamental",
+      "asset_pricing"
+    ],
     "max_final_action": "WATCH",
     "allow_empty_opportunities": false,
     "must_have_gate_reason_code": true

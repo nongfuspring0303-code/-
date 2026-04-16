@@ -8,7 +8,7 @@ from verify_theme_replay import build_idempotency_key, verify_replay_consistency
 
 
 def test_idempotency_key_uses_only_required_fields():
-    assert build_idempotency_key("evt-1", "v1", "T0") == "evt-1v1T0"
+    assert build_idempotency_key("evt-1", "v1", "T0") == "evt-1|v1|T0"
 
 
 def test_replay_consistency_detects_key_collision_with_different_output():
@@ -52,4 +52,4 @@ def test_replay_consistency_detects_key_collision_with_different_output():
     report = verify_replay_consistency(records)
 
     assert report["replay_consistency"] is False
-    assert report["inconsistent_keys"] == ["evt-1v1T0"]
+    assert report["inconsistent_keys"] == ["evt-1|v1|T0"]

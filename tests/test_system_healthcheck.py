@@ -137,7 +137,7 @@ def test_theme_gate_healthcheck_passes(monkeypatch):
 
     assert out.status == "GREEN"
     assert not out.errors
-    assert captured["gate"]["trade_grade"] == "A"
+    assert captured["gate"]["trade_grade"] == "C"
     assert captured["gate"]["final_action"] == "BLOCK"
     assert captured["gate"]["prohibit_execute"] is True
     assert captured["gate"]["gate_reason"] == "CONFLICT_FLAG_BLOCKED_A_GRADE"

@@ -291,10 +291,10 @@ def check_theme_gate() -> CheckResult:
     }
     conflict_gate = apply_theme_gate_constraints(conflict_sample)
     conflict_errors = validate_theme_contract(conflict_gate)
-    if conflict_errors or str(conflict_gate.get("trade_grade", "")).upper() != "A":
+    if conflict_errors or str(conflict_gate.get("trade_grade", "")).upper() == "A":
         result.status = "RED"
         result.summary = "Conflict flag is not blocking A-grade output correctly."
-        result.errors.extend(conflict_errors or ["conflict_flag did not preserve A-grade while blocking execution"])
+        result.errors.extend(conflict_errors or ["conflict_flag still allows A-grade through"])
         return result
 
     result.evidence.append(f"unsafe_final_action={unsafe_gate.get('final_action')}")

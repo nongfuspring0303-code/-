@@ -15,7 +15,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CODEBOOK_PATH = ROOT / "configs" / "theme_error_codebook.yaml"
-REQUIRED_CONTRACT_FIELDS = ("contract_name", "contract_version", "safe_to_consume")
+REQUIRED_CONTRACT_FIELDS = ("contract_name", "contract_version", "producer_module", "safe_to_consume")
 REQUIRED_ERROR_CODES = (
     "CONFIG_MISSING",
     "CONFIG_INVALID",
@@ -83,6 +83,7 @@ def apply_theme_gate_constraints(output: Mapping[str, Any]) -> dict[str, Any]:
             gate_view["fallback_reason"] = gate_view.get("error_code") or "UNKNOWN_FALLBACK"
 
     if conflict_flag and trade_grade == "A":
+        gate_view["trade_grade"] = "C"
         gate_view["final_action"] = GATE_BLOCK_ACTION
         gate_view["prohibit_execute"] = True
         gate_view.setdefault("gate_reason", "CONFLICT_FLAG_BLOCKED_A_GRADE")
@@ -107,6 +108,8 @@ def validate_theme_contract(output: Mapping[str, Any]) -> list[str]:
             errors.append("unsafe_output_must_prohibit_execute")
 
     if bool(output.get("conflict_flag")) and str(output.get("trade_grade", "")).upper() == "A":
+        if gate_view.get("trade_grade") == "A":
+            errors.append("conflict_a_must_not_remain_a_grade")
         if gate_view.get("final_action") != GATE_BLOCK_ACTION:
             errors.append("conflict_a_must_be_blocked")
         if gate_view.get("prohibit_execute") is not True:

@@ -41,7 +41,7 @@ def test_unsafe_output_forces_degraded_and_prohibits_execute():
     assert validate_theme_contract(gate) == []
 
 
-def test_conflict_flag_blocks_trade_grade_a_without_rewriting_grade():
+def test_conflict_flag_blocks_trade_grade_a_without_letting_a_pass():
     payload = {
         "contract_name": "theme_catalyst_engine",
         "contract_version": "v1.0",
@@ -56,7 +56,7 @@ def test_conflict_flag_blocks_trade_grade_a_without_rewriting_grade():
 
     gate = apply_theme_gate_constraints(payload)
 
-    assert gate["trade_grade"] == "A"
+    assert gate["trade_grade"] == "C"
     assert gate["final_action"] == "BLOCK"
     assert gate["prohibit_execute"] is True
     assert validate_theme_contract(gate) == []
@@ -77,3 +77,20 @@ def test_safe_to_consume_false_requires_fallback_reason():
     errors = validate_theme_contract(payload)
 
     assert "fallback_reason_required_when_safe_to_consume_false" in errors
+
+
+def test_validate_theme_contract_requires_producer_module():
+    payload = {
+        "contract_name": "theme_catalyst_engine",
+        "contract_version": "v1.0",
+        "safe_to_consume": True,
+        "error_code": "CONFIG_INVALID",
+        "fallback_reason": "CONFIG_INVALID",
+        "degraded_mode": True,
+        "trade_grade": "B",
+        "conflict_flag": False,
+    }
+
+    errors = validate_theme_contract(payload)
+
+    assert "missing_required_field:producer_module" in errors

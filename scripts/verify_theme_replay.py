@@ -14,7 +14,7 @@ from theme_gate_policy import apply_theme_gate_constraints, validate_theme_contr
 
 
 def build_idempotency_key(event_id: str, config_version: str, evaluation_window: str) -> str:
-    return f"{event_id}{config_version}{evaluation_window}"
+    return f"{event_id}|{config_version}|{evaluation_window}"
 
 
 def _canonical_json(payload: Any) -> str:
@@ -89,7 +89,7 @@ def verify_replay_consistency(records: list[Mapping[str, Any]]) -> dict[str, Any
     replay_consistency = not inconsistent_keys and not contract_errors
     return {
         "replay_consistency": replay_consistency,
-        "idempotency_strategy": "event_id + config_version + evaluation_window",
+        "idempotency_strategy": "event_id|config_version|evaluation_window",
         "total_records": len(records),
         "unique_keys": len(grouped),
         "inconsistent_keys": sorted(set(inconsistent_keys)),

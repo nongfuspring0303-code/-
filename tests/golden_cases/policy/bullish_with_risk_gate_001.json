@@ -1,4 +1,5 @@
 {
+  "group": "policy",
   "case_id": "policy_bullish_with_risk_gate_001",
   "category": "policy",
   "risk_level": "A",
@@ -12,24 +13,66 @@
   },
   "scenario": {
     "transmission_paths": [
-      {"path_id": "infra_fund", "path_name": "fiscal_spending_fundamental", "path_type": "fundamental", "confidence": 80.0},
-      {"path_id": "infra_asset", "path_name": "industrial_repricing", "path_type": "asset_pricing", "confidence": 74.0},
-      {"path_id": "infra_narr", "path_name": "political_narrative", "path_type": "narrative", "confidence": 60.0}
+      {
+        "path_id": "infra_fund",
+        "path_name": "fiscal_spending_fundamental",
+        "path_type": "fundamental",
+        "confidence": 80.0
+      },
+      {
+        "path_id": "infra_asset",
+        "path_name": "industrial_repricing",
+        "path_type": "asset_pricing",
+        "confidence": 74.0
+      },
+      {
+        "path_id": "infra_narr",
+        "path_name": "political_narrative",
+        "path_type": "narrative",
+        "confidence": 60.0
+      }
     ],
     "sectors": [
-      {"name": "工业", "direction": "LONG", "impact_score": 0.85, "confidence": 0.87}
+      {
+        "name": "工业",
+        "direction": "LONG",
+        "impact_score": 0.85,
+        "confidence": 0.87
+      }
     ],
     "stock_candidates": [
-      {"symbol": "CAT", "sector": "工业", "direction": "LONG", "event_beta": 1.2}
+      {
+        "symbol": "CAT",
+        "sector": "工业",
+        "direction": "LONG",
+        "event_beta": 1.2
+      }
     ],
-    "asset_validation": {"score": 82},
+    "asset_validation": {
+      "score": 82
+    },
     "risk_blocked": true
   },
   "expect": {
-    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
-    "allowed_signals": ["LONG", "WATCH"],
-    "forbidden_signals": ["SHORT"],
-    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "required_fields": [
+      "source_rank",
+      "dominant_path",
+      "mixed_regime",
+      "opportunities",
+      "state_machine_step",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "LONG",
+      "WATCH"
+    ],
+    "forbidden_signals": [
+      "SHORT"
+    ],
+    "expected_path_types_any_of": [
+      "fundamental",
+      "asset_pricing"
+    ],
     "max_final_action": "WATCH",
     "allow_empty_opportunities": false,
     "must_have_gate_reason_code": true

@@ -2,6 +2,15 @@ import json
 import logging
 from typing import Dict, Any
 
+# 核心SLI指标（按文档原文）
+SLO_SPEC = {
+    "theme_mapping_success_rate": ">= 95%",
+    "degraded_output_rate": "<= 10%",
+    "replay_consistency_rate": ">= 99%",
+    "e2e_latency_ms": "由部署环境定义",
+    "safe_to_consume_false_rate": "持续监控"
+}
+
 class ThemeObservabilityLogger:
     @staticmethod
     def log_observability_event(theme_output: Dict[str, Any], trace_id: str, route_result: str, latency_ms: int = 0):
@@ -25,6 +34,10 @@ class ThemeObservabilityLogger:
         logger = logging.getLogger("theme_observability")
         logger.info("THEME_OBSERVABILITY_LOG: %s", json.dumps(obs))
         
+        # P3: Observability anomaly (latency too high or missing fields)
+        if latency_ms >= 5000:
+            logger.warning("SLO ALERT [P3]: Observability anomaly - High latency detected (%sms)", latency_ms)
+
         # SLI & SLO monitoring rules (P1/P2)
         if not obs["safe_to_consume"]:
             # Critical contract issue or routing missing

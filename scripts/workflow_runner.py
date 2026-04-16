@@ -332,7 +332,8 @@ class WorkflowRunner:
             theme_output["theme_capped_by_macro"] = False
             theme_output["final_decision_source"] = "theme_only"
 
-        elif macro_regime == "RISK_ON":
+        elif macro_regime is not None:
+            # C3: 宏观顺风 vs 副链弱催化
             theme_output["conflict_flag"] = False
             theme_output["conflict_type"] = "C3_market_favorable"
             theme_output["theme_capped_by_macro"] = False
@@ -477,20 +478,7 @@ class WorkflowRunner:
             safe_to_consume = theme_output.get("safe_to_consume", False)
             latency_ms = int((time.time() - start_time) * 1000)
             
-            if not safe_to_consume:
-                if ThemeObservabilityLogger:
-                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "degraded", latency_ms)
-                result["final"] = {
-                    "action": "WATCH",
-                    "reason": f"Theme subchain degraded: {theme_output['fallback_reason']}",
-                    "trace_id": trace_id,
-                    "request_id": request_id,
-                    "batch_id": batch_id,
-                }
-                result["theme_output"] = theme_output
-                self._mark_request_processed(request_id)
-                return result
-                
+            # 主链优先: RISK_OFF 绝对拦截
             if macro_regime == "RISK_OFF":
                 if ThemeObservabilityLogger:
                     ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "blocked", latency_ms)
@@ -504,10 +492,27 @@ class WorkflowRunner:
                 result["theme_output"] = theme_output
                 self._mark_request_processed(request_id)
                 return result
-                
-            if ThemeObservabilityLogger:
-                ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "success", latency_ms)
-            result["theme_output"] = theme_output
+
+            # 副链调整: safe_to_consume == True 正常处理
+            elif safe_to_consume:
+                if ThemeObservabilityLogger:
+                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "success", latency_ms)
+                result["theme_output"] = theme_output
+
+            # 副链异常: 降级 WATCH
+            else:
+                if ThemeObservabilityLogger:
+                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "degraded", latency_ms)
+                result["final"] = {
+                    "action": "WATCH",
+                    "reason": f"Theme subchain degraded: {theme_output['fallback_reason']}",
+                    "trace_id": trace_id,
+                    "request_id": request_id,
+                    "batch_id": batch_id,
+                }
+                result["theme_output"] = theme_output
+                self._mark_request_processed(request_id)
+                return result
         # ================= A2.5 阶段结束 =================
 
         if gate_out.data["final_action"] in ("BLOCK", "FORCE_CLOSE", "WATCH"):

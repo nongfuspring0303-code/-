@@ -15,8 +15,17 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import yaml
+try:
+    from logging.theme_observability import ThemeObservabilityLogger
+except ImportError:
+    ThemeObservabilityLogger = None
 
 from edt_module_base import ModuleStatus
 from ai_signal_adapter import AISignalAdapter
@@ -274,6 +283,70 @@ class WorkflowRunner:
             "warnings": module_output.warnings,
         }
 
+    def _apply_theme_routing(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """A2.5 阶段融合主链宏观与主题副链信号"""
+        macro_regime = payload.get("macro_regime")
+        trade_grade = payload.get("trade_grade", "D")
+        
+        theme_output = {
+            "contract_name": "theme_catalyst_engine",
+            "contract_version": "v1.0",
+            "producer_module": "theme_engine",
+            "safe_to_consume": payload.get("safe_to_consume", False),
+            "fallback_reason": payload.get("fallback_reason", "unknown_fallback"),
+            "error_code": payload.get("error_code"),
+            
+            "primary_theme": payload.get("primary_theme", "unknown"),
+            "current_state": payload.get("current_state", "DEAD"),
+            "continuation_probability": payload.get("continuation_probability", 0.0),
+            "trade_grade": trade_grade,
+            "candidate_audit_pool": payload.get("candidate_audit_pool", []),
+            
+            "macro_regime": macro_regime,
+            "macro_override_reason": payload.get("macro_override_reason", "unknown_override_reason"),
+            
+            "conflict_flag": False,
+            "conflict_type": "unknown",
+            "final_decision_source": "theme_only",
+            "theme_capped_by_macro": False,
+            "final_trade_cap": "STANDARD",
+        }
+
+        # 核心主副链路由逻辑
+        if macro_regime == "RISK_OFF":
+            theme_output["conflict_flag"] = True
+            theme_output["conflict_type"] = "C1_market_reject"
+            theme_output["final_trade_cap"] = "INTRADAY"
+            
+            GRADE_ORDER = {"A": 4, "B": 3, "C": 2, "D": 1}
+            if GRADE_ORDER.get(trade_grade, 1) > GRADE_ORDER["C"]:
+                theme_output["trade_grade"] = "C"
+                
+            theme_output["theme_capped_by_macro"] = True
+            theme_output["macro_override_reason"] = "RISK_OFF 环境禁止高仓位"
+            theme_output["final_decision_source"] = "mainchain_capped_theme"
+
+        elif macro_regime == "MIXED":
+            theme_output["conflict_flag"] = False
+            theme_output["conflict_type"] = "C2_market_neutral"
+            theme_output["theme_capped_by_macro"] = False
+            theme_output["final_decision_source"] = "theme_only"
+
+        elif macro_regime == "RISK_ON":
+            theme_output["conflict_flag"] = False
+            theme_output["conflict_type"] = "C3_market_favorable"
+            theme_output["theme_capped_by_macro"] = False
+            theme_output["final_decision_source"] = "theme_only"
+
+        # 主链缺失时的回退
+        if macro_regime is None:
+            theme_output["final_decision_source"] = "theme_only_degraded"
+            theme_output["fallback_reason"] = "MAINCHAIN_MISSING"
+            theme_output["safe_to_consume"] = False
+            theme_output["theme_capped_by_macro"] = True
+            
+        return theme_output
+
     @staticmethod
     def _normalize_direction(raw_direction: Any) -> tuple[str, bool]:
         """
@@ -312,6 +385,7 @@ class WorkflowRunner:
             }
             return result
 
+        start_time = time.time()
         ai_factors = self._resolve_ai_factors(payload)
         score_in = {
             "event_id": payload.get("event_id", f"EXEC-{payload.get('request_id', 'NA')}"),
@@ -395,6 +469,46 @@ class WorkflowRunner:
             }
             return result
         result["risk"] = gate_out.data
+
+        # ================= A2.5 主题副链路由拦截 =================
+        if payload.get("event_scope") == "sector_theme":
+            theme_output = self._apply_theme_routing(payload)
+            macro_regime = theme_output.get("macro_regime")
+            safe_to_consume = theme_output.get("safe_to_consume", False)
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            if not safe_to_consume:
+                if ThemeObservabilityLogger:
+                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "degraded", latency_ms)
+                result["final"] = {
+                    "action": "WATCH",
+                    "reason": f"Theme subchain degraded: {theme_output['fallback_reason']}",
+                    "trace_id": trace_id,
+                    "request_id": request_id,
+                    "batch_id": batch_id,
+                }
+                result["theme_output"] = theme_output
+                self._mark_request_processed(request_id)
+                return result
+                
+            if macro_regime == "RISK_OFF":
+                if ThemeObservabilityLogger:
+                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "blocked", latency_ms)
+                result["final"] = {
+                    "action": "BLOCK",
+                    "reason": "RISK_OFF 环境拦截，主链优先给上限",
+                    "trace_id": trace_id,
+                    "request_id": request_id,
+                    "batch_id": batch_id,
+                }
+                result["theme_output"] = theme_output
+                self._mark_request_processed(request_id)
+                return result
+                
+            if ThemeObservabilityLogger:
+                ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "success", latency_ms)
+            result["theme_output"] = theme_output
+        # ================= A2.5 阶段结束 =================
 
         if gate_out.data["final_action"] in ("BLOCK", "FORCE_CLOSE", "WATCH"):
             result["final"] = {

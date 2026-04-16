@@ -687,6 +687,18 @@ canary_source_health:
       schema_version: "v1.0"
       producer: "EDT-System"
 
+  ThemeCatalystEngine:
+    enabled: true
+    params:
+      risk_off:
+        max_grade: "C"
+        final_trade_cap: "INTRADAY"
+      missing_mainchain:
+        action: "WATCH_ONLY"
+      default_contract:
+        version: "v1.0"
+        producer: "theme_engine"
+
 runtime:
   role: "dev"
   node_role: "master"

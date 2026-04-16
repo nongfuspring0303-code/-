@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from typing import Dict, Any
 
 # 核心SLI指标（按文档原文）
@@ -20,7 +21,7 @@ class ThemeObservabilityLogger:
         obs = {
             "event_id": theme_output.get("event_id", trace_id),
             "contract_version": theme_output.get("contract_version", "v1.0"),
-            "config_version": "v1.0",
+            "config_version": theme_output.get("config_version", "unknown_cfg"),
             "route_result": route_result,
             "mapping_result": "success" if theme_output.get("primary_theme", "unknown") != "unknown" else "failed",
             "validation_result": "passed" if theme_output.get("safe_to_consume", False) else "failed",
@@ -35,7 +36,8 @@ class ThemeObservabilityLogger:
         logger.info("THEME_OBSERVABILITY_LOG: %s", json.dumps(obs))
         
         # P3: Observability anomaly (latency too high or missing fields)
-        if latency_ms >= 5000:
+        latency_thresh = int(os.environ.get("THEME_P3_LATENCY_THRESH_MS", 5000))
+        if latency_ms >= latency_thresh:
             logger.warning("SLO ALERT [P3]: Observability anomaly - High latency detected (%sms)", latency_ms)
 
         # SLI & SLO monitoring rules (P1/P2)

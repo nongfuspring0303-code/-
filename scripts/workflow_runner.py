@@ -42,6 +42,15 @@ def _stable_trace_id(payload: Dict[str, Any], request_id: str | None) -> str:
     return f"TRC-{digest}"
 
 
+# Execution Layer Rating Priority (A=highest, D=lowest)
+GRADE_RANK = {
+    "A": 4,
+    "B": 3,
+    "C": 2,
+    "D": 1,
+}
+
+
 class WorkflowRunner:
     """Main orchestration for execution-layer flow."""
 
@@ -86,6 +95,15 @@ class WorkflowRunner:
             return dict(cfg.get("modules", {}).get("RiskGatekeeper", {}).get("params", {}))
         except (OSError, yaml.YAMLError, TypeError, ValueError) as exc:
             logging.warning("Failed to read risk params from config; fallback to empty params: %s", exc)
+            return {}
+
+    def _theme_params_from_config(self) -> Dict[str, Any]:
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return dict(cfg.get("modules", {}).get("ThemeCatalystEngine", {}).get("params", {}))
+        except (OSError, yaml.YAMLError, TypeError, ValueError) as exc:
+            logging.warning("Failed to read theme params from config; fallback to defaults: %s", exc)
             return {}
 
     def _safe_defaults(self, mode: str) -> Dict[str, Any]:
@@ -287,11 +305,15 @@ class WorkflowRunner:
         """A2.5 阶段融合主链宏观与主题副链信号"""
         macro_regime = payload.get("macro_regime")
         trade_grade = payload.get("trade_grade", "D")
+        theme_params = self._theme_params_from_config()
+        
+        # 默认契约信息
+        contract_cfg = theme_params.get("default_contract", {})
         
         theme_output = {
             "contract_name": "theme_catalyst_engine",
-            "contract_version": "v1.0",
-            "producer_module": "theme_engine",
+            "contract_version": contract_cfg.get("version", "v1.0"),
+            "producer_module": contract_cfg.get("producer", "theme_engine"),
             "safe_to_consume": payload.get("safe_to_consume", False),
             "fallback_reason": payload.get("fallback_reason", "unknown_fallback"),
             "error_code": payload.get("error_code"),
@@ -303,10 +325,10 @@ class WorkflowRunner:
             "candidate_audit_pool": payload.get("candidate_audit_pool", []),
             
             "macro_regime": macro_regime,
-            "macro_override_reason": payload.get("macro_override_reason", "unknown_override_reason"),
+            "macro_override_reason": payload.get("macro_override_reason", "none"),
             
             "conflict_flag": False,
-            "conflict_type": "unknown",
+            "conflict_type": "none",
             "final_decision_source": "theme_only",
             "theme_capped_by_macro": False,
             "final_trade_cap": "STANDARD",
@@ -316,14 +338,22 @@ class WorkflowRunner:
         if macro_regime == "RISK_OFF":
             theme_output["conflict_flag"] = True
             theme_output["conflict_type"] = "C1_market_reject"
-            theme_output["final_trade_cap"] = "INTRADAY"
             
-            GRADE_ORDER = {"A": 4, "B": 3, "C": 2, "D": 1}
-            if GRADE_ORDER.get(trade_grade, 1) > GRADE_ORDER["C"]:
-                theme_output["trade_grade"] = "C"
-                
-            theme_output["theme_capped_by_macro"] = True
-            theme_output["macro_override_reason"] = "RISK_OFF 环境禁止高仓位"
+            # 从配置获取上限评级
+            risk_off_cfg = theme_params.get("risk_off", {})
+            max_grade_str = risk_off_cfg.get("max_grade", "C").upper()
+            max_val = GRADE_RANK.get(max_grade_str, 2)
+            current_val = GRADE_RANK.get(str(trade_grade).upper(), 1)
+            
+            # 策略：如果不幸当前的评级(如A)高于上限(如C)，执行强制削减
+            if current_val > max_val:
+                theme_output["trade_grade"] = max_grade_str
+                theme_output["theme_capped_by_macro"] = True
+                theme_output["macro_override_reason"] = f"RISK_OFF 环境强制削减评级到 {max_grade_str}"
+            else:
+                theme_output["theme_capped_by_macro"] = False
+
+            theme_output["final_trade_cap"] = risk_off_cfg.get("final_trade_cap", "INTRADAY")
             theme_output["final_decision_source"] = "mainchain_capped_theme"
 
         elif macro_regime == "MIXED":
@@ -333,18 +363,22 @@ class WorkflowRunner:
             theme_output["final_decision_source"] = "theme_only"
 
         elif macro_regime is not None:
-            # C3: 宏观顺风 vs 副链弱催化
+            # C3: 宏观顺风 (RISK_ON 或其他有效值)
             theme_output["conflict_flag"] = False
             theme_output["conflict_type"] = "C3_market_favorable"
             theme_output["theme_capped_by_macro"] = False
             theme_output["final_decision_source"] = "theme_only"
 
-        # 主链缺失时的回退
+        # 主链缺失时的一致性回退
         if macro_regime is None:
+            missing_cfg = theme_params.get("missing_mainchain", {})
+            theme_output["conflict_flag"] = True
+            theme_output["conflict_type"] = "C4_mainchain_lost"
             theme_output["final_decision_source"] = "theme_only_degraded"
             theme_output["fallback_reason"] = "MAINCHAIN_MISSING"
             theme_output["safe_to_consume"] = False
             theme_output["theme_capped_by_macro"] = True
+            theme_output["final_trade_cap"] = missing_cfg.get("action", "WATCH_ONLY")
             
         return theme_output
 
@@ -472,7 +506,7 @@ class WorkflowRunner:
         result["risk"] = gate_out.data
 
         # ================= A2.5 主题副链路由拦截 =================
-        if payload.get("event_scope") == "sector_theme":
+        if payload.get("event_scope") == "sector_theme" and payload.get("contract_name") == "theme_catalyst_engine":
             theme_output = self._apply_theme_routing(payload)
             macro_regime = theme_output.get("macro_regime")
             safe_to_consume = theme_output.get("safe_to_consume", False)
@@ -666,6 +700,14 @@ if __name__ == "__main__":
         "entry_price": 42.5,
         "risk_per_share": 1.5,
         "direction": "long",
+        
+        # Theme Catalyst integration fields
+        "event_scope": "sector_theme",
+        "contract_name": "theme_catalyst_engine",
+        "macro_regime": None,
+        "trade_grade": "A",
+        "safe_to_consume": True,
+        "primary_theme": "AI_Infrastructure",
     }
     out = runner.run(sample)
     print(json.dumps(out, indent=2, ensure_ascii=False))

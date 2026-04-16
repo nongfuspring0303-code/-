@@ -52,7 +52,7 @@ samples:
 
   - case_id: E2E-05
     name: 主链缺失降级样本
-    sample_id: mainchain_missing_theme_degraded
+    sample_id: mainchain_missing_theme_only_degraded
     input_profile: theme_only_without_macro_context
     expected_assertions:
       - final_decision_source=theme_only_degraded

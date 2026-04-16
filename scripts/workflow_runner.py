@@ -15,8 +15,19 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import yaml
+try:
+    from theme_obs.theme_observability import ThemeObservabilityLogger
+except ImportError:
+    import logging
+    logging.error("OBSERVABILITY_MODULE_MISSING: theme_obs.theme_observability failed to load. Observability link is BROKEN.")
+    ThemeObservabilityLogger = None
 
 from edt_module_base import ModuleStatus
 from ai_signal_adapter import AISignalAdapter
@@ -31,6 +42,15 @@ def _stable_trace_id(payload: Dict[str, Any], request_id: str | None) -> str:
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
     digest = hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:16].upper()
     return f"TRC-{digest}"
+
+
+# Execution Layer Rating Priority (A=highest, D=lowest)
+GRADE_RANK = {
+    "A": 4,
+    "B": 3,
+    "C": 2,
+    "D": 1,
+}
 
 
 class WorkflowRunner:
@@ -77,6 +97,15 @@ class WorkflowRunner:
             return dict(cfg.get("modules", {}).get("RiskGatekeeper", {}).get("params", {}))
         except (OSError, yaml.YAMLError, TypeError, ValueError) as exc:
             logging.warning("Failed to read risk params from config; fallback to empty params: %s", exc)
+            return {}
+
+    def _theme_params_from_config(self) -> Dict[str, Any]:
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return dict(cfg.get("modules", {}).get("ThemeCatalystEngine", {}).get("params", {}))
+        except (OSError, yaml.YAMLError, TypeError, ValueError) as exc:
+            logging.warning("Failed to read theme params from config; fallback to defaults: %s", exc)
             return {}
 
     def _safe_defaults(self, mode: str) -> Dict[str, Any]:
@@ -274,6 +303,85 @@ class WorkflowRunner:
             "warnings": module_output.warnings,
         }
 
+    def _apply_theme_routing(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """A2.5 阶段融合主链宏观与主题副链信号"""
+        macro_regime = payload.get("macro_regime")
+        trade_grade = payload.get("trade_grade", "D")
+        theme_params = self._theme_params_from_config()
+
+        # 默认契约信息
+        contract_cfg = theme_params.get("default_contract", {})
+
+        theme_output = {
+            "contract_name": "theme_catalyst_engine",
+            "contract_version": contract_cfg.get("version", "v1.0"),
+            "producer_module": contract_cfg.get("producer", "theme_engine"),
+            "safe_to_consume": payload.get("safe_to_consume", False),
+            "fallback_reason": payload.get("fallback_reason", "unknown_fallback"),
+            "error_code": payload.get("error_code"),
+
+            "primary_theme": payload.get("primary_theme", "unknown"),
+            "current_state": payload.get("current_state", "DEAD"),
+            "continuation_probability": payload.get("continuation_probability", 0.0),
+            "trade_grade": trade_grade,
+            "candidate_audit_pool": payload.get("candidate_audit_pool", []),
+
+            "macro_regime": macro_regime,
+            "macro_override_reason": payload.get("macro_override_reason", "none"),
+
+            "conflict_flag": False,
+            "conflict_type": "unknown_conflict",
+            "final_decision_source": "theme_only",
+            "theme_capped_by_macro": False,
+            "final_trade_cap": payload.get("final_trade_cap", "STANDARD"),
+        }
+
+        # 核心主副链路由逻辑
+        if macro_regime == "RISK_OFF":
+            theme_output["conflict_flag"] = True
+            theme_output["conflict_type"] = "C1_market_reject"
+
+            # 对齐扁平化配置项
+            max_grade_str = theme_params.get("max_grade_risk_off", "C").upper()
+            max_val = GRADE_RANK.get(max_grade_str, 2)
+            current_val = GRADE_RANK.get(str(trade_grade).upper(), 1)
+
+            if current_val > max_val:
+                theme_output["trade_grade"] = max_grade_str
+                theme_output["theme_capped_by_macro"] = True
+                theme_output["macro_override_reason"] = f"RISK_OFF 环境强制削减评级到 {max_grade_str}"
+            else:
+                theme_output["theme_capped_by_macro"] = False
+
+            theme_output["final_trade_cap"] = theme_params.get("final_trade_cap_risk_off", "INTRADAY")
+            theme_output["final_decision_source"] = "mainchain_capped_theme"
+
+        elif macro_regime == "MIXED":
+            theme_output["conflict_flag"] = False
+            theme_output["conflict_type"] = "C2_market_neutral"
+            theme_output["theme_capped_by_macro"] = False
+            theme_output["final_decision_source"] = "theme_only"
+            theme_output["final_trade_cap"] = "1_TO_2_DAYS"
+
+        elif macro_regime is not None:
+            # C3: 宏观顺风 (RISK_ON 或其他有效值)
+            theme_output["conflict_flag"] = False
+            theme_output["conflict_type"] = "C3_market_favorable"
+            theme_output["theme_capped_by_macro"] = False
+            theme_output["final_decision_source"] = "theme_only"
+            theme_output["final_trade_cap"] = payload.get("final_trade_cap", "STANDARD")
+
+        # 主链缺失时的一致性回退 (按规范 L87-L91)
+        if macro_regime is None:
+            missing_cfg = theme_params.get("missing_mainchain", {})
+            theme_output["final_decision_source"] = "theme_only_degraded"
+            theme_output["fallback_reason"] = "MAINCHAIN_MISSING"
+            theme_output["safe_to_consume"] = False
+            theme_output["theme_capped_by_macro"] = True
+            theme_output["final_trade_cap"] = missing_cfg.get("action", "INTRADAY")
+
+        return theme_output
+
     @staticmethod
     def _normalize_direction(raw_direction: Any) -> tuple[str, bool]:
         """
@@ -312,6 +420,7 @@ class WorkflowRunner:
             }
             return result
 
+        start_time = time.time()
         ai_factors = self._resolve_ai_factors(payload)
         score_in = {
             "event_id": payload.get("event_id", f"EXEC-{payload.get('request_id', 'NA')}"),
@@ -395,6 +504,50 @@ class WorkflowRunner:
             }
             return result
         result["risk"] = gate_out.data
+
+        # ================= A2.5 主题副链路由拦截 =================
+        if payload.get("event_scope") == "sector_theme" and payload.get("contract_name") == "theme_catalyst_engine":
+            theme_output = self._apply_theme_routing(payload)
+            macro_regime = theme_output.get("macro_regime")
+            safe_to_consume = theme_output.get("safe_to_consume", False)
+            latency_ms = int((time.time() - start_time) * 1000)
+
+            # 主链优先: RISK_OFF 绝对拦截
+            if macro_regime == "RISK_OFF":
+                if ThemeObservabilityLogger:
+                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "blocked", latency_ms)
+                result["final"] = {
+                    "action": "BLOCK",
+                    "reason": "RISK_OFF 环境拦截，主链优先给上限",
+                    "trace_id": trace_id,
+                    "request_id": request_id,
+                    "batch_id": batch_id,
+                }
+                result["theme_output"] = theme_output
+                self._mark_request_processed(request_id)
+                return result
+
+            # 副链调整: safe_to_consume == True 正常处理
+            elif safe_to_consume:
+                if ThemeObservabilityLogger:
+                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "success", latency_ms)
+                result["theme_output"] = theme_output
+
+            # 副链异常: 降级 WATCH
+            else:
+                if ThemeObservabilityLogger:
+                    ThemeObservabilityLogger.log_observability_event(theme_output, trace_id, "degraded", latency_ms)
+                result["final"] = {
+                    "action": "WATCH",
+                    "reason": f"Theme subchain degraded: {theme_output['fallback_reason']}",
+                    "trace_id": trace_id,
+                    "request_id": request_id,
+                    "batch_id": batch_id,
+                }
+                result["theme_output"] = theme_output
+                self._mark_request_processed(request_id)
+                return result
+        # ================= A2.5 阶段结束 =================
 
         if gate_out.data["final_action"] in ("BLOCK", "FORCE_CLOSE", "WATCH"):
             result["final"] = {
@@ -547,6 +700,14 @@ if __name__ == "__main__":
         "entry_price": 42.5,
         "risk_per_share": 1.5,
         "direction": "long",
+
+        # Theme Catalyst integration fields
+        "event_scope": "sector_theme",
+        "contract_name": "theme_catalyst_engine",
+        "macro_regime": None,
+        "trade_grade": "A",
+        "safe_to_consume": True,
+        "primary_theme": "AI_Infrastructure",
     }
     out = runner.run(sample)
     print(json.dumps(out, indent=2, ensure_ascii=False))

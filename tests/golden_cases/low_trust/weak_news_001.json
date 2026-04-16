@@ -1,4 +1,5 @@
 {
+  "group": "low_trust",
   "case_id": "low_trust_weak_news_001",
   "category": "low_trust",
   "risk_level": "C",
@@ -12,23 +13,65 @@
   },
   "scenario": {
     "transmission_paths": [
-      {"path_id": "weak_narr", "path_name": "weak_narrative", "path_type": "narrative", "confidence": 68.0},
-      {"path_id": "weak_fund", "path_name": "uncertain_fundamental", "path_type": "fundamental", "confidence": 46.0},
-      {"path_id": "weak_asset", "path_name": "uncertain_asset", "path_type": "asset_pricing", "confidence": 48.0}
+      {
+        "path_id": "weak_narr",
+        "path_name": "weak_narrative",
+        "path_type": "narrative",
+        "confidence": 68.0
+      },
+      {
+        "path_id": "weak_fund",
+        "path_name": "uncertain_fundamental",
+        "path_type": "fundamental",
+        "confidence": 46.0
+      },
+      {
+        "path_id": "weak_asset",
+        "path_name": "uncertain_asset",
+        "path_type": "asset_pricing",
+        "confidence": 48.0
+      }
     ],
     "sectors": [
-      {"name": "金融", "direction": "WATCH", "impact_score": 0.5, "confidence": 0.52}
+      {
+        "name": "金融",
+        "direction": "WATCH",
+        "impact_score": 0.5,
+        "confidence": 0.52
+      }
     ],
     "stock_candidates": [
-      {"symbol": "JPM", "sector": "金融", "direction": "WATCH", "event_beta": 0.9}
+      {
+        "symbol": "JPM",
+        "sector": "金融",
+        "direction": "WATCH",
+        "event_beta": 0.9
+      }
     ],
-    "asset_validation": {"score": 52}
+    "asset_validation": {
+      "score": 52
+    }
   },
   "expect": {
-    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
-    "allowed_signals": ["WATCH"],
-    "forbidden_signals": ["LONG", "SHORT"],
-    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "required_fields": [
+      "source_rank",
+      "dominant_path",
+      "mixed_regime",
+      "opportunities",
+      "state_machine_step",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "WATCH"
+    ],
+    "forbidden_signals": [
+      "LONG",
+      "SHORT"
+    ],
+    "expected_path_types_any_of": [
+      "fundamental",
+      "asset_pricing"
+    ],
     "max_final_action": "WATCH",
     "allow_empty_opportunities": false,
     "must_have_gate_reason_code": true

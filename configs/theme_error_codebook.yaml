@@ -1,0 +1,91 @@
+---
+version: v1.0
+contract_name: theme_catalyst_engine
+owner_team: member_b
+status: normative
+description: Error and fallback rules for theme catalyst gating.
+required_output_fields:
+  - contract_name
+  - contract_version
+  - producer_module
+  - status
+  - error_code
+  - fallback_reason
+  - degraded_mode
+  - safe_to_consume
+  - retryable
+  - missing_dependencies
+codes:
+  CONFIG_MISSING:
+    status: failed
+    error_code: CONFIG_MISSING
+    fallback_reason: CONFIG_MISSING
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: false
+    missing_dependencies:
+      - config
+  CONFIG_INVALID:
+    status: failed
+    error_code: CONFIG_INVALID
+    fallback_reason: CONFIG_INVALID
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: false
+    missing_dependencies:
+      - config
+  THEME_MAPPING_FAILED:
+    status: failed
+    error_code: THEME_MAPPING_FAILED
+    fallback_reason: THEME_MAPPING_FAILED
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: false
+    missing_dependencies:
+      - theme_mapping
+  BASKET_EMPTY:
+    status: degraded
+    error_code: BASKET_EMPTY
+    fallback_reason: BASKET_EMPTY
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: true
+    missing_dependencies:
+      - basket
+  MARKET_DATA_MISSING:
+    status: degraded
+    error_code: MARKET_DATA_MISSING
+    fallback_reason: MARKET_DATA_MISSING
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: true
+    missing_dependencies:
+      - market_data
+  VALIDATION_SKIPPED:
+    status: failed
+    error_code: VALIDATION_SKIPPED
+    fallback_reason: VALIDATION_SKIPPED
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: false
+    missing_dependencies:
+      - validation
+  STATE_ENGINE_INSUFFICIENT_DATA:
+    status: degraded
+    error_code: STATE_ENGINE_INSUFFICIENT_DATA
+    fallback_reason: STATE_ENGINE_INSUFFICIENT_DATA
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: true
+    current_state: FIRST_IMPULSE
+    missing_dependencies:
+      - state_history
+  DOWNSTREAM_OUTPUT_DEGRADED:
+    status: degraded
+    error_code: DOWNSTREAM_OUTPUT_DEGRADED
+    fallback_reason: DOWNSTREAM_OUTPUT_DEGRADED
+    degraded_mode: true
+    safe_to_consume: false
+    retryable: true
+    missing_dependencies:
+      - downstream_consumer

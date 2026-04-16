@@ -96,6 +96,44 @@
         "type": "string",
         "enum": ["Narrative-Driven", "Fact-Driven"],
         "description": "叙事/事实驱动模式"
+      },
+      "theme_output": {
+        "type": "object",
+        "description": "主题副链输出（A2.5，可选），仅用于主链消费约束，不改变主链优先级",
+        "properties": {
+          "event_id": {"type": "string"},
+          "event_scope": {"type": "string", "const": "sector_theme"},
+          "primary_theme": {"type": "string"},
+          "current_state": {
+            "type": "string",
+            "enum": ["FIRST_IMPULSE", "CONTINUATION", "EXHAUSTION", "DEAD"]
+          },
+          "continuation_probability": {"type": "number", "minimum": 0, "maximum": 1},
+          "trade_grade": {"type": "string", "enum": ["A", "B", "C", "D"]},
+          "candidate_audit_pool": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "conflict_flag": {"type": "boolean"},
+          "conflict_type": {
+            "type": "string",
+            "enum": ["C1_market_reject", "C2_market_neutral", "C3_market_favorable", "unknown"]
+          },
+          "final_decision_source": {
+            "type": "string",
+            "enum": ["mainchain_only", "mainchain_capped_theme", "theme_only_degraded", "theme_only"]
+          },
+          "macro_regime": {"type": "string", "enum": ["RISK_OFF", "MIXED", "RISK_ON"]},
+          "theme_capped_by_macro": {"type": "boolean"},
+          "macro_override_reason": {"type": "string"},
+          "final_trade_cap": {"type": "string", "enum": ["INTRADAY", "1_TO_2_DAYS", "STANDARD"]},
+          "contract_name": {"type": "string"},
+          "contract_version": {"type": "string"},
+          "producer_module": {"type": "string"},
+          "safe_to_consume": {"type": "boolean"},
+          "fallback_reason": {"type": "string"},
+          "error_code": {"type": "string"}
+        }
       }
     }
   },

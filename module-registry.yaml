@@ -149,6 +149,12 @@ registry:
     dependencies: [SignalScorer, LiquidityChecker]
     config: edt-modules-config.yaml
     test_case: tests/test_risk_gatekeeper.yaml
+    acceptance_case: tests/test_theme_e2e_acceptance.py
+    contract_artifacts:
+      - schemas/theme_contract_mapping.yaml
+      - schemas/theme_contract_envelope.yaml
+      - tests/acceptance/theme_e2e_samples.yaml
+      - tests/test_theme_contract_owner_artifacts.py
     
   - name: PositionSizer
     version: 1.0.0

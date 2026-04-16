@@ -45,6 +45,13 @@ except Exception as exc:  # noqa: BLE001
 from phase3_evidence_ledger import Phase3EvidenceLedger
 from data_adapter import DataAdapter
 from canary_source_health import CanarySourceHealth
+from theme_gate_policy import (
+    REQUIRED_CONTRACT_FIELDS,
+    apply_theme_gate_constraints,
+    load_theme_error_codebook,
+    validate_theme_contract,
+    validate_theme_error_codebook,
+)
 
 
 STATUS_ORDER = {"GREEN": 0, "YELLOW": 1, "RED": 2}
@@ -245,6 +252,77 @@ def check_config() -> CheckResult:
         result.summary = "SourceRanker is not consuming ranking config correctly."
         result.errors.append("Expected Reuters to resolve to rank `B`.")
 
+    return result
+
+
+def check_theme_gate() -> CheckResult:
+    result = CheckResult(name="THEME_GATE", status="GREEN", summary="Theme gate codebook and intercept rules are healthy.")
+    codebook_path = ROOT / "configs" / "theme_error_codebook.yaml"
+    if not codebook_path.exists():
+        result.status = "RED"
+        result.summary = "Theme error codebook is missing."
+        result.errors.append(str(codebook_path))
+        return result
+
+    try:
+        codebook = load_theme_error_codebook(codebook_path)
+    except Exception as exc:  # noqa: BLE001
+        result.status = "RED"
+        result.summary = "Theme error codebook is unreadable."
+        result.errors.append(str(exc))
+        return result
+
+    codebook_errors = validate_theme_error_codebook(codebook)
+    if codebook_errors:
+        result.status = "RED"
+        result.summary = "Theme error codebook is incomplete."
+        result.errors.extend(codebook_errors)
+        return result
+
+    result.evidence.append(f"required_codes={len(codebook.get('codes', {}))}")
+    result.evidence.append(f"required_contract_fields={','.join(REQUIRED_CONTRACT_FIELDS)}")
+
+    unsafe_sample = {
+        "contract_name": "theme_catalyst_engine",
+        "contract_version": "v1.0",
+        "producer_module": "theme_engine",
+        "safe_to_consume": False,
+        "error_code": "CONFIG_MISSING",
+        "fallback_reason": "CONFIG_MISSING",
+        "degraded_mode": True,
+        "trade_grade": "B",
+        "conflict_flag": False,
+    }
+    unsafe_gate = apply_theme_gate_constraints(unsafe_sample)
+    unsafe_errors = validate_theme_contract(unsafe_gate)
+    if unsafe_errors:
+        result.status = "RED"
+        result.summary = "Unsafe theme output is not downgraded correctly."
+        result.errors.extend(unsafe_errors)
+        return result
+
+    conflict_sample = {
+        "contract_name": "theme_catalyst_engine",
+        "contract_version": "v1.0",
+        "producer_module": "theme_engine",
+        "safe_to_consume": True,
+        "error_code": "THEME_MAPPING_FAILED",
+        "fallback_reason": "THEME_MAPPING_FAILED",
+        "degraded_mode": True,
+        "trade_grade": "A",
+        "conflict_flag": True,
+    }
+    conflict_gate = apply_theme_gate_constraints(conflict_sample)
+    conflict_errors = validate_theme_contract(conflict_gate)
+    if conflict_errors or str(conflict_gate.get("trade_grade", "")).upper() == "A":
+        result.status = "RED"
+        result.summary = "Conflict flag is not blocking A-grade output correctly."
+        result.errors.extend(conflict_errors or ["conflict_flag still allows A-grade through"])
+        return result
+
+    result.evidence.append(f"unsafe_final_action={unsafe_gate.get('final_action')}")
+    result.evidence.append(f"conflict_trade_grade={conflict_gate.get('trade_grade')}")
+    result.evidence.append(f"conflict_final_action={conflict_gate.get('final_action')}")
     return result
 
 
@@ -587,6 +665,7 @@ def run_project_checks(mode: str = "dev", skip_env_check: bool = False) -> list[
         checks.append(check_env())
     checks.extend([
         check_config(),
+        check_theme_gate(),
         check_theme_obs(),
         check_chain(),
         check_contract(),

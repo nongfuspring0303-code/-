@@ -1,0 +1,39 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Theme Contract Envelope
+description: 主题副链输出信包契约（Contract Versioning & Compatibility 工程化落地）
+
+envelope:
+  contract_name:
+    type: string
+    const: theme_catalyst_engine
+  contract_version:
+    type: string
+    const: v1.0
+  producer_module:
+    type: string
+    const: theme_engine
+
+compatibility_policy:
+  non_breaking_changes:
+    - 新增可空字段
+    - 新增下游不依赖穷举的枚举值
+    - 新增附加说明字段
+  breaking_changes:
+    - 删除字段
+    - 修改字段语义
+    - 修改字段类型
+    - 修改枚举含义
+    - 修改缺省行为
+
+compatibility_window:
+  required_for_breaking_change: true
+  recommended_window: 1_minor_version
+
+change_flow:
+  - 提出变更
+  - 标注breaking_or_non_breaking
+  - 更新主文档
+  - 更新schema
+  - 更新mapping
+  - 完成E2E验收
+  - 合并

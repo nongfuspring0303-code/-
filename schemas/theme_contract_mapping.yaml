@@ -1,0 +1,130 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Theme Contract Mapping Schema
+description: 主题板块催化持续性引擎字段映射表（Consumer Contract Mapping 工程化落地）
+version: v1.0
+alignment:
+  frozen_contract_aligned: true
+  consumer_mapping_table_aligned: true
+  base_legacy_field_count: 15
+  output_envelope_extensions: [contract_name, contract_version, producer_module]
+  effective_field_count: 17
+
+fields:
+  - field: primary_theme
+    source_module: theme_mapper
+    consumer_modules: [盘前, 个股, 统一裁决]
+    nullable: false
+    purpose: 主题识别
+    on_missing: 拒绝高置信消费
+
+  - field: current_state
+    source_module: continuation_engine
+    consumer_modules: [盘中, 过夜, 统一裁决]
+    nullable: false
+    purpose: 状态判断
+    on_missing: 降级为观察
+
+  - field: continuation_probability
+    source_module: continuation_engine
+    consumer_modules: [盘前, 盘中]
+    nullable: true
+    purpose: 延续概率
+    on_missing: 不参与排序
+
+  - field: trade_grade
+    source_module: trade_adapter
+    consumer_modules: [盘前, 个股, 统一裁决]
+    nullable: false
+    purpose: 交易评级
+    on_missing: 视为D
+
+  - field: candidate_audit_pool
+    source_module: trade_adapter
+    consumer_modules: [个股审计]
+    nullable: true
+    purpose: 审计优先池
+    on_missing: 空列表
+
+  - field: conflict_flag
+    source_module: routing_merge
+    consumer_modules: [统一裁决, 盘前]
+    nullable: false
+    purpose: 冲突判断
+    on_missing: 视为true并拦截
+
+  - field: conflict_type
+    source_module: routing_merge
+    consumer_modules: [统一裁决, 盘前]
+    nullable: true
+    purpose: 冲突分类
+    on_missing: 记录为unknown_conflict
+
+  - field: final_decision_source
+    source_module: routing_merge
+    consumer_modules: [统一裁决]
+    nullable: false
+    purpose: 最终裁决来源
+    on_missing: 视为theme_only_degraded
+
+  - field: macro_regime
+    source_module: main_chain
+    consumer_modules: [统一裁决, 盘前]
+    nullable: false
+    purpose: 宏观风险环境
+    on_missing: 不得默认写入正常宏观状态
+
+  - field: theme_capped_by_macro
+    source_module: routing_merge
+    consumer_modules: [统一裁决]
+    nullable: false
+    purpose: 是否触发主链封顶
+    on_missing: 默认false
+
+  - field: macro_override_reason
+    source_module: main_chain
+    consumer_modules: [统一裁决]
+    nullable: true
+    purpose: 主链覆盖原因
+    on_missing: 记录为unknown_override_reason
+
+  - field: final_trade_cap
+    source_module: routing_merge
+    consumer_modules: [统一裁决, 执行前审查]
+    nullable: false
+    purpose: 评级/周期封顶结果
+    on_missing: 默认INTRADAY
+
+  - field: fallback_reason
+    source_module: all_modules
+    consumer_modules: [全部消费端]
+    nullable: true
+    purpose: 降级解释
+    on_missing: 记录为unknown_fallback
+
+  - field: safe_to_consume
+    source_module: all_modules
+    consumer_modules: [全部消费端]
+    nullable: false
+    purpose: 安全消费开关
+    on_missing: 默认false
+
+  - field: contract_name
+    source_module: output_envelope
+    consumer_modules: [全部消费端]
+    nullable: false
+    purpose: 契约识别
+    on_missing: 拒绝消费
+
+  - field: contract_version
+    source_module: output_envelope
+    consumer_modules: [全部消费端]
+    nullable: false
+    purpose: 版本兼容判定
+    on_missing: 拒绝消费
+
+  - field: producer_module
+    source_module: output_envelope
+    consumer_modules: [全部消费端]
+    nullable: false
+    purpose: 生产方追踪
+    on_missing: 拒绝消费

@@ -1,4 +1,5 @@
 {
+  "group": "macro",
   "case_id": "macro_tight_mixed_regime_001",
   "category": "macro",
   "risk_level": "A",
@@ -12,23 +13,65 @@
   },
   "scenario": {
     "transmission_paths": [
-      {"path_id": "mixed_fund", "path_name": "policy_uncertainty_fundamental", "path_type": "fundamental", "confidence": 73.0},
-      {"path_id": "mixed_asset", "path_name": "volatility_regime_repricing", "path_type": "asset_pricing", "confidence": 72.0},
-      {"path_id": "mixed_narr", "path_name": "central_bank_confusion", "path_type": "narrative", "confidence": 58.0}
+      {
+        "path_id": "mixed_fund",
+        "path_name": "policy_uncertainty_fundamental",
+        "path_type": "fundamental",
+        "confidence": 73.0
+      },
+      {
+        "path_id": "mixed_asset",
+        "path_name": "volatility_regime_repricing",
+        "path_type": "asset_pricing",
+        "confidence": 72.0
+      },
+      {
+        "path_id": "mixed_narr",
+        "path_name": "central_bank_confusion",
+        "path_type": "narrative",
+        "confidence": 58.0
+      }
     ],
     "sectors": [
-      {"name": "金融", "direction": "WATCH", "impact_score": 0.62, "confidence": 0.60}
+      {
+        "name": "金融",
+        "direction": "WATCH",
+        "impact_score": 0.62,
+        "confidence": 0.6
+      }
     ],
     "stock_candidates": [
-      {"symbol": "JPM", "sector": "金融", "direction": "WATCH", "event_beta": 0.9}
+      {
+        "symbol": "JPM",
+        "sector": "金融",
+        "direction": "WATCH",
+        "event_beta": 0.9
+      }
     ],
-    "asset_validation": {"score": 70}
+    "asset_validation": {
+      "score": 70
+    }
   },
   "expect": {
-    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
-    "allowed_signals": ["WATCH"],
-    "forbidden_signals": ["LONG", "SHORT"],
-    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "required_fields": [
+      "source_rank",
+      "dominant_path",
+      "mixed_regime",
+      "opportunities",
+      "state_machine_step",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "WATCH"
+    ],
+    "forbidden_signals": [
+      "LONG",
+      "SHORT"
+    ],
+    "expected_path_types_any_of": [
+      "fundamental",
+      "asset_pricing"
+    ],
     "max_final_action": "WATCH",
     "allow_empty_opportunities": false,
     "must_have_gate_reason_code": true,

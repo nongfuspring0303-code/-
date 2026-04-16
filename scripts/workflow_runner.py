@@ -333,7 +333,7 @@ class WorkflowRunner:
             "conflict_type": "unknown_conflict",
             "final_decision_source": "theme_only",
             "theme_capped_by_macro": False,
-            "final_trade_cap": "INTRADAY",
+            "final_trade_cap": payload.get("final_trade_cap", "STANDARD"),
         }
 
         # 核心主副链路由逻辑
@@ -361,6 +361,7 @@ class WorkflowRunner:
             theme_output["conflict_type"] = "C2_market_neutral"
             theme_output["theme_capped_by_macro"] = False
             theme_output["final_decision_source"] = "theme_only"
+            theme_output["final_trade_cap"] = "1_TO_2_DAYS"
 
         elif macro_regime is not None:
             # C3: 宏观顺风 (RISK_ON 或其他有效值)
@@ -368,6 +369,7 @@ class WorkflowRunner:
             theme_output["conflict_type"] = "C3_market_favorable"
             theme_output["theme_capped_by_macro"] = False
             theme_output["final_decision_source"] = "theme_only"
+            theme_output["final_trade_cap"] = payload.get("final_trade_cap", "STANDARD")
 
         # 主链缺失时的一致性回退 (按规范 L87-L91)
         if macro_regime is None:

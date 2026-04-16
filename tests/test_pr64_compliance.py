@@ -63,6 +63,34 @@ class TestPR64Compliance(unittest.TestCase):
         self.assertEqual(obs_blocked['route_hit_rate'], 0)
         self.assertEqual(obs_blocked['route_reject_rate'], 1)
 
+        # 测试 degraded
+        obs_degraded = ThemeObservabilityLogger.log_observability_event(theme_output, "TRC-3", "degraded")
+        self.assertEqual(obs_degraded['route_hit_rate'], 0)
+        self.assertEqual(obs_degraded['route_reject_rate'], 0)
+
+    def test_final_trade_cap_policy_by_macro_regime(self):
+        """证明 final_trade_cap 按主链分支显式赋值，不依赖隐式默认值"""
+        out_risk_off = self.runner._apply_theme_routing({
+            "macro_regime": "RISK_OFF",
+            "trade_grade": "A",
+            "primary_theme": "AI_Infrastructure",
+        })
+        self.assertEqual(out_risk_off["final_trade_cap"], "INTRADAY")
+
+        out_mixed = self.runner._apply_theme_routing({
+            "macro_regime": "MIXED",
+            "trade_grade": "B",
+            "primary_theme": "AI_Infrastructure",
+        })
+        self.assertEqual(out_mixed["final_trade_cap"], "1_TO_2_DAYS")
+
+        out_risk_on = self.runner._apply_theme_routing({
+            "macro_regime": "RISK_ON",
+            "trade_grade": "B",
+            "primary_theme": "AI_Infrastructure",
+        })
+        self.assertEqual(out_risk_on["final_trade_cap"], "STANDARD")
+
     def test_conflict_type_default(self):
         """证明冲突类型口径：缺省值应为 unknown_conflict"""
         # 当 macro_regime 为 None 时，进入缺失主链逻辑，应保留初始 unknown_conflict

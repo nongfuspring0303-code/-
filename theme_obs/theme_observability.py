@@ -14,6 +14,26 @@ SLO_SPEC = {
 
 class ThemeObservabilityLogger:
     @staticmethod
+    def _compute_replay_consistency(theme_output: Dict[str, Any]) -> tuple[Any, str]:
+        """Compute replay consistency from available runtime evidence."""
+        replay_match = theme_output.get("replay_match")
+        if isinstance(replay_match, bool):
+            return (1.0 if replay_match else 0.0), "replay_match_flag"
+
+        total = theme_output.get("replay_total")
+        mismatch = theme_output.get("replay_mismatch")
+        if isinstance(total, int) and total > 0 and isinstance(mismatch, int) and mismatch >= 0:
+            rate = max(0.0, min(1.0, (total - mismatch) / total))
+            return rate, "replay_counter"
+
+        expected_hash = theme_output.get("replay_expected_hash")
+        actual_hash = theme_output.get("replay_actual_hash")
+        if expected_hash is not None and actual_hash is not None:
+            return (1.0 if str(expected_hash) == str(actual_hash) else 0.0), "replay_hash_compare"
+
+        return None, "replay_unavailable"
+
+    @staticmethod
     def log_observability_event(theme_output: Dict[str, Any], trace_id: str, route_result: str, latency_ms: int = 0):
         """
         Record standard Observability & SLO metrics for theme engine (A2.5).
@@ -24,6 +44,7 @@ class ThemeObservabilityLogger:
         grade = theme_output.get("trade_grade", "D")
         state = theme_output.get("current_state", "DEAD")
         has_theme = theme_output.get("primary_theme", "unknown") != "unknown"
+        replay_consistency_rate, replay_consistency_mode = ThemeObservabilityLogger._compute_replay_consistency(theme_output)
         
         obs = {
             # 基础字段
@@ -33,6 +54,10 @@ class ThemeObservabilityLogger:
             "e2e_latency_ms": latency_ms,
             "safe_to_consume": safe,
             "fallback_reason": theme_output.get("fallback_reason", "none"),
+            "route_result": route_result,
+            "mapping_result": "mapped" if has_theme else "mapping_failed",
+            "validation_result": "validated" if safe else "degraded",
+            "state_result": state,
             
             # --- 核心 SLI (按文档 Observability & SLO Spec 要求) ---
             # 路由层
@@ -46,7 +71,8 @@ class ThemeObservabilityLogger:
             # 验证层
             "basket_confirmation_rate": 1 if (safe and has_theme) else 0,
             "market_data_missing_rate": 1 if theme_output.get("error_code") == "MARKET_DATA_MISSING" else 0,
-            "replay_consistency_rate": 1.0, # Placeholder for C-side, as it only runs logic.
+            "replay_consistency_rate": replay_consistency_rate,
+            "replay_consistency_mode": replay_consistency_mode,
             
             # 状态层
             "state_distribution": state,

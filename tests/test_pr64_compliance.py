@@ -67,6 +67,34 @@ class TestPR64Compliance(unittest.TestCase):
         obs_degraded = ThemeObservabilityLogger.log_observability_event(theme_output, "TRC-3", "degraded")
         self.assertEqual(obs_degraded['route_hit_rate'], 0)
         self.assertEqual(obs_degraded['route_reject_rate'], 0)
+        self.assertEqual(obs_degraded['route_result'], "degraded")
+        self.assertIn(obs_degraded["mapping_result"], ("mapped", "mapping_failed"))
+        self.assertIn(obs_degraded["validation_result"], ("validated", "degraded"))
+        self.assertEqual(obs_degraded["state_result"], "CONTINUATION")
+
+    def test_observability_replay_consistency_computation(self):
+        """证明 replay_consistency_rate 非占位，支持可计算与降级输出"""
+        base = {
+            "safe_to_consume": True,
+            "trade_grade": "B",
+            "current_state": "CONTINUATION",
+            "primary_theme": "AI",
+        }
+        obs_match = ThemeObservabilityLogger.log_observability_event(
+            {**base, "replay_match": True}, "TRC-4", "success"
+        )
+        self.assertEqual(obs_match["replay_consistency_rate"], 1.0)
+        self.assertEqual(obs_match["replay_consistency_mode"], "replay_match_flag")
+
+        obs_counter = ThemeObservabilityLogger.log_observability_event(
+            {**base, "replay_total": 10, "replay_mismatch": 2}, "TRC-5", "success"
+        )
+        self.assertEqual(obs_counter["replay_consistency_rate"], 0.8)
+        self.assertEqual(obs_counter["replay_consistency_mode"], "replay_counter")
+
+        obs_degraded = ThemeObservabilityLogger.log_observability_event(base, "TRC-6", "success")
+        self.assertIsNone(obs_degraded["replay_consistency_rate"])
+        self.assertEqual(obs_degraded["replay_consistency_mode"], "replay_unavailable")
 
     def test_final_trade_cap_policy_by_macro_regime(self):
         """证明 final_trade_cap 按主链分支显式赋值，不依赖隐式默认值"""

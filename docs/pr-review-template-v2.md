@@ -10,17 +10,34 @@
 7. 不得直接合并，必须 PR 审核通过后再合并。
 8. 未确认最新 head 和最新 diff 的审查结论，不得作为最终 approve 依据。
 9. 优先处理边界问题：若 PR 标题/职责/实际 diff 严重错位，应先收口边界再继续细审实现。
+10. Ghost Logic（幽灵逻辑）零容忍：字段若仅被赋值但不参与下游控制流/最终输出，按缺陷处理。
+11. 枚举/状态映射必须全集覆盖：禁止用未授权的静默兜底吞掉新增状态。
+12. 测试必须可追踪到规则：新增测试需 Test ID 与规则 ID 绑定，历史测试需完成规则映射。
 
 ## 0. 审查元信息（含版本核验）
 - PR：`#【编号】`
+- PR 标题：`【title】`
 - 审查时间：`【YYYY-MM-DD HH:mm】`
+- 审查人：`【name】`
 - Base 分支：`【main/xxx】`
+- Head 分支：`【branch】`
 - 最新 Head SHA：`【sha】`
 - 变更文件数：`【N】`
 - CI 状态：`【SUCCESS/FAIL/IN_PROGRESS】`
+- 当前是否复审：`是/否`
+- 若复审，上轮结论：`【结论】`
 - 最新 diff 核验命令：`git diff origin/main...HEAD`
 - 脏 diff 核验命令：`git diff --check`
 - 结论是否基于最新 head：`是/否`
+
+建议先执行的核验命令：
+```bash
+git fetch origin --prune
+git status --short --branch
+git log --oneline -n 5
+git diff --name-status origin/main...HEAD
+git diff --check
+```
 
 ## 1. PR 类型与职责边界判定（先做）
 - PR 类型：`docs-only / docs+implementation / implementation-only / runtime-workflow / contract-registry / mixed`
@@ -60,17 +77,20 @@
 判定规则：
 - 找不到明确约束语法（if/assert/map），视为未实现。
 - 只有注释无约束实现，视为未实现。
+- Ghost Logic 判定：代码中存在孤立赋值，且该变量未在下游控制流（if/assert/map）或最终输出字段中生效，按 BLOCKER 处理。
 
 ## 5. 自动化测试“零信任”审计（强制）
-| 测试文件 | 验证目标 | 是否有独立断言 | 是否覆盖边界/非法值 | 是否覆盖最终输出 | 结果 |
-| --- | --- | --- | --- | --- | --- |
-| 【test path】 | 【验证什么】 | 是/否 | 是/否 | 是/否 | 通过/不通过 |
+| Test ID | 规则ID | 测试文件 | 验证目标 | 是否有独立断言 | 是否覆盖边界/非法值 | 是否覆盖最终输出 | 结果 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T-001 | R-001 | 【test path】 | 【验证什么】 | 是/否 | 是/否 | 是/否 | 通过/不通过 |
 
 必须检查：
 - 极端边界是否有独立断言（示例：`evidence_grade == "C"`）。
 - 非法枚举是否有阻断/归一化断言（示例：非法 `event_type`）。
 - 是否覆盖 hard gate/fallback/degraded 路径。
 - 是否仅“跑通”而无业务语义断言。
+- 新增测试必须包含 Test ID，并可追溯到对应规则 ID。
+- 历史测试若无 Test ID，至少要补“规则ID -> 测试断言”映射表。
 
 ## 6. 变量生命周期末端推演（Dry-Run，强制）
 | 起点变量 | 中间链路 | 末端字段（ActionCard/落盘） | 是否强约束生效 | 结论 |
@@ -94,6 +114,7 @@
 判定规则：
 - 出现 `unknown / N/A / default` 等白名单外值，默认 MAJOR。
 - 白名单外值进入主流程/下游消费/审计关键字段，可升 BLOCKER。
+- 映射函数（Transformer/Mapper）必须显式穷举 Enum 全集；禁止用未授权 fallback（如 `N/A`）静默吞掉新增状态。
 
 ## 8. 配置真源一致性审查
 结论：`通过/不通过`
@@ -151,6 +172,7 @@
   - unsafe/conflict 等关键风险可穿透。
   - replay/idempotency 不可信。
   - PR 标题/职责与实际改动严重错位并影响审计归属。
+  - Ghost Logic：关键变量仅赋值、不参与下游控制流或最终输出。
 - MAJOR：
   - 文档/代码/测试三方不一致。
   - 核心字段、枚举、状态映射未闭环。

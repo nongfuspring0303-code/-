@@ -1,0 +1,85 @@
+{
+  "case_id": "geopolitics_strait_shipping_001",
+  "category": "geopolitics",
+  "risk_level": "A",
+  "description": "V2.1 Standard: Shipping lane disruption. Should trigger risk-blocked WATCH logic.",
+  "input": {
+    "event_id": "EVT-GEO-20260415-006",
+    "event_type": "geopolitics",
+    "event_time": "2026-04-15T09:50:00Z",
+    "headline": "Unexpected incident disrupts major strait shipping flows",
+    "raw_text": "Container and tanker routes are delayed, driving transport and insurance risk. High uncertainty on resolution timeline.",
+    "source_type": "wire",
+    "source_url": "https://apnews.com/world-news",
+    "timestamp": "2026-04-15T09:50:00Z",
+    "a0_event_strength": 76.0,
+    "expectation_gap": 0.0,
+    "event_state": "Developing",
+    "confidence": 0.85,
+    "transmission_candidates": [
+      {
+        "factor": "Freight Repricing",
+        "logic": "Insurance and delay costs increase"
+      }
+    ],
+    "risk_flags": [
+      "supply_chain_block",
+      "uncertainty_high"
+    ],
+    "evidence_spans": [
+      "Container and tanker routes are delayed",
+      "High uncertainty"
+    ],
+    "evidence_grade": "A"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {
+        "path_id": "strait_asset",
+        "path_name": "freight_repricing",
+        "path_type": "asset_pricing",
+        "confidence": 76.0
+      }
+    ],
+    "sectors": [
+      {
+        "name": "工业",
+        "direction": "SHORT",
+        "impact_score": 0.75,
+        "confidence": 0.8
+      }
+    ],
+    "stock_candidates": [
+      {
+        "symbol": "CAT",
+        "sector": "工业",
+        "direction": "SHORT",
+        "event_beta": 0.9
+      }
+    ],
+    "asset_validation": {
+      "score": 55
+    },
+    "risk_blocked": true
+  },
+  "expect": {
+    "required_fields": [
+      "source_rank",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "SHORT",
+      "WATCH"
+    ],
+    "forbidden_signals": [
+      "LONG"
+    ],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true,
+    "expected_path_types_any_of": [
+      "asset_pricing",
+      "fundamental"
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "case_id": "earnings_sector_mismatch_001",
+  "category": "earnings",
+  "risk_level": "A",
+  "description": "V2.1 Standard: Positive stock news but hostile sector environment. Should produce conservative WATCH/C-grade.",
+  "input": {
+    "event_id": "EVT-TECH-20260415-003",
+    "event_type": "earnings",
+    "event_time": "2026-04-15T21:00:00Z",
+    "headline": "Meta Platforms beats earnings but warns of advertising headwinds",
+    "raw_text": "The company reported strong quarterly results but guided lower for next quarter citing macro uncertainty in digital advertising. Overall sector sentiment is extremely bearish.",
+    "source_type": "wire",
+    "source_url": "https://www.reuters.com/technology/meta-earnings/",
+    "timestamp": "2026-04-15T21:00:00Z",
+    "a0_event_strength": 75.0,
+    "expectation_gap": 5.0,
+    "event_state": "Peak",
+    "confidence": 0.88,
+    "transmission_candidates": [
+      {"factor": "Mixed Ad Recovery", "logic": "Volume up but CPM pricing down"},
+      {"factor": "Cost Discipline", "logic": "OpEx cuts supporting EPS beat"}
+    ],
+    "risk_flags": ["sector_headwinds", "valuation_resistance"],
+    "evidence_spans": ["guided lower for next quarter", "extremely bearish"],
+    "evidence_grade": "A"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "meta_fund", "path_name": "mixed_earnings_fundamental", "path_type": "fundamental", "confidence": 75.0}
+    ],
+    "sectors": [
+      {"name": "科技", "direction": "SHORT", "impact_score": 0.85, "confidence": 0.9}
+    ],
+    "stock_candidates": [
+      {"symbol": "META", "sector": "科技", "direction": "LONG", "event_beta": 1.1}
+    ],
+    "asset_validation": {"score": 65}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "gate_reason_code"],
+    "allowed_signals": ["WATCH", "AVOID"],
+    "forbidden_signals": ["EXECUTE"],
+    "expected_path_types_any_of": ["fundamental"],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

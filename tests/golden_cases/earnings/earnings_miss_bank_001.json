@@ -1,0 +1,48 @@
+{
+  "case_id": "earnings_miss_bank_001",
+  "category": "earnings",
+  "risk_level": "A",
+  "description": "V2.1 Standard: Bank earnings miss with disappointing guidance. High fundamental confidence.",
+  "input": {
+    "event_id": "EVT-BANK-20260415-002",
+    "event_type": "earnings",
+    "event_time": "2026-04-15T19:40:00Z",
+    "headline": "Major US bank misses earnings estimates",
+    "raw_text": "Net interest income and credit quality trends disappointed analysts. Provision for credit losses increased by 20% QoQ.",
+    "source_type": "wire",
+    "source_url": "https://www.wsj.com/finance",
+    "timestamp": "2026-04-15T19:40:00Z",
+    "a0_event_strength": 78.0,
+    "expectation_gap": -8.5,
+    "event_state": "Initial",
+    "confidence": 0.95,
+    "transmission_candidates": [
+      {"factor": "Credit Cycle Risk", "logic": "Higher provisions signaling economic slowing"},
+      {"factor": "NII Pressure", "logic": "Margin compression from rate volatility"}
+    ],
+    "risk_flags": ["credit_deterioration"],
+    "evidence_spans": ["increased by 20% QoQ", "disappointed analysts"],
+    "evidence_grade": "A"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "bank_fund", "path_name": "credit_fundamental", "path_type": "fundamental", "confidence": 85.0}
+    ],
+    "sectors": [
+      {"name": "金融", "direction": "SHORT", "impact_score": 0.85, "confidence": 0.9}
+    ],
+    "stock_candidates": [
+      {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.3, "realtime_price": 180.0}
+    ],
+    "asset_validation": {"score": 88}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "gate_reason_code"],
+    "allowed_signals": ["SHORT", "WATCH"],
+    "forbidden_signals": ["LONG"],
+    "expected_path_types_any_of": ["fundamental"],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

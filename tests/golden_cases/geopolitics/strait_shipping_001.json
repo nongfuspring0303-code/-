@@ -1,0 +1,37 @@
+{
+  "case_id": "geopolitics_strait_shipping_001",
+  "category": "geopolitics",
+  "risk_level": "A",
+  "description": "Shipping lane disruption should avoid risk-on long bias.",
+  "input": {
+    "headline": "Unexpected incident disrupts major strait shipping flows",
+    "raw_text": "Container and tanker routes are delayed, driving transport and insurance risk.",
+    "source_type": "wire",
+    "source_url": "https://apnews.com/world-news",
+    "timestamp": "2026-04-15T09:50:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "strait_asset", "path_name": "freight_repricing", "path_type": "asset_pricing", "confidence": 76.0},
+      {"path_id": "strait_fund", "path_name": "supply_chain_fundamental", "path_type": "fundamental", "confidence": 75.0},
+      {"path_id": "strait_narr", "path_name": "fear_narrative", "path_type": "narrative", "confidence": 66.0}
+    ],
+    "sectors": [
+      {"name": "工业", "direction": "SHORT", "impact_score": 0.65, "confidence": 0.62}
+    ],
+    "stock_candidates": [
+      {"symbol": "CAT", "sector": "工业", "direction": "SHORT", "event_beta": 0.9}
+    ],
+    "asset_validation": {"score": 55},
+    "risk_blocked": true
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["SHORT", "WATCH"],
+    "forbidden_signals": ["LONG"],
+    "expected_path_types_any_of": ["asset_pricing", "fundamental"],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

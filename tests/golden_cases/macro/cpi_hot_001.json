@@ -1,0 +1,36 @@
+{
+  "case_id": "macro_cpi_hot_001",
+  "category": "macro",
+  "risk_level": "A",
+  "description": "Hot CPI should bias risk-off and avoid long-first output.",
+  "input": {
+    "headline": "US CPI comes in hotter than expected",
+    "raw_text": "Inflation data exceeded consensus, reinforcing tighter financial conditions.",
+    "source_type": "wire",
+    "source_url": "https://www.reuters.com/world/us/",
+    "timestamp": "2026-04-15T12:30:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "cpi_fund", "path_name": "inflation_fundamental", "path_type": "fundamental", "confidence": 78.0},
+      {"path_id": "cpi_asset", "path_name": "yield_repricing", "path_type": "asset_pricing", "confidence": 76.0},
+      {"path_id": "cpi_narr", "path_name": "inflation_narrative", "path_type": "narrative", "confidence": 60.0}
+    ],
+    "sectors": [
+      {"name": "科技", "direction": "SHORT", "impact_score": 0.77, "confidence": 0.81}
+    ],
+    "stock_candidates": [
+      {"symbol": "MSFT", "sector": "科技", "direction": "SHORT", "event_beta": 1.1, "realtime_price": 445.0}
+    ],
+    "asset_validation": {"score": 80}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["SHORT", "WATCH"],
+    "forbidden_signals": ["LONG"],
+    "expected_path_types_any_of": ["fundamental", "asset_pricing"],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

@@ -283,9 +283,20 @@ function handleEventUpdate(payload, options = {}) {
     STATE.news.unshift(event);
     trimArray(STATE.news, MAX_NEWS_ITEMS);
     trimArray(STATE.events, MAX_NEWS_ITEMS);
+    
+    // 新新闻到达时，设置当前选中的新闻
+    if (!STATE.selectedNews) {
+      STATE.selectedNews = event;
+    }
   }
   STATE.lastNewsAt = event.timestamp || event.news_timestamp || null;
   updateLastNewsAt(STATE.lastNewsAt);
+  
+  // 自动选择最新新闻，触发推导链显示
+  if (STATE.news.length > 0 && STATE.selectedNews && STATE.selectedNews.id === traceId) {
+    selectNews(traceId);
+  }
+  
   if (shouldRender) renderNews();
 }
 
@@ -301,9 +312,8 @@ function handleSectorUpdate(payload, options = {}) {
 
   STATE.sectorsByTrace[sectorData.trace_id] = sectorData;
   rememberTrace(traceId);
-  if (!STATE.selectedNews || STATE.selectedNews.id === sectorData.trace_id) {
-    STATE.sectors = sectorData;
-  }
+  
+  // 不自动更新，只存储
   if (shouldRender) renderSectors();
 }
 
@@ -318,10 +328,9 @@ function handleOpportunityUpdate(payload, options = {}) {
 
   STATE.opportunitiesByTrace[opportunityData.trace_id] = opportunityData;
   rememberTrace(traceId);
-  if (!STATE.selectedNews || STATE.selectedNews.id === opportunityData.trace_id) {
-    STATE.opportunities = opportunityData;
-  }
-  if (shouldRender) renderOpportunities();
+  
+  // 不自动更新，只存储
+  if (shouldRender) renderSectors();
 }
 
 function generateTraceId() {
@@ -430,8 +439,19 @@ function selectNews(id) {
   if (!news) return;
   
   STATE.selectedNews = news;
-  STATE.sectors = STATE.sectorsByTrace[id] || { trace_id: id, sectors: [], conduction_chain: [] };
-  STATE.opportunities = STATE.opportunitiesByTrace[id] || { trace_id: id, opportunities: [] };
+  
+  // 直接用最新的 sector/opportunity 数据
+  const allSectors = Object.values(STATE.sectorsByTrace);
+  const sectorData = allSectors[allSectors.length - 1] || null;
+  
+  let oppData = null;
+  if (sectorData) {
+    oppData = STATE.opportunitiesByTrace[sectorData.trace_id] || null;
+  }
+  
+  STATE.sectors = sectorData || { trace_id: id, sectors: [], conduction_chain: [] };
+  STATE.opportunities = oppData || { trace_id: id, opportunities: [] };
+  
   renderNews();
   renderSectors();
   renderOpportunities();
@@ -445,24 +465,131 @@ function renderSectors(filter = 'all') {
     return;
   }
   
+  const newsItem = STATE.selectedNews;
+  const opportunitiesData = STATE.opportunities;
+  
   let sectors = STATE.sectors.sectors;
   if (filter !== 'all') {
     sectors = sectors.filter(s => s.direction === filter);
   }
   
-  container.innerHTML = sectors.map(sector => `
-    <div class="sector-card ${escapeHtml(String(sector.direction || '').toLowerCase())}" 
-         data-sector-name="${escapeHtml(sector.name)}">
-      <div class="sector-name">
-        ${escapeHtml(sector.name)}
-        <span class="sector-impact">${escapeHtml((sector.impact_score * 100).toFixed(0))}%</span>
-        <span class="sector-dir">${escapeHtml(sector.direction)}</span>
+  container.innerHTML = sectors.map(sector => {
+    const sectorOpps = opportunitiesData.opportunities ? 
+      opportunitiesData.opportunities.filter(o => o.sector === sector.name) : [];
+    return `
+      <div class="sector-card ${escapeHtml(String(sector.direction || '').toLowerCase())}" 
+           data-sector-name="${escapeHtml(sector.name)}">
+        ${renderDerivationChain(newsItem, sector, sectorOpps)}
       </div>
-      <div class="sector-confidence">置信度: ${escapeHtml(((sector.confidence || 0.9) * 100).toFixed(0))}%</div>
-      ${renderConductionChain(sector)}
-    </div>
-  `).join('');
+    `;
+  }).join('');
   bindSectorInteractions();
+}
+
+function renderDerivationChain(newsItem, sector, sectorOpps) {
+  let html = '';
+  
+  // AI 语义层
+  if (newsItem) {
+    html += `
+      <div class="derivation-layer ai-layer">
+        <div class="layer-title">🧠 AI 语义分析</div>
+        <div class="layer-content">
+          <div class="news-headline">${escapeHtml(newsItem.headline_cn || newsItem.headline || '')}</div>
+          <div class="ai-verdict">
+            <span class="verdict-label">判定:</span>
+            <span class="verdict-value ${escapeHtml(newsItem.ai_verdict || '')}">${escapeHtml(newsItem.ai_verdict || '-')}</span>
+            <span class="confidence-value">置信度: ${escapeHtml(newsItem.ai_confidence || '0')}</span>
+          </div>
+          ${newsItem.ai_reason ? `<div class="ai-reason">${escapeHtml(newsItem.ai_reason)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  // 板块传导层
+  html += `
+    <div class="derivation-layer sector-layer">
+      <div class="layer-title">🔥 板块传导</div>
+      <div class="layer-content">
+        <div class="sector-info">
+          <span class="sector-name">${escapeHtml(sector.name)}</span>
+          <span class="sector-dir ${escapeHtml(String(sector.direction || '').toLowerCase())}">${escapeHtml(sector.direction || '-')}</span>
+        </div>
+        <div class="sector-metrics">
+          <span class="metric">影响: ${escapeHtml(((sector.impact_score || 0) * 100).toFixed(0))}%</span>
+          <span class="metric">置信度: ${escapeHtml(((sector.confidence || 0) * 100).toFixed(0))}%</span>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // 股票筛选层（即使被拦截也显示）
+  if (sectorOpps && sectorOpps.length > 0) {
+    html += `
+      <div class="derivation-layer stock-layer">
+        <div class="layer-title">🎯 股票筛选</div>
+        <div class="layer-content">
+          ${sectorOpps.map(opp => renderOppEvidence(opp)).join('')}
+        </div>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="derivation-layer stock-layer">
+        <div class="layer-title">🎯 股票筛选</div>
+        <div class="layer-content">
+          <div class="no-opp">无候选股票</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  return html;
+}
+
+function renderOppEvidence(opp) {
+  // score_breakdown 解析
+  const breakdown = opp.score_breakdown || {};
+  const scores = [];
+  if (breakdown.event_exposure !== undefined) scores.push(`事件暴露: ${breakdown.event_exposure}`);
+  if (breakdown.event_relevance !== undefined) scores.push(`事件相关: ${breakdown.event_relevance}`);
+  if (breakdown.relative_strength !== undefined) scores.push(`相对强度: ${breakdown.relative_strength}`);
+  if (breakdown.liquidity_score !== undefined) scores.push(`流动性: ${breakdown.liquidity_score}`);
+  if (breakdown.risk_filter_score !== undefined) scores.push(`风险过滤: ${breakdown.risk_filter_score}`);
+  
+  // risk_flags 解析
+  const riskFlags = (opp.risk_flags || []).map(f => 
+    `<span class="risk-flag ${escapeHtml(String(f.level || '').toLowerCase())}">${escapeHtml(f.description || f.type || '')}</span>`
+  ).join(' ');
+  
+  // final_action 样式
+  const actionClass = (opp.final_action || '').toLowerCase();
+  const actionIcon = actionClass === 'execute' ? '✅' : actionClass === 'watch' ? '👀' : '⛔';
+  
+  return `
+    <div class="opp-evidence">
+      <div class="opp-header">
+        <span class="opp-symbol">${escapeHtml(opp.symbol || '')}</span>
+        <span class="opp-name">${escapeHtml(opp.name || '')}</span>
+      </div>
+      <div class="opp-metrics">
+        <span class="signal ${escapeHtml(String(opp.signal || '').toLowerCase())}">${escapeHtml(opp.signal || '-')}</span>
+        <span class="score">分数: ${escapeHtml(opp.score_100 !== undefined ? opp.score_100.toFixed(2) : '-')}</span>
+        <span class="confidence">置信度: ${escapeHtml(((opp.confidence || 0) * 100).toFixed(0))}%</span>
+      </div>
+      ${scores.length > 0 ? `<div class="score-breakdown">${scores.join(' | ')}</div>` : ''}
+      <div class="gate-result ${actionClass}">
+        <span class="action-icon">${actionIcon}</span>
+        <span class="action-label">最终决策:</span>
+        <span class="action-value ${actionClass}">${escapeHtml(opp.final_action || '-')}</span>
+        ${opp.gate_reason_code ? `<span class="gate-code">[${escapeHtml(opp.gate_reason_code)}]</span>` : ''}
+      </div>
+      ${opp.reasoning ? `<div class="reasoning">${escapeHtml(opp.reasoning)}</div>` : ''}
+      ${riskFlags ? `<div class="risk-flags">${riskFlags}</div>` : ''}
+      ${opp.state_machine_step ? `<div class="step">状态机: ${escapeHtml(opp.state_machine_step)}</div>` : ''}
+    </div>
+  `;
 }
 
 function renderConductionChain(sector) {

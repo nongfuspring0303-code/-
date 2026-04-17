@@ -1,0 +1,36 @@
+{
+  "case_id": "macro_weak_narrative_strong_asset_001",
+  "category": "macro",
+  "risk_level": "A",
+  "description": "Narrative path is weak but asset_pricing is strong. Asset_pricing should dominate despite narrative being present.",
+  "input": {
+    "headline": "Treary yield curve inverts sharply as bond market prices aggressive tightening",
+    "raw_text": "The 2-year/10-year spread reached its deepest inversion in years, driven by bond market positioning rather than policy announcements.",
+    "source_type": "wire",
+    "source_url": "https://www.bloomberg.com/markets/rates-bonds",
+    "timestamp": "2026-04-15T11:00:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "yield_asset", "path_name": "yield_curve_strong_signal", "path_type": "asset_pricing", "confidence": 86.0},
+      {"path_id": "yield_fund", "path_name": "monetary_transmission_fundamental", "path_type": "fundamental", "confidence": 70.0},
+      {"path_id": "yield_narr", "path_name": "yield_curve_weak_headline", "path_type": "narrative", "confidence": 52.0}
+    ],
+    "sectors": [
+      {"name": "金融", "direction": "SHORT", "impact_score": 0.84, "confidence": 0.86}
+    ],
+    "stock_candidates": [
+      {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.3}
+    ],
+    "asset_validation": {"score": 85}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "state_machine_step", "gate_reason_code"],
+    "allowed_signals": ["SHORT", "WATCH"],
+    "forbidden_signals": ["LONG"],
+    "expected_path_types_any_of": ["asset_pricing", "fundamental"],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

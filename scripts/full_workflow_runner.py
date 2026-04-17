@@ -222,12 +222,16 @@ class FullWorkflowRunner:
             "rejected_paths": path_out.get("rejected_paths", []),
             "sector_confirmation": validation_out.get("sector_confirmation", "weak"),
             "leader_confirmation": validation_out.get("leader_confirmation", "unconfirmed"),
+            "macro_confirmation": validation_out.get("macro_confirmation", "neutral"),
             "macro_state": (
                 "risk-on"
                 if validation_out.get("macro_confirmation") == "supportive"
                 else "risk-off" if validation_out.get("macro_confirmation") == "hostile" else "mixed"
             ),
-            "target_bucket": "Leader" if path_out.get("target_leader") else "Sector",
+            "target_leader": path_out.get("target_leader", []),
+            "target_etf": path_out.get("target_etf", []),
+            "target_sector": path_out.get("target_sector", []),
+            "target_followers": path_out.get("target_followers", []),
             "correlation": payload.get("execution_correlation", 0.55),
             "vix": payload.get("vix"),
             "ted": payload.get("ted"),

@@ -257,3 +257,54 @@ def test_semantic_analyzer_uses_model_from_config(tmp_path, monkeypatch):
 
     assert out["verdict"] == "hit"
     assert captured["json"]["model"] == "glm-4.7-flash-custom"
+
+
+def test_semantic_analyzer_hit_when_transmission_candidates_present(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    min_confidence: 70\n",
+        encoding="utf-8",
+    )
+    analyzer = SemanticAnalyzer(config_path=str(cfg))
+
+    def _candidate_only(*_args, **_kwargs):
+        return {
+            "event_type": "tariff",
+            "sentiment": "negative",
+            "confidence": 88,
+            "recommended_chain": "",
+            "transmission_candidates": ["import_cost", "export_margin"],
+            "evidence_spans": ["Tariff increased by 25% on selected imports."],
+            "risk_flags": [],
+            "provider": "mock_provider",
+            "latency_ms": 9,
+        }
+
+    monkeypatch.setattr(analyzer, "_call_provider", _candidate_only)
+    out = analyzer.analyze("Tariff shock", "US raises tariff rates")
+    assert out["verdict"] == "hit"
+    assert out["event_state"] in {"Initial", "Developing", "Peak", "Fading", "Dead"}
+    assert out["transmission_candidates"] == ["import_cost", "export_margin"]
+
+
+def test_semantic_analyzer_normalizes_unknown_event_type_to_other(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    min_confidence: 10\n",
+        encoding="utf-8",
+    )
+    analyzer = SemanticAnalyzer(config_path=str(cfg))
+
+    def _invalid_event_type(*_args, **_kwargs):
+        return {
+            "event_type": "completely_invalid_type",
+            "sentiment": "neutral",
+            "confidence": 90,
+            "recommended_chain": "any_chain",
+            "provider": "mock_provider",
+            "latency_ms": 8,
+        }
+
+    monkeypatch.setattr(analyzer, "_call_provider", _invalid_event_type)
+    out = analyzer.analyze("headline", "raw")
+    assert out["event_type"] == "other"

@@ -7,7 +7,8 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 
 import requests
 
@@ -17,6 +18,26 @@ ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 
 
 class SemanticAnalyzer:
+    ALLOWED_EVENT_TYPES = {
+        "tariff",
+        "geo_political",
+        "earnings",
+        "monetary",
+        "energy",
+        "shipping",
+        "industrial",
+        "tech",
+        "healthcare",
+        "regulatory",
+        "merger",
+        "inflation",
+        "commodity",
+        "credit",
+        "natural_disaster",
+        "pandemic",
+        "other",
+    }
+
     def __init__(self, config_path: str | None = None):
         self.config = ConfigCenter(config_path=config_path)
         self.model_name = self._model_name() or "glm-4.7-flash"
@@ -103,6 +124,12 @@ class SemanticAnalyzer:
             "semantic_status": "fallback",
             "latency_ms": int(max(0, latency_ms)),
             "fallback_reason": fallback_reason,
+            "a0_event_strength": 0,
+            "expectation_gap": 0,
+            "event_state": "Initial",
+            "transmission_candidates": [],
+            "evidence_spans": [],
+            "risk_flags": [fallback_reason] if fallback_reason else [],
         }
 
     def _coerce_output(self, payload: Dict[str, Any], provider: str, latency_ms: int) -> Dict[str, Any]:
@@ -118,7 +145,7 @@ class SemanticAnalyzer:
             parsed_latency = latency_ms
 
         output = {
-            "event_type": str(payload.get("event_type", "unknown") or "unknown"),
+            "event_type": self._normalize_event_type(payload.get("event_type", "other")),
             "sentiment": str(payload.get("sentiment", "neutral") or "neutral"),
             "confidence": confidence,
             "recommended_chain": str(payload.get("recommended_chain", "") or ""),
@@ -130,8 +157,107 @@ class SemanticAnalyzer:
             "semantic_status": str(payload.get("semantic_status", "") or ""),
             "latency_ms": int(max(0, parsed_latency)),
             "fallback_reason": str(payload.get("fallback_reason", "") or ""),
+            "a0_event_strength": self._clamp_int(payload.get("a0_event_strength", confidence), 0, 100, confidence),
+            "expectation_gap": self._clamp_int(payload.get("expectation_gap", 0), -100, 100, 0),
+            "event_state": self._normalize_event_state(payload.get("event_state") or payload.get("narrative_stage"), ""),
+            "transmission_candidates": payload.get("transmission_candidates", []),
+            "evidence_spans": payload.get("evidence_spans", []),
+            "risk_flags": payload.get("risk_flags", []),
         }
+        if not isinstance(output["transmission_candidates"], list):
+            output["transmission_candidates"] = []
+        output["transmission_candidates"] = [str(x) for x in output["transmission_candidates"] if str(x).strip()][:3]
+        if not isinstance(output["evidence_spans"], list):
+            output["evidence_spans"] = []
+        output["evidence_spans"] = [str(x) for x in output["evidence_spans"] if str(x).strip()][:3]
+        if not isinstance(output["risk_flags"], list):
+            output["risk_flags"] = []
+        output["risk_flags"] = [str(x) for x in output["risk_flags"] if str(x).strip()]
         return output
+
+    @classmethod
+    def _normalize_event_type(cls, raw_type: Any) -> str:
+        event_type = str(raw_type or "").strip().lower()
+        return event_type if event_type in cls.ALLOWED_EVENT_TYPES else "other"
+
+    @staticmethod
+    def _clamp_int(value: Any, low: int, high: int, default: int) -> int:
+        try:
+            parsed = int(float(value))
+        except (TypeError, ValueError):
+            parsed = default
+        return max(low, min(high, parsed))
+
+    @staticmethod
+    def _normalize_event_state(raw_state: Any, text: str) -> str:
+        mapping = {
+            "initial": "Initial",
+            "developing": "Developing",
+            "peak": "Peak",
+            "fading": "Fading",
+            "dead": "Dead",
+            "continuation": "Developing",
+            "exhaustion": "Peak",
+        }
+        state = str(raw_state or "").strip().lower()
+        if state in mapping:
+            return mapping[state]
+        lower = text.lower()
+        if any(k in lower for k in ["resolved", "cancelled", "辟谣", "失效", "终止"]):
+            return "Dead"
+        if any(k in lower for k in ["surge", "spike", "高潮", "拥挤"]):
+            return "Peak"
+        if any(k in lower for k in ["cooling", "回落", "衰退", "fading"]):
+            return "Fading"
+        return "Initial"
+
+    @staticmethod
+    def _event_strength(confidence: int, verdict: str) -> int:
+        boost = 8 if verdict == "hit" else -12
+        return max(0, min(100, confidence + boost))
+
+    @staticmethod
+    def _expectation_gap(sentiment: str, confidence: int, headline: str) -> int:
+        sign = 0
+        s = str(sentiment or "").lower()
+        if s == "positive":
+            sign = 1
+        elif s == "negative":
+            sign = -1
+        base = max(0, min(100, confidence))
+        text = (headline or "").lower()
+        if any(k in text for k in ["unexpected", "surprise", "超预期", "意外", "unexpectedly"]):
+            base = min(100, base + 10)
+        return int(sign * base)
+
+    @staticmethod
+    def _evidence_spans(headline: str, raw_text: str) -> List[str]:
+        spans: List[str] = []
+        if headline:
+            spans.append(str(headline).strip())
+        for chunk in str(raw_text or "").replace("\n", " ").split("."):
+            piece = chunk.strip()
+            if len(piece) >= 18:
+                spans.append(piece)
+            if len(spans) >= 3:
+                break
+        return spans[:3]
+
+    @staticmethod
+    def _transmission_candidates(event_type: str, sentiment: str) -> List[str]:
+        et = str(event_type or "").lower()
+        s = str(sentiment or "").lower()
+        if et in {"tariff", "trade_talks"}:
+            return ["import_cost", "export_margin", "supply_chain"]
+        if et in {"monetary", "inflation"}:
+            return ["real_rate", "usd_liquidity", "duration_asset"]
+        if et in {"energy", "geo_political"}:
+            return ["oil_price", "shipping_cost", "defense_demand"]
+        if s == "positive":
+            return ["risk_appetite", "sector_rotation", "leader_momentum"]
+        if s == "negative":
+            return ["risk_aversion", "valuation_compression", "liquidity_tightening"]
+        return ["market_attention", "headline_sensitivity"]
 
     def _call_provider(
         self,
@@ -167,7 +293,7 @@ class SemanticAnalyzer:
                 "reason": "deterministic keyword match",
             }
         return {
-            "event_type": "unknown",
+            "event_type": "other",
             "sentiment": "neutral",
             "confidence": 50,
             "recommended_chain": "",
@@ -176,49 +302,31 @@ class SemanticAnalyzer:
         }
 
     def _call_glm_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
-        prompt = f"""分析这条金融新闻，判断是否影响金融市场，返回纯JSON。
+        prompt = f"""You are an Event Object extractor for an event-driven trading system.
 
-sentiment 定义（基于对股票市场的直接影响）：
-- positive: 利好股市（如降息、财政刺激、超预期财报、并购利好、流动性宽松）
-- negative: 利空股市（如加息、衰退担忧、地缘冲突、监管收紧、流动性紧缩）
-- neutral: 中性影响（如中性政策、无重大影响）
+STRICT OUTPUT CONTRACT:
+- Return ONE JSON object only. No markdown, no prose.
+- DO NOT output trade decision, path decision, or final routing.
+- You may only output transmission_candidates (<=3) as candidate factors.
 
-重要规则：
-1. 关注事件对市场的直接影响，而非事件发生的原因
-2. 货币政策：降息/量化宽松 = positive（流动性宽松）；加息/量化紧缩 = negative（流动性收紧）
-3. 财报：超预期 = positive；不及预期 = negative；符合预期 = neutral
-4. 地缘政治：冲突升级 = negative；和平谈判 = positive
-5. 监管政策：放松监管 = positive；加强监管 = negative
+Required fields:
+- event_type: one of [tariff, geo_political, earnings, monetary, energy, shipping, industrial, tech, healthcare, regulatory, merger, inflation, commodity, credit, natural_disaster, pandemic, other]
+- sentiment: one of [positive, negative, neutral]
+- confidence: integer 0..100
+- a0_event_strength: integer 0..100
+- expectation_gap: integer -100..100
+- event_state: one of [Initial, Developing, Peak, Fading, Dead]
+- transmission_candidates: array of short strings, 0..3 items, candidate-only (NOT final path)
+- evidence_spans: array of short source snippets, 1..3 items
+- risk_flags: array of strings (can be empty)
+- reason: short sentence
 
-event_type 可选：
-- tariff: 关税、贸易战
-- geo_political: 地缘政治、军事冲突
-- earnings: 财报、业绩
-- monetary: 央行、利率
-- energy: 能源、油气
-- shipping: 航运、海运
-- industrial: 工业、制造
-- tech: 科技
-- healthcare: 医疗
-- regulatory: 监管政策、法规
-- merger: 并购、重组
-- inflation: 通胀
-- commodity: 大宗商品
-- credit: 信用违约、债券
-- natural_disaster: 自然灾害
-- pandemic: 疫情、公共卫生
-- other: 其他
+Forbidden fields:
+- primary_path, dominant_path, trade_decision, position_tier, action_card, route_decision, final_path
 
-confidence: 0-100
-recommended_chain: 推荐的分析链（可选）
-recommended_stocks: 推荐的股票列表（可选），格式为股票代码数组，如["NVDA","AAPL","MSFT"]
-
-示例：
-{{"event_type":"monetary","sentiment":"positive","confidence":90,"recommended_chain":"rate_cut_chain","recommended_stocks":["NVDA","AAPL"],"reason":"美联储降息，流动性宽松，利好科技股"}}
-
-新闻：{text}
-
-只返回JSON，不要解释。"""
+News text:
+{text}
+"""
 
         api_key = self._api_key()
         if not api_key:
@@ -264,16 +372,22 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
                 try:
                     parsed = json.loads(content)
                     return {
-                        "event_type": parsed.get("event_type", "unknown"),
+                        "event_type": self._normalize_event_type(parsed.get("event_type", "other")),
                         "sentiment": parsed.get("sentiment", "neutral"),
                         "confidence": parsed.get("confidence", 50),
                         "recommended_chain": parsed.get("recommended_chain", ""),
                         "recommended_stocks": parsed.get("recommended_stocks", []),
+                        "a0_event_strength": parsed.get("a0_event_strength", parsed.get("confidence", 50)),
+                        "expectation_gap": parsed.get("expectation_gap", 0),
+                        "event_state": parsed.get("event_state", parsed.get("narrative_stage", "Initial")),
+                        "transmission_candidates": parsed.get("transmission_candidates", []),
+                        "evidence_spans": parsed.get("evidence_spans", []),
+                        "risk_flags": parsed.get("risk_flags", []),
                         "reason": parsed.get("reason", f"{self.model_name} api response"),
                     }
                 except json.JSONDecodeError:
                     return {
-                        "event_type": "unknown",
+                        "event_type": "other",
                         "sentiment": "neutral",
                         "confidence": 50,
                         "recommended_chain": "",
@@ -282,7 +396,7 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
                     }
 
             return {
-                "event_type": "unknown",
+                "event_type": "other",
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
@@ -292,7 +406,7 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
 
         except requests.exceptions.Timeout:
             return {
-                "event_type": "unknown",
+                "event_type": "other",
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
@@ -301,7 +415,7 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
             }
         except requests.exceptions.RequestException as e:
             return {
-                "event_type": "unknown",
+                "event_type": "other",
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
@@ -310,7 +424,7 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
             }
         except Exception as e:
             return {
-                "event_type": "unknown",
+                "event_type": "other",
                 "sentiment": "neutral",
                 "confidence": 50,
                 "recommended_chain": "",
@@ -324,25 +438,31 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
         timeout_ms = self._timeout_ms()
 
         if not self._enabled():
-            return self._abstain_response(
+            out = self._abstain_response(
                 fallback_reason="semantic_disabled",
                 provider=provider,
                 model=model,
             )
+            out.update(self.analyze_event(headline, raw_text))
+            return out
 
         if self._emergency_disabled():
-            return self._abstain_response(
+            out = self._abstain_response(
                 fallback_reason="emergency_disabled",
                 provider=provider,
                 model=model,
             )
+            out.update(self.analyze_event(headline, raw_text))
+            return out
 
         if not self._full_enabled():
-            return self._abstain_response(
+            out = self._abstain_response(
                 fallback_reason="full_enable_disabled",
                 provider=provider,
                 model=model,
             )
+            out.update(self.analyze_event(headline, raw_text))
+            return out
 
         started = time.perf_counter()
         try:
@@ -355,20 +475,24 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
             )
         except TimeoutError:
             elapsed = int((time.perf_counter() - started) * 1000.0)
-            return self._abstain_response(
+            out = self._abstain_response(
                 fallback_reason="timeout",
                 provider=provider,
                 model=model,
                 latency_ms=elapsed,
             )
+            out.update(self.analyze_event(headline, raw_text))
+            return out
         except Exception:
             elapsed = int((time.perf_counter() - started) * 1000.0)
-            return self._abstain_response(
+            out = self._abstain_response(
                 fallback_reason="provider_error",
                 provider=provider,
                 model=model,
                 latency_ms=elapsed,
             )
+            out.update(self.analyze_event(headline, raw_text))
+            return out
 
         elapsed = int((time.perf_counter() - started) * 1000.0)
         out = self._coerce_output(payload if isinstance(payload, dict) else {}, provider, elapsed)
@@ -380,15 +504,17 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
                 out["fallback_reason"] = "confidence_below_threshold"
             if not out["reason"]:
                 out["reason"] = "confidence below threshold"
+            out.update(self.analyze_event(headline, raw_text, semantic_output=out))
             return out
 
-        if out["recommended_chain"]:
+        if out["recommended_chain"] or out.get("transmission_candidates"):
             out["verdict"] = "hit"
             out["semantic_status"] = "hit"
             if not out["reason"]:
                 out["reason"] = "semantic hit"
             if not out.get("fallback_reason"):
                 out["fallback_reason"] = ""
+            out.update(self.analyze_event(headline, raw_text, semantic_output=out))
             return out
 
         out["verdict"] = "abstain"
@@ -397,4 +523,61 @@ recommended_stocks: 推荐的股票列表（可选），格式为股票代码数
             out["fallback_reason"] = "chain_missing"
         if not out["reason"]:
             out["reason"] = "missing recommended chain"
+        out.update(self.analyze_event(headline, raw_text, semantic_output=out))
         return out
+
+    def analyze_event(
+        self,
+        headline: str,
+        raw_text: str = "",
+        *,
+        semantic_output: Dict[str, Any] | None = None,
+        event_id: str = "",
+        event_time: str = "",
+    ) -> Dict[str, Any]:
+        """Build contract-style EventObject for downstream rule systems."""
+        semantic = semantic_output if isinstance(semantic_output, dict) else {}
+        confidence = self._clamp_int(semantic.get("confidence", 0), 0, 100, 0)
+        sentiment = str(semantic.get("sentiment", "neutral"))
+        event_type = self._normalize_event_type(semantic.get("event_type", "other"))
+        state = self._normalize_event_state(
+            semantic.get("event_state") or semantic.get("narrative_stage"),
+            f"{headline} {raw_text}",
+        )
+        verdict = str(semantic.get("verdict", "abstain"))
+        fallback_reason = str(semantic.get("fallback_reason", "") or "")
+        semantic_candidates = semantic.get("transmission_candidates", [])
+        if not isinstance(semantic_candidates, list):
+            semantic_candidates = []
+        normalized_candidates = [str(x) for x in semantic_candidates if str(x).strip()][:3]
+
+        generated_event_time = event_time
+        if not generated_event_time:
+            generated_event_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+        evidence_grade = "C"
+        if confidence >= 85:
+            evidence_grade = "A"
+        elif confidence >= 70:
+            evidence_grade = "B"
+        elif confidence >= 55:
+            evidence_grade = "B-"
+
+        risk_flags: List[str] = []
+        if fallback_reason:
+            risk_flags.append(fallback_reason)
+        if verdict != "hit":
+            risk_flags.append("semantic_not_hit")
+
+        return {
+            "event_id": str(event_id or ""),
+            "event_type": event_type,
+            "event_time": generated_event_time,
+            "a0_event_strength": self._event_strength(confidence, verdict),
+            "expectation_gap": self._expectation_gap(sentiment, confidence, headline),
+            "event_state": state,
+            "transmission_candidates": normalized_candidates or self._transmission_candidates(event_type, sentiment)[:3],
+            "evidence_grade": evidence_grade,
+            "evidence_spans": self._evidence_spans(headline, raw_text),
+            "risk_flags": risk_flags,
+        }

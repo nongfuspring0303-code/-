@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from conduction_mapper import ConductionMapper
 from fatigue_calculator import FatigueCalculator
+from ai_semantic_analyzer import SemanticAnalyzer
 from intel_modules import IntelPipeline
 from lifecycle_manager import LifecycleManager
 from market_validator import MarketValidator
@@ -23,6 +24,7 @@ from opportunity_score import OpportunityScorer
 from signal_scorer import SignalScorer
 from state_store import EventStateStore
 from workflow_runner import WorkflowRunner
+from transmission_engine.core.path_adjudicator import PathAdjudicator
 
 
 class FullWorkflowRunner:
@@ -37,6 +39,8 @@ class FullWorkflowRunner:
         self.fatigue = FatigueCalculator(config_path=str(fatigue_config_path), state_store=self.state_store)
         self.conduction = ConductionMapper(config_path=config_path)
         self.validation = MarketValidator(config_path=config_path)
+        self.semantic = SemanticAnalyzer(config_path=config_path)
+        self.path_adjudicator = PathAdjudicator(config_path=config_path)
         self.scorer = SignalScorer(config_path=config_path)
         self.opportunity = OpportunityScorer()
         self.execution = WorkflowRunner()
@@ -110,6 +114,41 @@ class FullWorkflowRunner:
             }
         ).data
 
+        semantic_out = self.semantic.analyze(event_object["headline"], payload.get("summary", event_object["headline"]))
+        event_contract = self.semantic.analyze_event(
+            event_object["headline"],
+            payload.get("summary", event_object["headline"]),
+            semantic_output=semantic_out,
+            event_id=event_object["event_id"],
+            event_time=event_object.get("detected_at", event_object.get("updated_at", "")),
+        )
+
+        transmission_paths = [
+            {
+                "path_id": "p1-main",
+                "path_name": " > ".join(conduction_out.get("conduction_path", [])[:3]) or "main_path",
+                "path_type": "fundamental",
+                "confidence": float(conduction_out.get("confidence", 70)),
+                "horizon": "1-5D",
+                "persistence": "medium",
+            },
+            {
+                "path_id": "p2-alt",
+                "path_name": str(semantic_out.get("recommended_chain", "semantic_alt")),
+                "path_type": "asset_pricing",
+                "confidence": max(0.0, float(conduction_out.get("confidence", 70)) - 8.0),
+                "horizon": "1-3D",
+                "persistence": "short",
+            },
+        ]
+        path_out = self.path_adjudicator.run(
+            {
+                "transmission_paths": transmission_paths,
+                "target_sector": [s.get("sector") for s in conduction_out.get("sector_impacts", []) if s.get("sector")],
+                "target_leader": [s.get("symbol") for s in conduction_out.get("stock_candidates", []) if s.get("symbol")][:2],
+            }
+        ).data
+
         signal_out = self.scorer.run(
             {
                 "event_id": event_object["event_id"],
@@ -136,6 +175,9 @@ class FullWorkflowRunner:
             "fatigue": fatigue_out,
             "conduction": conduction_out,
             "market_validation": validation_out,
+            "semantic": semantic_out,
+            "event_object_contract": event_contract,
+            "path_adjudication": path_out,
             "signal": signal_out,
         }
 
@@ -170,6 +212,26 @@ class FullWorkflowRunner:
             "severity": intel_out["event_object"]["severity"],
             "fatigue_index": analysis_out["fatigue"]["fatigue_final"],
             "event_state": analysis_out["lifecycle"]["lifecycle_state"],
+            "a1_market_validation": validation_out.get("a1_market_validation"),
+            "event_type": event_contract.get("event_type", "unknown"),
+            "event_time": event_contract.get("event_time", ""),
+            "event_name": event_object.get("headline", event_object["event_id"]),
+            "evidence_grade": event_contract.get("evidence_grade", "C"),
+            "primary_path": path_out.get("primary_path", {}).get("path_text", "undetermined"),
+            "secondary_paths": [p.get("path_text", "") for p in path_out.get("secondary_paths", [])],
+            "rejected_paths": path_out.get("rejected_paths", []),
+            "sector_confirmation": validation_out.get("sector_confirmation", "weak"),
+            "leader_confirmation": validation_out.get("leader_confirmation", "unconfirmed"),
+            "macro_confirmation": validation_out.get("macro_confirmation", "neutral"),
+            "macro_state": (
+                "risk-on"
+                if validation_out.get("macro_confirmation") == "supportive"
+                else "risk-off" if validation_out.get("macro_confirmation") == "hostile" else "mixed"
+            ),
+            "target_leader": path_out.get("target_leader", []),
+            "target_etf": path_out.get("target_etf", []),
+            "target_sector": path_out.get("target_sector", []),
+            "target_followers": path_out.get("target_followers", []),
             "correlation": payload.get("execution_correlation", 0.55),
             "vix": payload.get("vix"),
             "ted": payload.get("ted"),

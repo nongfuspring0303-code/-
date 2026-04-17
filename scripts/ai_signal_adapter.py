@@ -26,10 +26,18 @@ class AISignalAdapter(EDTModule):
         self.narrative = NarrativeStateRecognizer(cfg)
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
-        required = ["trace_id", "event_id", "evidence_score", "consistency_score", "freshness_score", "confidence"]
-        for key in required:
+        base_required = ["trace_id", "event_id", "confidence"]
+        for key in base_required:
             if key not in input_data:
                 return False, f"Missing required field: {key}"
+        legacy_ready = all(
+            key in input_data for key in ["evidence_score", "consistency_score", "freshness_score"]
+        )
+        v21_ready = all(
+            key in input_data for key in ["a0_event_strength", "expectation_gap", "event_state"]
+        )
+        if not legacy_ready and not v21_ready:
+            return False, "Missing required contract fields: legacy(v1) or event-object(v2.1)"
         return True, None
 
     @staticmethod
@@ -65,8 +73,56 @@ class AISignalAdapter(EDTModule):
             return self._clamp((100.0 - confidence) * 0.6 + (100.0 - consistency) * 0.4)
         return 0.0
 
+    @staticmethod
+    def _normalize_event_state(raw_state: Any) -> str:
+        state = str(raw_state or "").strip().lower()
+        mapping = {
+            "initial": "Initial",
+            "developing": "Developing",
+            "peak": "Peak",
+            "fading": "Fading",
+            "dead": "Dead",
+        }
+        return mapping.get(state, "Initial")
+
+    @staticmethod
+    def _event_state_to_narrative(event_state: str) -> str:
+        mapping = {
+            "Initial": "initial",
+            "Developing": "continuation",
+            "Peak": "decay",
+            "Fading": "decay",
+            "Dead": "invalid",
+        }
+        return mapping.get(event_state, "initial")
+
+    @staticmethod
+    def _expectation_gap_multiplier(gap: Any) -> float:
+        try:
+            g = float(gap)
+        except (TypeError, ValueError):
+            return 1.0
+        g = max(-100.0, min(100.0, g))
+        # [-100,100] -> [0.6,1.4]
+        return round(1.0 + g / 250.0, 3)
+
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
+        event_state = self._normalize_event_state(raw.get("event_state"))
+        narrative_from_event = self._event_state_to_narrative(event_state)
+        if "narrative_state" not in raw:
+            raw = dict(raw)
+            raw["narrative_state"] = narrative_from_event
+        if "evidence_score" not in raw and "a0_event_strength" in raw:
+            raw["evidence_score"] = raw.get("a0_event_strength")
+        if "consistency_score" not in raw and "expectation_gap" in raw:
+            try:
+                gap = abs(float(raw.get("expectation_gap", 0)))
+            except (TypeError, ValueError):
+                gap = 0.0
+            raw["consistency_score"] = min(100.0, max(0.0, gap))
+        if "freshness_score" not in raw:
+            raw["freshness_score"] = raw.get("confidence", 0)
 
         requested_version = raw.get("mapping_version")
         mapping_version, mapping = self._resolve_mapping(str(requested_version) if requested_version else None)
@@ -86,6 +142,8 @@ class AISignalAdapter(EDTModule):
             "A1.5": self._extract_factor(mapping.get("A1.5", "confidence"), raw),
             "A0.5": self._extract_factor(mapping.get("A0.5", "counter_signal_penalty"), raw),
         }
+        a_minus1_multiplier = self._expectation_gap_multiplier(raw.get("expectation_gap"))
+        factors["A-1"] = self._clamp(factors["A-1"] * a_minus1_multiplier)
 
         confidence = self._clamp(raw.get("confidence", 0))
         review_threshold = float(self._get_config("modules.AISignalAdapter.params.review_threshold", 60))
@@ -110,6 +168,8 @@ class AISignalAdapter(EDTModule):
                 "A1": round(factors["A1"], 2),
                 "A1.5": round(factors["A1.5"], 2),
                 "A0.5": round(factors["A0.5"], 2),
+                "expectation_gap_multiplier": a_minus1_multiplier,
+                "event_state": event_state,
                 "base_direction": base_direction,
                 "narrative_state": narrative_state,
                 "mapping_version": mapping_version,

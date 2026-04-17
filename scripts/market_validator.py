@@ -26,6 +26,112 @@ class MarketValidator(EDTModule):
                 return False, f"Missing required field: {key}"
         return True, None
 
+    @staticmethod
+    def _normalize_macro_confirmation(value: Any) -> str:
+        v = str(value or "").strip().lower()
+        if v in {"supportive", "neutral", "hostile"}:
+            return v
+        return ""
+
+    @staticmethod
+    def _normalize_sector_confirmation(value: Any) -> str:
+        v = str(value or "").strip().lower()
+        if v in {"strong", "medium", "weak", "none"}:
+            return v
+        return ""
+
+    @staticmethod
+    def _normalize_leader_confirmation(value: Any) -> str:
+        v = str(value or "").strip().lower()
+        if v in {"confirmed", "partial", "unconfirmed", "failed"}:
+            return v
+        return ""
+
+    @staticmethod
+    def _legacy_state_from_a1(a1: int, linkage_confirmed: Any, price_score: int) -> str:
+        if a1 >= 80:
+            return "validated"
+        if a1 >= 60:
+            return "partially_validated"
+        if linkage_confirmed is False and price_score > 0:
+            return "not_validated"
+        return "counter_validated" if a1 < 20 else "not_validated"
+
+    def _derive_confirmations(self, raw: Dict[str, Any], a1: int) -> Dict[str, Any]:
+        macro = self._normalize_macro_confirmation(raw.get("macro_confirmation"))
+        sector = self._normalize_sector_confirmation(raw.get("sector_confirmation"))
+        leader = self._normalize_leader_confirmation(raw.get("leader_confirmation"))
+
+        if not macro:
+            regime = str(raw.get("macro_regime", "")).strip().upper()
+            if regime == "RISK_OFF":
+                macro = "hostile"
+            elif regime == "RISK_ON":
+                macro = "supportive"
+            else:
+                macro = "supportive" if a1 >= 70 else "neutral"
+
+        if not sector:
+            if a1 >= 80:
+                sector = "strong"
+            elif a1 >= 60:
+                sector = "medium"
+            elif a1 >= 35:
+                sector = "weak"
+            else:
+                sector = "none"
+
+        if not leader:
+            leader_move = float(raw.get("leader_price_change_pct", 0) or 0)
+            leader_vol = float(raw.get("leader_volume_ratio", 0) or 0)
+            if leader_move >= 1.5 and leader_vol >= 1.5:
+                leader = "confirmed"
+            elif leader_move >= 0.5:
+                leader = "partial"
+            elif leader_move <= -0.8:
+                leader = "failed"
+            else:
+                leader = "unconfirmed"
+
+        if macro == "hostile" or sector == "none" or leader == "failed" or a1 < 35:
+            a1_validation = "fail"
+        elif macro == "supportive" and sector in {"strong", "medium"} and leader in {"confirmed", "partial"} and a1 >= 60:
+            a1_validation = "pass"
+        else:
+            a1_validation = "partial"
+
+        positive_signals = []
+        negative_signals = []
+        if macro == "supportive":
+            positive_signals.append("macro_supportive")
+        if sector in {"strong", "medium"}:
+            positive_signals.append(f"sector_{sector}")
+        if leader in {"confirmed", "partial"}:
+            positive_signals.append(f"leader_{leader}")
+
+        if macro == "hostile":
+            negative_signals.append("macro_hostile")
+        if sector in {"weak", "none"}:
+            negative_signals.append(f"sector_{sector}")
+        if leader in {"unconfirmed", "failed"}:
+            negative_signals.append(f"leader_{leader}")
+        if a1_validation == "fail":
+            negative_signals.append("a1_fail_gate")
+
+        reason_text = (
+            f"macro={macro}, sector={sector}, leader={leader}, "
+            f"a1_validation={a1_validation}, a1_score={a1}"
+        )
+        return {
+            "macro_confirmation": macro,
+            "sector_confirmation": sector,
+            "leader_confirmation": leader,
+            "a1_market_validation": a1_validation,
+            "positive_signals": positive_signals,
+            "negative_signals": negative_signals,
+            "reason_text": reason_text,
+        }
+
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
         conduction_output = raw.get("conduction_output", {})
@@ -78,6 +184,8 @@ class MarketValidator(EDTModule):
             state = "not_validated"
         else:
             state = "counter_validated" if a1 < 20 else "not_validated"
+        confirmations = self._derive_confirmations(raw, a1)
+        state = self._legacy_state_from_a1(a1, linkage.get("confirmed"), price_score)
 
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,
@@ -92,6 +200,7 @@ class MarketValidator(EDTModule):
                 "validation_state": state,
                 "failed_checks": failed_checks,
                 "validation_notes": "市场验证按价格、量能、联动、持续性、分化五项计算",
+                **confirmations,
                 "needs_manual_review": False,
                 "audit": {
                     "module": self.name,

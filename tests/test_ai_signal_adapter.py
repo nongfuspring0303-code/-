@@ -64,3 +64,20 @@ def test_ai_signal_adapter_keeps_explicit_schema_version():
     mod = AISignalAdapter()
     out = mod.run(_payload())
     assert out.data["schema_version"] == "ai_intel_v1"
+
+
+def test_ai_signal_adapter_supports_event_object_contract_v21():
+    mod = AISignalAdapter()
+    payload = {
+        "trace_id": "TRC-20260402-1001",
+        "event_id": "ME-C-20260402-777.V1.0",
+        "a0_event_strength": 72,
+        "expectation_gap": 50,
+        "event_state": "Developing",
+        "confidence": 80,
+    }
+    out = mod.run(payload)
+    assert out.data["A0"] == 72
+    assert out.data["event_state"] == "Developing"
+    assert out.data["A-1"] > 50
+    assert out.data["expectation_gap_multiplier"] > 1.0

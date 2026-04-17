@@ -78,6 +78,61 @@ class PathAdjudicator(EDTModule):
             "confidence": self._path_score(path),
         }
 
+    @staticmethod
+    def _tier_for_path(path: Dict[str, Any]) -> str:
+        ptype = str(path.get("path_type", "")).lower()
+        if ptype == "fundamental":
+            return "P1"
+        if ptype == "asset_pricing":
+            return "P2"
+        if ptype == "narrative":
+            return "P3"
+        return "P4"
+
+    def _build_scorecard(self, confidence: float) -> Dict[str, int]:
+        # Keep simple and deterministic for document-driven integration.
+        normalized = max(0.0, min(100.0, confidence))
+        bucket = int(round(normalized / 33.34))
+        bucket = max(0, min(3, bucket))
+        return {
+            "causal_clarity": bucket,
+            "distance": bucket,
+            "tradability": bucket,
+            "liquidity": bucket,
+            "market_likelihood": bucket,
+            "evidence_support": bucket,
+        }
+
+    @staticmethod
+    def _targets_from_inputs(raw: Dict[str, Any], dominant: Dict[str, Any]) -> Dict[str, List[str]]:
+        def _as_list(value: Any) -> List[str]:
+            if isinstance(value, list):
+                return [str(v) for v in value if str(v).strip()]
+            if isinstance(value, str) and value.strip():
+                return [value.strip()]
+            return []
+
+        target_etf = _as_list(raw.get("target_etf"))
+        target_sector = _as_list(raw.get("target_sector"))
+        target_leader = _as_list(raw.get("target_leader"))
+        target_followers = _as_list(raw.get("target_followers"))
+
+        if not (target_etf or target_sector or target_leader or target_followers):
+            path_name = str(dominant.get("path_name", "")).lower()
+            if "energy" in path_name or "oil" in path_name:
+                target_etf = ["XLE"]
+            elif "rate" in path_name or "yield" in path_name:
+                target_etf = ["TLT"]
+            elif path_name:
+                target_sector = [path_name]
+
+        return {
+            "target_etf": target_etf,
+            "target_sector": target_sector,
+            "target_leader": target_leader,
+            "target_followers": target_followers,
+        }
+
     def _rank_paths(self, paths: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         precision = self._precision()
 
@@ -165,6 +220,29 @@ class PathAdjudicator(EDTModule):
             if all(item.get("path_id") != narrative_top["path_id"] for item in suppressed_paths) and narrative_top["path_id"] != dominant.get("path_id"):
                 suppressed_paths = [narrative_top] + suppressed_paths
 
+        primary_path = {
+            "tier": self._tier_for_path(dominant),
+            "path_text": dominant.get("path_name", dominant.get("path_id", "")),
+            **self._build_scorecard(self._as_float(dominant.get("confidence", 0.0))),
+        }
+        secondary_paths = [
+            {
+                "tier": self._tier_for_path(path),
+                "path_text": path.get("path_name", path.get("path_id", "")),
+                "confidence": self._round(self._as_float(path.get("confidence", 0.0)), precision),
+            }
+            for path in competing_paths[:2]
+        ]
+        rejected_paths = [
+            {
+                "path_id": path.get("path_id", ""),
+                "path_text": path.get("name", path.get("path_id", "")),
+                "reason": path.get("reason", "non_dominant_or_guarded"),
+            }
+            for path in suppressed_paths
+        ]
+        targets = self._targets_from_inputs(raw, dominant)
+
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,
             data={
@@ -172,6 +250,10 @@ class PathAdjudicator(EDTModule):
                 "competing_paths": competing_paths,
                 "suppressed_paths": suppressed_paths,
                 "mixed_regime": mixed_regime,
+                "primary_path": primary_path,
+                "secondary_paths": secondary_paths,
+                "rejected_paths": rejected_paths,
+                **targets,
             },
             metadata={
                 "path_count": len(ranked),

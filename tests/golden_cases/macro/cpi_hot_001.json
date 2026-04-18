@@ -1,0 +1,48 @@
+{
+  "case_id": "macro_cpi_hot_001",
+  "category": "macro",
+  "risk_level": "B",
+  "description": "V2.1 Standard: Hot CPI print causing immediate hawkish repricing. High gap impact.",
+  "input": {
+    "event_id": "EVT-MACRO-20260410-002",
+    "event_type": "macro",
+    "event_time": "2026-04-10T12:30:00Z",
+    "headline": "US CPI rises 0.4% in March, exceeding expectations",
+    "raw_text": "Core CPI at 3.8% vs 3.7% expected. Markets slash June rate cut odds to 15%. Yields spike across the curve.",
+    "source_type": "bureau_stats",
+    "source_url": "https://www.bls.gov/",
+    "timestamp": "2026-04-10T12:30:00Z",
+    "a0_event_strength": 85.0,
+    "expectation_gap": 0.1,
+    "event_state": "Initial",
+    "confidence": 1.0,
+    "transmission_candidates": [
+      {"factor": "Yield Curve Shift", "logic": "Higher for longer discount rate impact"},
+      {"factor": "Valuation Compression", "logic": "Direct multiple pressure on high-growth"}
+    ],
+    "risk_flags": ["vix_spike", "regime_shift"],
+    "evidence_spans": ["3.8% vs 3.7% expected", "Markets slash June rate cut odds"],
+    "evidence_grade": "A"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {"path_id": "val_comp", "path_name": "valuation_compression", "path_type": "macro_risk", "confidence": 92.0}
+    ],
+    "sectors": [
+      {"name": "科技", "direction": "SHORT", "impact_score": 0.82, "confidence": 0.85}
+    ],
+    "stock_candidates": [
+      {"symbol": "QQQ", "sector": "科技", "direction": "SHORT", "event_beta": 1.1, "realtime_price": 440.0}
+    ],
+    "asset_validation": {"score": 85}
+  },
+  "expect": {
+    "required_fields": ["source_rank", "dominant_path", "mixed_regime", "opportunities", "gate_reason_code"],
+    "allowed_signals": ["SHORT", "AVOID"],
+    "forbidden_signals": ["LONG"],
+    "expected_path_types_any_of": ["macro_risk"],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

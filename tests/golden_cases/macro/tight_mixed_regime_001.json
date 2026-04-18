@@ -1,0 +1,90 @@
+{
+  "case_id": "macro_tight_mixed_regime_001",
+  "category": "macro",
+  "risk_level": "A",
+  "description": "V2.1 Standard: Ambiguous policy shift. Should trigger mixed_regime detection.",
+  "input": {
+    "event_id": "EVT-FED-20260415-009",
+    "event_type": "macro",
+    "event_time": "2026-04-15T17:00:00Z",
+    "headline": "Central bank signals ambiguous policy shift amid mixed economic data",
+    "raw_text": "Officials gave conflicting signals about future rate moves as employment data is strong but inflation remains elevated. Markets are split on next steps.",
+    "source_type": "official",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomc.htm",
+    "timestamp": "2026-04-15T17:00:00Z",
+    "a0_event_strength": 65.0,
+    "expectation_gap": 0.0,
+    "event_state": "Peak",
+    "confidence": 0.7,
+    "transmission_candidates": [
+      {
+        "factor": "Policy Uncertainty",
+        "logic": "No clear direction, expectation of high volatility"
+      }
+    ],
+    "risk_flags": [
+      "mixed_signals",
+      "volatility_expansion"
+    ],
+    "evidence_spans": [
+      "conflicting signals",
+      "Markets are split"
+    ],
+    "evidence_grade": "A"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {
+        "path_id": "mixed_fund",
+        "path_name": "policy_uncertainty_fundamental",
+        "path_type": "fundamental",
+        "confidence": 75.0
+      },
+      {
+        "path_id": "mixed_asset",
+        "path_name": "volatility_regime_repricing",
+        "path_type": "asset_pricing",
+        "confidence": 74.0
+      }
+    ],
+    "sectors": [
+      {
+        "name": "金融",
+        "direction": "WATCH",
+        "impact_score": 0.65,
+        "confidence": 0.7
+      }
+    ],
+    "stock_candidates": [
+      {
+        "symbol": "JPM",
+        "sector": "金融",
+        "direction": "WATCH",
+        "event_beta": 0.9
+      }
+    ],
+    "asset_validation": {
+      "score": 70
+    }
+  },
+  "expect": {
+    "required_fields": [
+      "source_rank",
+      "dominant_path",
+      "mixed_regime",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "WATCH"
+    ],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true,
+    "must_have_mixed_regime": true,
+    "expected_path_types_any_of": [
+      "fundamental",
+      "asset_pricing"
+    ],
+    "forbidden_signals": []
+  }
+}

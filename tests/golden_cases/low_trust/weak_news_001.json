@@ -1,0 +1,53 @@
+{
+  "case_id": "low_trust_weak_news_001",
+  "category": "other",
+  "risk_level": "B",
+  "description": "V2.1 Standard: Low impact news with low confidence. Should be ignored.",
+  "input": {
+    "event_id": "EVT-WEAK-20260418-003",
+    "event_type": "other",
+    "event_time": "2026-04-18T13:00:00Z",
+    "headline": "Small local tech firm updates office policy",
+    "raw_text": "TechCorp in Seattle announced minor updates to their hybrid work policy.",
+    "source_type": "local_news",
+    "source_url": "https://seattle-local-tech.com/news",
+    "timestamp": "2026-04-18T13:00:00Z",
+    "a0_event_strength": 10.0,
+    "expectation_gap": 0.0,
+    "event_state": "Initial",
+    "confidence": 0.6,
+    "transmission_candidates": [],
+    "risk_flags": [
+      "low_materiality"
+    ],
+    "evidence_spans": [
+      "minor updates"
+    ],
+    "evidence_grade": "B"
+  },
+  "scenario": {
+    "transmission_paths": [],
+    "sectors": [],
+    "stock_candidates": [],
+    "asset_validation": {
+      "score": 30
+    }
+  },
+  "expect": {
+    "required_fields": [
+      "source_rank",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "WATCH"
+    ],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": true,
+    "must_have_gate_reason_code": true,
+    "expected_path_types_any_of": [
+      "undetermined",
+      ""
+    ],
+    "forbidden_signals": []
+  }
+}

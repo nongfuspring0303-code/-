@@ -1,0 +1,80 @@
+{
+  "group": "policy",
+  "case_id": "policy_qe_signal_001",
+  "category": "policy",
+  "risk_level": "A",
+  "description": "QE signal should favor liquidity-sensitive long/watch outcomes.",
+  "input": {
+    "headline": "Central bank signals targeted asset purchases",
+    "raw_text": "Officials communicated a targeted easing and liquidity support stance.",
+    "source_type": "official",
+    "source_url": "https://www.federalreserve.gov/newsevents/speeches.htm",
+    "timestamp": "2026-04-15T15:00:00Z"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {
+        "path_id": "qe_fund",
+        "path_name": "liquidity_fundamental",
+        "path_type": "fundamental",
+        "confidence": 83.0
+      },
+      {
+        "path_id": "qe_asset",
+        "path_name": "risk_asset_repricing",
+        "path_type": "asset_pricing",
+        "confidence": 77.0
+      },
+      {
+        "path_id": "qe_narr",
+        "path_name": "easing_narrative",
+        "path_type": "narrative",
+        "confidence": 57.0
+      }
+    ],
+    "sectors": [
+      {
+        "name": "科技",
+        "direction": "LONG",
+        "impact_score": 0.84,
+        "confidence": 0.88
+      }
+    ],
+    "stock_candidates": [
+      {
+        "symbol": "AAPL",
+        "sector": "科技",
+        "direction": "LONG",
+        "event_beta": 1.1,
+        "realtime_price": 230.0
+      }
+    ],
+    "asset_validation": {
+      "score": 86
+    }
+  },
+  "expect": {
+    "required_fields": [
+      "source_rank",
+      "dominant_path",
+      "mixed_regime",
+      "opportunities",
+      "state_machine_step",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "LONG",
+      "WATCH"
+    ],
+    "forbidden_signals": [
+      "SHORT"
+    ],
+    "expected_path_types_any_of": [
+      "fundamental",
+      "asset_pricing"
+    ],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true
+  }
+}

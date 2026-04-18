@@ -17,6 +17,7 @@ import uuid
 import xml.etree.ElementTree as ET
 import urllib.request
 import urllib.error
+import http.client
 import hashlib
 import json
 import logging
@@ -42,6 +43,9 @@ SINA_DEFAULT_PARAMS = {
 SINA_HEADERS = {
     "User-Agent": "Mozilla/5.0",
     "Referer": "http://finance.sina.com.cn/7x24/",
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Connection": "close",
 }
 
 
@@ -159,6 +163,11 @@ def _safe_fetch(url: str, timeout: int) -> Optional[str]:
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
+    except http.client.IncompleteRead as exc:
+        partial = exc.partial or b""
+        if partial:
+            return partial.decode("utf-8", errors="replace")
+        return None
     except (urllib.error.URLError, TimeoutError, OSError, ValueError):
         return None
 
@@ -400,17 +409,58 @@ class NewsIngestion(EDTModule):
             return []
 
         url = self._get_config("modules.NewsIngestion.params.sina.url", SINA_DEFAULT_URL)
-        params = self._get_config("modules.NewsIngestion.params.sina.params", SINA_DEFAULT_PARAMS)
+        params = dict(self._get_config("modules.NewsIngestion.params.sina.params", SINA_DEFAULT_PARAMS) or {})
+        retries = max(1, int(self._get_config("modules.NewsIngestion.params.retries", 2) or 2))
+
+        # Some regions require these compatibility fields for stable Sina JSON response.
+        params.setdefault("tag_id", 0)
+        params.setdefault("dpc", 1)
+        params.setdefault("pagesize", params.get("page_size", 20))
+
+        candidate_urls: List[str] = [str(url).strip()]
+        if candidate_urls[0].startswith("http://"):
+            candidate_urls.append("https://" + candidate_urls[0][len("http://"):])
 
         try:
             import urllib.parse
 
-            req = urllib.request.Request(
-                f"{url}?{urllib.parse.urlencode(params)}",
-                headers=SINA_HEADERS,
-            )
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+            payload: Dict[str, Any] = {}
+            last_error = ""
+            for attempt in range(1, retries + 1):
+                for endpoint in candidate_urls:
+                    try:
+                        req = urllib.request.Request(
+                            f"{endpoint}?{urllib.parse.urlencode(params)}",
+                            headers=SINA_HEADERS,
+                        )
+                        with urllib.request.urlopen(req, timeout=timeout) as resp:
+                            body = resp.read()
+                        payload = json.loads(body.decode("utf-8", errors="replace"))
+                        if payload:
+                            break
+                    except http.client.IncompleteRead as exc:
+                        # The Sina endpoint occasionally truncates chunked responses.
+                        last_error = f"IncompleteRead({len(exc.partial or b'')})"
+                        partial = exc.partial or b""
+                        if partial:
+                            try:
+                                payload = json.loads(partial.decode("utf-8", errors="replace"))
+                                if payload:
+                                    break
+                            except (TypeError, ValueError):
+                                pass
+                    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
+                        last_error = str(exc)
+                        continue
+                if payload:
+                    break
+                if attempt < retries:
+                    time.sleep(min(1.5, 0.3 * attempt))
+
+            if not payload:
+                if last_error:
+                    logging.warning("NewsIngestion Sina fetch failed after retries: %s", last_error)
+                return []
 
             result_data = payload.get("result", {})
             feed_data = result_data.get("data", {})

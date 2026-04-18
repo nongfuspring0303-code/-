@@ -1,0 +1,56 @@
+{
+  "case_id": "low_trust_pseudo_official_001",
+  "category": "other",
+  "risk_level": "B",
+  "description": "V2.1 Standard: Imitation official source. Should be intercepted by source ranker and grade C.",
+  "input": {
+    "event_id": "EVT-FAKE-20260418-002",
+    "event_type": "other",
+    "event_time": "2026-04-18T12:00:00Z",
+    "headline": "OFFICIAL: Treasury announces debt moratorium",
+    "raw_text": "An unofficial blog 'US-Treasury-Online' claims debt repayment pause. URL looks deceptive.",
+    "source_type": "pseudo_official",
+    "source_url": "http://us-treasury-govt-news.com/release",
+    "timestamp": "2026-04-18T12:00:00Z",
+    "a0_event_strength": 95.0,
+    "expectation_gap": 100.0,
+    "event_state": "Initial",
+    "confidence": 0.05,
+    "transmission_candidates": [],
+    "risk_flags": [
+      "domain_spoofing",
+      "high_severity_fake"
+    ],
+    "evidence_spans": [
+      "unofficial blog",
+      "URL looks deceptive"
+    ],
+    "evidence_grade": "C"
+  },
+  "scenario": {
+    "transmission_paths": [],
+    "sectors": [],
+    "stock_candidates": [],
+    "asset_validation": {
+      "score": 5
+    }
+  },
+  "expect": {
+    "required_fields": [
+      "source_rank",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "AVOID",
+      "WATCH"
+    ],
+    "max_final_action": "WATCH",
+    "allow_empty_opportunities": true,
+    "must_have_gate_reason_code": true,
+    "expected_path_types_any_of": [
+      "undetermined",
+      ""
+    ],
+    "forbidden_signals": []
+  }
+}

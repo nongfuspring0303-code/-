@@ -1,0 +1,84 @@
+{
+  "case_id": "geopolitics_oil_spike_001",
+  "category": "geopolitics",
+  "risk_level": "A",
+  "description": "V2.1 Standard: Real oil supply shock with verified wire news. Should allow execution.",
+  "input": {
+    "event_id": "EVT-GEO-20260415-005",
+    "event_type": "geopolitics",
+    "event_time": "2026-04-15T10:20:00Z",
+    "headline": "Oil jumps after sudden supply disruption",
+    "raw_text": "A regional disruption caused immediate crude supply concerns and price spike. Verified by three major wire services.",
+    "source_type": "wire",
+    "source_url": "https://www.bloomberg.com/markets",
+    "timestamp": "2026-04-15T10:20:00Z",
+    "a0_event_strength": 86.0,
+    "expectation_gap": 4.5,
+    "event_state": "Initial",
+    "confidence": 0.92,
+    "transmission_candidates": [
+      {
+        "factor": "Commodity Repricing",
+        "logic": "Direct spot price impact on producers"
+      }
+    ],
+    "risk_flags": [
+      "inflationary_pressure"
+    ],
+    "evidence_spans": [
+      "immediate crude supply concerns",
+      "Verified by three major wire services"
+    ],
+    "evidence_grade": "A"
+  },
+  "scenario": {
+    "transmission_paths": [
+      {
+        "path_id": "oil_asset",
+        "path_name": "commodity_repricing",
+        "path_type": "asset_pricing",
+        "confidence": 94.0
+      }
+    ],
+    "sectors": [
+      {
+        "name": "能源",
+        "direction": "LONG",
+        "impact_score": 0.88,
+        "confidence": 0.92
+      }
+    ],
+    "stock_candidates": [
+      {
+        "symbol": "XOM",
+        "sector": "能源",
+        "direction": "LONG",
+        "event_beta": 1.3,
+        "realtime_price": 130.0
+      }
+    ],
+    "asset_validation": {
+      "score": 88
+    }
+  },
+  "expect": {
+    "required_fields": [
+      "source_rank",
+      "dominant_path",
+      "opportunities",
+      "gate_reason_code"
+    ],
+    "allowed_signals": [
+      "LONG",
+      "WATCH"
+    ],
+    "max_final_action": "EXECUTE",
+    "allow_empty_opportunities": false,
+    "must_have_gate_reason_code": true,
+    "expected_path_types_any_of": [
+      "asset_pricing",
+      "fundamental"
+    ],
+    "forbidden_signals": []
+  }
+}

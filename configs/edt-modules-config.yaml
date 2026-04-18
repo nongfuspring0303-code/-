@@ -710,8 +710,8 @@ runtime:
   hurt_to_short: false
   semantic:
     enabled: true
-    provider: glm-4-flash
-    model: glm-4-flash
+    provider: openai
+    model: gpt-5.3-codex
     min_confidence: 70
     timeout_ms: 10000
     full_enable: true

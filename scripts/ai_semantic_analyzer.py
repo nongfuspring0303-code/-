@@ -8,7 +8,7 @@ import os
 import time
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import requests
 
@@ -40,7 +40,10 @@ class SemanticAnalyzer:
 
     def __init__(self, config_path: str | None = None):
         self.config = ConfigCenter(config_path=config_path)
+        self.project_root = Path(__file__).resolve().parent.parent
+        self._dotenv_local = self._load_dotenv_local()
         self.model_name = self._model_name() or "glm-4.7-flash"
+        self._openai_endpoint_cache = ""
 
     def _semantic_cfg(self) -> Dict[str, Any]:
         runtime = self.config.data.get("runtime", {}) if isinstance(self.config.data, dict) else {}
@@ -80,34 +83,142 @@ class SemanticAnalyzer:
         model = self._semantic_cfg().get("model", "")
         return str(model or "")
 
-    def _get_oauth_token(self) -> str:
-        now = time.time()
-        if self._oauth_cache.get("token") and now < self._oauth_cache.get("expires_at", 0):
-            return str(self._oauth_cache["token"])
-        
-        cfg = self._semantic_cfg()
-        url = cfg.get("oauth_url", "")
-        client_id = os.getenv(cfg.get("oauth_client_id_env", "OAUTH_CLIENT_ID"), "")
-        client_secret = os.getenv(cfg.get("oauth_client_secret_env", "OAUTH_CLIENT_SECRET"), "")
-        
+    def _load_dotenv_local(self) -> Dict[str, str]:
+        """Load project .env.local dynamically on startup."""
+        env_local = self.project_root / ".env.local"
+        values: Dict[str, str] = {}
+        if not env_local.exists():
+            return values
         try:
-            resp = requests.post(url, data={"grant_type": "client_credentials"}, auth=(client_id, client_secret), timeout=5)
-            resp.raise_for_status()
-            data = resp.json()
-            token = data["access_token"]
-            expires_in = data.get("expires_in", 3600)
-            self._oauth_cache = {"token": token, "expires_at": now + expires_in - 60}
-            return str(token)
-        except Exception:
+            with env_local.open(encoding="utf-8") as fh:
+                for raw in fh:
+                    line = raw.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    k = key.strip()
+                    v = value.strip().strip('"').strip("'")
+                    if not k:
+                        continue
+                    values[k] = v
+                    os.environ.setdefault(k, v)
+        except OSError:
+            return {}
+        return values
+
+    def _get_env(self, key: str, default: str = "") -> str:
+        value = os.getenv(key, "")
+        if value:
+            return value
+        return self._dotenv_local.get(key, default)
+
+    @staticmethod
+    def _normalize_model_name(model: str) -> str:
+        raw = str(model or "").strip()
+        if "/" in raw:
+            return raw.split("/")[-1]
+        return raw
+
+    def _openclaw_auth_profiles_path(self) -> Path:
+        default_path = "/Users/workmac/.openclaw/agents/main/agent/auth-profiles.json"
+        configured = self._get_env("OPENCLAW_AUTH_PROFILES", default_path)
+        return Path(configured).expanduser()
+
+    def _read_openclaw_profile(self, profile_key: str = "openai-codex:default") -> Dict[str, Any]:
+        path = self._openclaw_auth_profiles_path()
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        profiles = payload.get("profiles", {})
+        profile = profiles.get(profile_key, {}) if isinstance(profiles, dict) else {}
+        return profile if isinstance(profile, dict) else {}
+
+    def _openclaw_oauth_access(self) -> str:
+        profile = self._read_openclaw_profile()
+        access = str(profile.get("access", "") or "")
+        expires = profile.get("expires")
+        if not access:
             return ""
+        if isinstance(expires, (int, float)) and expires > 0:
+            if int(expires) <= int(time.time() * 1000):
+                return ""
+        return access
+
+    def _openclaw_account_id(self) -> str:
+        profile = self._read_openclaw_profile()
+        return str(profile.get("accountId", "") or "")
+
+    def _gateway_token_from_openclaw_config(self) -> str:
+        config_path = Path(self._get_env("OPENCLAW_CONFIG", "/Users/workmac/.openclaw/openclaw.json")).expanduser()
+        if not config_path.exists():
+            return ""
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return ""
+        gateway = data.get("gateway", {}) if isinstance(data, dict) else {}
+        auth = gateway.get("auth", {}) if isinstance(gateway, dict) else {}
+        return str(auth.get("token", "") or "")
+
+    def _gateway_token(self) -> str:
+        env_token = self._get_env("OPENCLAW_GATEWAY_TOKEN", "")
+        if env_token:
+            return env_token
+        return self._gateway_token_from_openclaw_config()
+
+    def _openai_base_url(self) -> str:
+        # Requirement: dynamically load OPENAI_BASE_URL from project .env.local
+        base = self._get_env("OPENAI_BASE_URL", "").strip()
+        if base:
+            return base.rstrip("/")
+        # Default to local OpenClaw gateway first.
+        return "http://127.0.0.1:18789"
+
+    def _is_openclaw_gateway_base(self, base_url: str) -> bool:
+        lower = str(base_url or "").lower()
+        return (
+            "127.0.0.1:18789" in lower
+            or "localhost:18789" in lower
+            or "openclaw.local:18789" in lower
+        )
+
+    def _openai_endpoint_candidates(self) -> List[str]:
+        base = self._openai_base_url().rstrip("/")
+        candidates: List[str] = []
+
+        if base.endswith("/v1"):
+            root = base[:-3].rstrip("/")
+            candidates.extend(
+                [
+                    f"{base}/chat/completions",
+                    f"{root}/v1/chat/completions",
+                    f"{root}/openai/v1/chat/completions",
+                    f"{root}/api/v1/chat/completions",
+                ]
+            )
+        else:
+            candidates.extend(
+                [
+                    f"{base}/v1/chat/completions",
+                    f"{base}/chat/completions",
+                    f"{base}/openai/v1/chat/completions",
+                    f"{base}/api/v1/chat/completions",
+                ]
+            )
+
+        unique: List[str] = []
+        for item in candidates:
+            if item not in unique:
+                unique.append(item)
+        return unique
 
     def _api_key(self) -> str:
         # Priority: env > .env.local > (none)
         # OAuth Support: If provider is OAuth-based, this returns the Client Secret or specific key
         provider = self._provider_name().lower()
-        
-        if self._semantic_cfg().get("auth_method") == "oauth":
-            return self._get_oauth_token()
 
         env_names = []
         if "openai" in provider:
@@ -123,23 +234,9 @@ class SemanticAnalyzer:
 
         # 1. Environment variables
         for env_name in env_names:
-            value = os.getenv(env_name, "").strip()
+            value = self._get_env(env_name, "").strip()
             if value:
                 return value
-        
-        # 2. .env.local file
-        project_root = Path(__file__).parent.parent
-        env_local = project_root / ".env.local"
-        if env_local.exists():
-            with open(env_local) as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        key, val = line.split("=", 1)
-                        resolved_key = key.strip()
-                        if resolved_key in env_names:
-                            return val.strip().strip('"')
-        
         return ""
 
     def _abstain_response(
@@ -335,81 +432,173 @@ class SemanticAnalyzer:
                 "recommended_stocks": [],
                 "reason": "deterministic keyword match",
             }
-    def _get_oauth_token(self) -> str:
-        """Handles OAuth 2.0 token exchange and caching."""
-        # Simple file-based cache to avoid redundant hits
-        cache_path = Path(__file__).parent.parent / "logs" / ".oauth_cache.json"
-        
-        if cache_path.exists():
-            try:
-                cache = json.loads(cache_path.read_text())
-                if cache.get("expiry", 0) > time.time() + 60: # 1 min buffer
-                    return cache.get("access_token", "")
-            except:
-                pass
-
-        # Exchange Client ID/Secret for Token
-        client_id = os.getenv("EDT_AUTH_CLIENT_ID", "")
-        client_secret = os.getenv("EDT_AUTH_CLIENT_SECRET", "")
-        token_url = str(self._semantic_cfg().get("oauth_token_url", ""))
-
-        if not (client_id and client_secret and token_url):
-            return ""
-
+    @staticmethod
+    def _safe_json(response: requests.Response) -> Dict[str, Any]:
         try:
-            resp = requests.post(
-                token_url,
-                data={"grant_type": "client_credentials"},
-                auth=(client_id, client_secret),
-                timeout=10
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            token = data["access_token"]
-            expiry = time.time() + data.get("expires_in", 3600)
-            
-            # Save to cache
-            cache_path.parent.mkdir(parents=True, exist_ok=True)
-            cache_path.write_text(json.dumps({"access_token": token, "expiry": expiry}))
-            
-            return token
-        except Exception as e:
-            print(f"OAuth Failed: {e}")
-            return ""
+            data = response.json()
+            return data if isinstance(data, dict) else {}
+        except ValueError:
+            return {}
+
+    @staticmethod
+    def _extract_openai_error(response: requests.Response) -> str:
+        payload = SemanticAnalyzer._safe_json(response)
+        error = payload.get("error", {})
+        if isinstance(error, dict):
+            message = str(error.get("message", "") or "")
+            code = str(error.get("code", "") or "")
+            if code and message:
+                return f"{code}: {message}"
+            if message:
+                return message
+            if code:
+                return code
+        text = (response.text or "").strip()
+        return text[:200] if text else f"status_{response.status_code}"
+
+    def _post_openai_with_candidates(
+        self,
+        *,
+        headers: Dict[str, str],
+        payload: Dict[str, Any],
+        timeout_seconds: float,
+    ) -> Tuple[requests.Response | None, str, str]:
+        candidates = self._openai_endpoint_candidates()
+        if self._openai_endpoint_cache and self._openai_endpoint_cache in candidates:
+            candidates = [self._openai_endpoint_cache] + [c for c in candidates if c != self._openai_endpoint_cache]
+
+        last_error = ""
+        last_response: requests.Response | None = None
+        for endpoint in candidates:
+            try:
+                response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout_seconds)
+            except requests.RequestException as exc:
+                last_error = str(exc)
+                continue
+
+            last_response = response
+            if response.status_code == 404:
+                last_error = "endpoint_not_found"
+                continue
+
+            self._openai_endpoint_cache = endpoint
+            return response, endpoint, ""
+
+        return last_response, "", last_error or "openai_endpoint_not_found"
 
     def _call_openai_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
         prompt = self._get_prompt(text)
-        api_key = self._api_key()
-        if not api_key:
-            return self._abstain_response(fallback_reason="api_key_missing_openai", provider="openai")
+        # Normalize Codex model id: "openai-codex/gpt-5.3-codex" -> "gpt-5.3-codex"
+        use_model = self._normalize_model_name(model or self.model_name or "gpt-5.3-codex")
+        base_url = self._openai_base_url()
 
-        endpoint = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
-        use_model = model or "gpt-4o-mini" # Fast & cheap default
+        # Auth sources:
+        # 1) OpenClaw OAuth profile token (required by your workflow)
+        # 2) OPENAI_API_KEY fallback when profile token is missing/expired
+        profile_token = self._openclaw_oauth_access()
+        api_key_fallback = self._api_key()
+        gateway_token = self._gateway_token()
+        account_id = self._openclaw_account_id()
 
-        try:
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            }
-            payload = {
-                "model": use_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.2,
-                "max_tokens": 300,
-                "response_format": {"type": "json_object"} if "gpt-4" in use_model or "gpt-3.5-turbo-0125" in use_model else None
-            }
-            timeout_seconds = max(5.0, timeout_ms / 1000.0)
-            response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout_seconds)
-            response.raise_for_status()
-            result = response.json()
+        via_gateway = self._is_openclaw_gateway_base(base_url) and bool(gateway_token)
+        auth_token = gateway_token if via_gateway else (profile_token or api_key_fallback)
+        if not auth_token:
+            return self._abstain_response(fallback_reason="openai_auth_missing", provider="openai", model=use_model)
 
-            if "choices" in result and len(result["choices"]) > 0:
-                content = result["choices"][0]["message"]["content"].strip()
-                return self._parse_ai_content(content)
-            
-            return self._abstain_response(fallback_reason="openai_no_choices", provider="openai")
-        except Exception as e:
-            return self._abstain_response(fallback_reason=f"openai_error: {str(e)[:50]}", provider="openai")
+        headers: Dict[str, str] = {
+            "Authorization": f"Bearer {auth_token}",
+            "Content-Type": "application/json",
+        }
+        if gateway_token:
+            headers["X-Claw-Token"] = gateway_token
+        if account_id:
+            headers["X-OpenClaw-Account-Id"] = account_id
+
+        # OpenClaw OpenAI-compatible endpoint requires model=openclaw or openclaw/<agentId>.
+        transport_model = "openclaw" if via_gateway else use_model
+        payload: Dict[str, Any] = {
+            "model": transport_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+            "max_tokens": 300,
+        }
+        if "gpt-4" in use_model or "gpt-5" in use_model or "gpt-3.5-turbo-0125" in use_model:
+            payload["response_format"] = {"type": "json_object"}
+
+        timeout_seconds = max(5.0, timeout_ms / 1000.0)
+        response, endpoint, route_error = self._post_openai_with_candidates(
+            headers=headers,
+            payload=payload,
+            timeout_seconds=timeout_seconds,
+        )
+        if response is None:
+            return self._abstain_response(
+                fallback_reason=f"openai_route_error:{route_error[:80]}",
+                provider="openai",
+                model=use_model,
+            )
+
+        # Fallback: if profile token fails auth, retry once with explicit API key.
+        if (
+            not via_gateway
+            and response.status_code in (401, 403)
+            and profile_token
+            and api_key_fallback
+            and api_key_fallback != profile_token
+        ):
+            retry_headers = dict(headers)
+            retry_headers["Authorization"] = f"Bearer {api_key_fallback}"
+            response, endpoint, route_error = self._post_openai_with_candidates(
+                headers=retry_headers,
+                payload=payload,
+                timeout_seconds=timeout_seconds,
+            )
+            if response is None:
+                return self._abstain_response(
+                    fallback_reason=f"openai_route_error:{route_error[:80]}",
+                    provider="openai",
+                    model=use_model,
+                )
+
+        # Recovery: some gateways are strict and reject non-openclaw model values.
+        if response.status_code == 400 and transport_model != "openclaw":
+            parsed_error = self._extract_openai_error(response).lower()
+            if "invalid `model`" in parsed_error and "use `openclaw`" in parsed_error:
+                retry_payload = dict(payload)
+                retry_payload["model"] = "openclaw"
+                response, endpoint, route_error = self._post_openai_with_candidates(
+                    headers=headers,
+                    payload=retry_payload,
+                    timeout_seconds=timeout_seconds,
+                )
+                if response is None:
+                    return self._abstain_response(
+                        fallback_reason=f"openai_route_error:{route_error[:80]}",
+                        provider="openai",
+                        model=use_model,
+                    )
+
+        if response.status_code >= 400:
+            reason = self._extract_openai_error(response)
+            return self._abstain_response(
+                fallback_reason=f"openai_http_{response.status_code}:{reason[:120]}",
+                provider="openai",
+                model=use_model,
+            )
+
+        result = self._safe_json(response)
+        choices = result.get("choices", [])
+        if not isinstance(choices, list) or not choices:
+            return self._abstain_response(fallback_reason="openai_no_choices", provider="openai", model=use_model)
+        message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+        content = str(message.get("content", "") or "").strip()
+        if not content:
+            return self._abstain_response(fallback_reason="openai_empty_content", provider="openai", model=use_model)
+        parsed = self._parse_ai_content(content)
+        parsed["provider"] = "openai"
+        parsed["model"] = use_model
+        parsed["reason"] = str(parsed.get("reason", "") or f"openai response via {endpoint}")
+        return parsed
 
     def _get_prompt(self, text: str) -> str:
         return f"""You are an Event Object extractor for an event-driven trading system.

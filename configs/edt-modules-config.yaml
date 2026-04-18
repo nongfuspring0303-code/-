@@ -711,7 +711,7 @@ runtime:
   semantic:
     enabled: true
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-5.3-codex
     min_confidence: 70
     timeout_ms: 10000
     full_enable: true

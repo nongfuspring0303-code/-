@@ -1,0 +1,1350 @@
+
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>EDT Audit Dashboard v2.2 - Live Narratives</title>
+    <style>
+        :root {
+            --bg: #0d1117; --card-bg: #161b22; --text: #c9d1d9;
+            --success: #3fb950; --danger: #f85149; --warning: #d29922;
+            --info: #58a6ff; --accent: #d2a8ff; --border: #30363d;
+        }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 40px; }
+        .container { max-width: 1300px; margin: 0 auto; }
+        .header { margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        h1 { margin: 0; background: linear-gradient(90deg, var(--info), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .cases-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px; }
+        .case-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; transition: 0.2s; }
+        .case-card:hover { border-color: var(--accent); }
+        
+        .case-head { padding: 15px 20px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border); }
+        .case-id { font-family: monospace; font-size: 11px; color: #8b949e; margin-bottom: 5px; display: block; }
+        .headline { font-size: 16px; font-weight: bold; color: #fff; line-height: 1.4; display: block; }
+        
+        .case-body { padding: 20px; flex-grow: 1; }
+        .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-right: 5px; text-transform: uppercase; border: 1px solid var(--border); }
+        .tag-earnings { border-color: #bc8cff; color: #bc8cff; }
+        .tag-macro { border-color: #388bfd; color: #388bfd; }
+        .tag-geopolitics { border-color: #ff7b72; color: #ff7b72; }
+
+        .decision-box { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .dec-item { background: #010409; padding: 10px; border-radius: 6px; border: 1px solid #21262d; }
+        .dec-label { font-size: 9px; color: #8b949e; display: block; }
+        .dec-val { font-size: 13px; font-weight: bold; color: var(--info); }
+
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 15px; }
+        .m-key { color: #8b949e; }
+        .m-val { color: var(--accent); font-weight: bold; text-align: right; }
+
+        .blocker-alert { padding: 10px; border-radius: 6px; font-size: 11px; }
+        .alert-red { background: rgba(248, 81, 73, 0.1); border: 1px solid #f85149; color: #ff7b72; }
+        .alert-green { background: rgba(63, 185, 80, 0.1); border: 1px solid #3fb950; color: #7ee787; }
+
+        .json-toggle { padding: 10px; text-align: center; font-size: 11px; color: #8b949e; cursor: pointer; border-top: 1px solid var(--border); }
+        .json-content { display: none; padding: 15px; background: #000; font-size: 10px; max-height: 200px; overflow: auto; }
+    </style>
+    <script>
+        function toggle(id) {
+            const v = document.getElementById('json-' + id);
+            v.style.display = v.style.display === 'block' ? 'none' : 'block';
+        }
+    </script>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <div>
+                <h1>EDT Audit Dashboard v2.2</h1>
+                <div style='color: #8b949e; font-size: 12px;'>Regression results mapped to news triggers</div>
+            </div>
+            <div style='font-size: 24px; font-weight: bold; color: var(--success)'>100% REGRESSION PASS</div>
+        </div>
+        <div class='cases-grid'>
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>earnings_beat_nvda_001</span>
+            <span class='headline'>NVIDIA beats earnings expectations and raises guidance</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-earnings'>earnings</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('earnings_beat_nvda_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-earnings_beat_nvda_001'><pre>{
+  "case_id": "earnings_beat_nvda_001",
+  "category": "earnings",
+  "source_rank": "C",
+  "dominant_path": {
+    "name": "earnings_fundamental",
+    "confidence": 95.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [
+    {
+      "trace_id": "earnings_beat_nvda_001",
+      "symbol": "NVDA",
+      "name": "英伟达",
+      "sector": "科技",
+      "signal": "LONG",
+      "entry_zone": {
+        "support": 989.4,
+        "resistance": 1050.6
+      },
+      "price_source": "live",
+      "needs_price_refresh": false,
+      "risk_flags": [],
+      "final_action": "EXECUTE",
+      "reasoning": "科技方向LONG，综合评分0.96",
+      "confidence": 0.96,
+      "score_100": 87.25,
+      "signal_grade": "A",
+      "state_machine_step": "mixed_regime",
+      "gate_reason_code": "MIXED_REGIME",
+      "score_breakdown": {
+        "event_exposure": 33.25,
+        "event_relevance": 24.5,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T20:10:00Z"
+    }
+  ],
+  "signals": [
+    "LONG"
+  ],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "EXECUTE"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>earnings_miss_bank_001</span>
+            <span class='headline'>Major US bank misses earnings estimates</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-earnings'>earnings</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>TRADE</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('earnings_miss_bank_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-earnings_miss_bank_001'><pre>{
+  "case_id": "earnings_miss_bank_001",
+  "category": "earnings",
+  "source_rank": "B",
+  "dominant_path": {
+    "name": "credit_fundamental",
+    "confidence": 85.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "earnings_miss_bank_001",
+      "symbol": "JPM",
+      "name": "摩根大通",
+      "sector": "金融",
+      "signal": "SHORT",
+      "entry_zone": {
+        "support": 174.6,
+        "resistance": 185.4
+      },
+      "price_source": "live",
+      "needs_price_refresh": false,
+      "risk_flags": [],
+      "final_action": "EXECUTE",
+      "reasoning": "金融方向SHORT，综合评分0.87",
+      "confidence": 0.87,
+      "score_100": 81.75,
+      "signal_grade": "A",
+      "state_machine_step": "trade_admission",
+      "gate_reason_code": "ALL_PASSED",
+      "score_breakdown": {
+        "event_exposure": 29.75,
+        "event_relevance": 22.5,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T19:40:00Z"
+    }
+  ],
+  "signals": [
+    "SHORT"
+  ],
+  "state_machine_step": "trade_admission",
+  "gate_reason_code": "ALL_PASSED",
+  "action": "TRADE",
+  "strongest_final_action": "EXECUTE"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>earnings_sector_mismatch_001</span>
+            <span class='headline'>Meta Platforms beats earnings but warns of advertising headwinds</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-earnings'>earnings</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>TRADE</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('earnings_sector_mismatch_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-earnings_sector_mismatch_001'><pre>{
+  "case_id": "earnings_sector_mismatch_001",
+  "category": "earnings",
+  "source_rank": "B",
+  "dominant_path": {
+    "name": "mixed_earnings_fundamental",
+    "confidence": 75.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "earnings_sector_mismatch_001",
+      "symbol": "META",
+      "name": "Meta",
+      "sector": "科技",
+      "signal": "SHORT",
+      "entry_zone": {
+        "support": 475.3,
+        "resistance": 504.7
+      },
+      "price_source": "reference_snapshot",
+      "needs_price_refresh": true,
+      "risk_flags": [
+        {
+          "type": "direction_conflict",
+          "level": "high",
+          "description": "个股方向与板块方向冲突"
+        },
+        {
+          "type": "price_data",
+          "level": "high",
+          "description": "缺少实时价格，需等待行情刷新"
+        }
+      ],
+      "final_action": "WATCH",
+      "reasoning": "科技方向SHORT，综合评分0.84",
+      "confidence": 0.84,
+      "score_100": 81.75,
+      "signal_grade": "A",
+      "state_machine_step": "trade_admission",
+      "gate_reason_code": "ALL_PASSED",
+      "score_breakdown": {
+        "event_exposure": 29.75,
+        "event_relevance": 22.5,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T21:00:00Z"
+    }
+  ],
+  "signals": [
+    "SHORT"
+  ],
+  "state_machine_step": "trade_admission",
+  "gate_reason_code": "ALL_PASSED",
+  "action": "TRADE",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>geopolitics_low_trust_high_impact_001</span>
+            <span class='headline'>Reports suggest major pipeline explosion in critical energy corridor</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-geopolitics'>geopolitics</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('geopolitics_low_trust_high_impact_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-geopolitics_low_trust_high_impact_001'><pre>{
+  "case_id": "geopolitics_low_trust_high_impact_001",
+  "category": "geopolitics",
+  "source_rank": "C",
+  "dominant_path": {
+    "name": "energy_disruption_repricing",
+    "confidence": 78.0,
+    "horizon": "1-5D",
+    "path_type": "asset_pricing"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "geopolitics_low_trust_high_impact_001",
+      "symbol": "XOM",
+      "name": "埃克森美孚",
+      "sector": "能源",
+      "signal": "LONG",
+      "entry_zone": {
+        "support": 114.46,
+        "resistance": 121.54
+      },
+      "price_source": "reference_snapshot",
+      "needs_price_refresh": true,
+      "risk_flags": [
+        {
+          "type": "confidence",
+          "level": "high",
+          "description": "板块置信度不足"
+        },
+        {
+          "type": "price_data",
+          "level": "high",
+          "description": "缺少实时价格，需等待行情刷新"
+        }
+      ],
+      "final_action": "WATCH",
+      "reasoning": "能源方向LONG，综合评分0.75",
+      "confidence": 0.75,
+      "score_100": 71.95,
+      "signal_grade": "B",
+      "state_machine_step": "asset_validation",
+      "gate_reason_code": "ASSET_UNCONFIRMED",
+      "score_breakdown": {
+        "event_exposure": 28.7,
+        "event_relevance": 13.75,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T08:15:00Z"
+    }
+  ],
+  "signals": [
+    "LONG"
+  ],
+  "state_machine_step": "asset_validation",
+  "gate_reason_code": "ASSET_UNCONFIRMED",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>geopolitics_oil_spike_001</span>
+            <span class='headline'>Oil jumps after sudden supply disruption</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-geopolitics'>geopolitics</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>TRADE</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('geopolitics_oil_spike_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-geopolitics_oil_spike_001'><pre>{
+  "case_id": "geopolitics_oil_spike_001",
+  "category": "geopolitics",
+  "source_rank": "B",
+  "dominant_path": {
+    "name": "commodity_repricing",
+    "confidence": 94.0,
+    "horizon": "1-5D",
+    "path_type": "asset_pricing"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "geopolitics_oil_spike_001",
+      "symbol": "XOM",
+      "name": "埃克森美孚",
+      "sector": "能源",
+      "signal": "LONG",
+      "entry_zone": {
+        "support": 126.1,
+        "resistance": 133.9
+      },
+      "price_source": "live",
+      "needs_price_refresh": false,
+      "risk_flags": [],
+      "final_action": "EXECUTE",
+      "reasoning": "能源方向LONG，综合评分0.89",
+      "confidence": 0.89,
+      "score_100": 83.3,
+      "signal_grade": "A",
+      "state_machine_step": "trade_admission",
+      "gate_reason_code": "ALL_PASSED",
+      "score_breakdown": {
+        "event_exposure": 30.8,
+        "event_relevance": 23.0,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T10:20:00Z"
+    }
+  ],
+  "signals": [
+    "LONG"
+  ],
+  "state_machine_step": "trade_admission",
+  "gate_reason_code": "ALL_PASSED",
+  "action": "TRADE",
+  "strongest_final_action": "EXECUTE"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>geopolitics_strait_shipping_001</span>
+            <span class='headline'>Unexpected incident disrupts major strait shipping flows</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-geopolitics'>geopolitics</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('geopolitics_strait_shipping_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-geopolitics_strait_shipping_001'><pre>{
+  "case_id": "geopolitics_strait_shipping_001",
+  "category": "geopolitics",
+  "source_rank": "B",
+  "dominant_path": {
+    "name": "freight_repricing",
+    "confidence": 76.0,
+    "horizon": "1-5D",
+    "path_type": "asset_pricing"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "geopolitics_strait_shipping_001",
+      "symbol": "CAT",
+      "name": "卡特彼勒",
+      "sector": "工业",
+      "signal": "SHORT",
+      "entry_zone": {
+        "support": 349.2,
+        "resistance": 370.8
+      },
+      "price_source": "reference_snapshot",
+      "needs_price_refresh": true,
+      "risk_flags": [
+        {
+          "type": "market_cap",
+          "level": "medium",
+          "description": "市值体量偏小"
+        },
+        {
+          "type": "price_data",
+          "level": "high",
+          "description": "缺少实时价格，需等待行情刷新"
+        }
+      ],
+      "final_action": "WATCH",
+      "reasoning": "工业方向SHORT，综合评分0.74",
+      "confidence": 0.74,
+      "score_100": 75.75,
+      "signal_grade": "A",
+      "state_machine_step": "asset_validation",
+      "gate_reason_code": "ASSET_UNCONFIRMED",
+      "score_breakdown": {
+        "event_exposure": 26.25,
+        "event_relevance": 20.0,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T09:50:00Z"
+    }
+  ],
+  "signals": [
+    "SHORT"
+  ],
+  "state_machine_step": "asset_validation",
+  "gate_reason_code": "ASSET_UNCONFIRMED",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>low_trust_incomplete_news_001</span>
+            <span class='headline'>BREAKING: Sudden policy shift expected in tech regulation</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-other'>other</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('low_trust_incomplete_news_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-low_trust_incomplete_news_001'><pre>{
+  "case_id": "low_trust_incomplete_news_001",
+  "category": "other",
+  "source_rank": "B",
+  "dominant_path": {
+    "name": "fundamental_transmission",
+    "confidence": 71.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [],
+  "signals": [],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>low_trust_pseudo_official_001</span>
+            <span class='headline'>OFFICIAL: Treasury announces debt moratorium</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-other'>other</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('low_trust_pseudo_official_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-low_trust_pseudo_official_001'><pre>{
+  "case_id": "low_trust_pseudo_official_001",
+  "category": "other",
+  "source_rank": "C",
+  "dominant_path": {
+    "name": "fundamental_transmission",
+    "confidence": 68.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [],
+  "signals": [],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>low_trust_rumor_low_rank_001</span>
+            <span class='headline'>Unverified post claims emergency policy reversal tonight</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-other'>other</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('low_trust_rumor_low_rank_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-low_trust_rumor_low_rank_001'><pre>{
+  "case_id": "low_trust_rumor_low_rank_001",
+  "category": "other",
+  "source_rank": "C",
+  "dominant_path": {
+    "name": "fundamental_transmission",
+    "confidence": 74.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [],
+  "signals": [],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>low_trust_weak_news_001</span>
+            <span class='headline'>Small local tech firm updates office policy</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-other'>other</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('low_trust_weak_news_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-low_trust_weak_news_001'><pre>{
+  "case_id": "low_trust_weak_news_001",
+  "category": "other",
+  "source_rank": "C",
+  "dominant_path": {
+    "name": "fundamental_transmission",
+    "confidence": 74.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [],
+  "signals": [],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>macro_cpi_hot_001</span>
+            <span class='headline'>US CPI rises 0.4% in March, exceeding expectations</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-macro'>macro</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>TRADE</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('macro_cpi_hot_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-macro_cpi_hot_001'><pre>{
+  "case_id": "macro_cpi_hot_001",
+  "category": "macro",
+  "source_rank": "C",
+  "dominant_path": {
+    "name": "valuation_compression",
+    "confidence": 92.0,
+    "horizon": "1-5D",
+    "path_type": "macro_risk"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "macro_cpi_hot_001",
+      "symbol": "QQQ",
+      "name": "QQQ (动态加载)",
+      "sector": "科技",
+      "signal": "SHORT",
+      "entry_zone": {
+        "support": 426.8,
+        "resistance": 453.2
+      },
+      "price_source": "live",
+      "needs_price_refresh": false,
+      "risk_flags": [
+        {
+          "type": "liquidity",
+          "level": "high",
+          "description": "流动性评分偏低"
+        },
+        {
+          "type": "market_cap",
+          "level": "medium",
+          "description": "市值体量偏小"
+        }
+      ],
+      "final_action": "PENDING_CONFIRM",
+      "reasoning": "科技方向SHORT，综合评分0.81",
+      "confidence": 0.81,
+      "score_100": 79.45,
+      "signal_grade": "A",
+      "state_machine_step": "trade_admission",
+      "gate_reason_code": "ALL_PASSED",
+      "score_breakdown": {
+        "event_exposure": 28.7,
+        "event_relevance": 21.25,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-10T12:30:00Z"
+    }
+  ],
+  "signals": [
+    "SHORT"
+  ],
+  "state_machine_step": "trade_admission",
+  "gate_reason_code": "ALL_PASSED",
+  "action": "TRADE",
+  "strongest_final_action": "PENDING_CONFIRM"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>macro_rate_cut_001</span>
+            <span class='headline'>Federal Reserve cuts interest rates by 50 basis points</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-macro'>macro</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>TRADE</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('macro_rate_cut_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-macro_rate_cut_001'><pre>{
+  "case_id": "macro_rate_cut_001",
+  "category": "macro",
+  "source_rank": "A",
+  "dominant_path": {
+    "name": "rates_liquidity",
+    "confidence": 92.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "macro_rate_cut_001",
+      "symbol": "NVDA",
+      "name": "英伟达",
+      "sector": "科技",
+      "signal": "LONG",
+      "entry_zone": {
+        "support": 950.6,
+        "resistance": 1009.4
+      },
+      "price_source": "live",
+      "needs_price_refresh": false,
+      "risk_flags": [],
+      "final_action": "EXECUTE",
+      "reasoning": "科技方向LONG，综合评分0.90",
+      "confidence": 0.9,
+      "score_100": 84.75,
+      "signal_grade": "A",
+      "state_machine_step": "trade_admission",
+      "gate_reason_code": "ALL_PASSED",
+      "score_breakdown": {
+        "event_exposure": 31.5,
+        "event_relevance": 23.75,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T14:00:00Z"
+    }
+  ],
+  "signals": [
+    "LONG"
+  ],
+  "state_machine_step": "trade_admission",
+  "gate_reason_code": "ALL_PASSED",
+  "action": "TRADE",
+  "strongest_final_action": "EXECUTE"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>macro_rate_hike_001</span>
+            <span class='headline'>Fed raises rates by 25 basis points</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-macro'>macro</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>TRADE</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('macro_rate_hike_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-macro_rate_hike_001'><pre>{
+  "case_id": "macro_rate_hike_001",
+  "category": "macro",
+  "source_rank": "A",
+  "dominant_path": {
+    "name": "tightening_fundamental",
+    "confidence": 85.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "macro_rate_hike_001",
+      "symbol": "NVDA",
+      "name": "英伟达",
+      "sector": "科技",
+      "signal": "SHORT",
+      "entry_zone": {
+        "support": 940.9,
+        "resistance": 999.1
+      },
+      "price_source": "live",
+      "needs_price_refresh": false,
+      "risk_flags": [],
+      "final_action": "EXECUTE",
+      "reasoning": "科技方向SHORT，综合评分0.86",
+      "confidence": 0.86,
+      "score_100": 81.75,
+      "signal_grade": "A",
+      "state_machine_step": "trade_admission",
+      "gate_reason_code": "ALL_PASSED",
+      "score_breakdown": {
+        "event_exposure": 29.75,
+        "event_relevance": 22.5,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T14:05:00Z"
+    }
+  ],
+  "signals": [
+    "SHORT"
+  ],
+  "state_machine_step": "trade_admission",
+  "gate_reason_code": "ALL_PASSED",
+  "action": "TRADE",
+  "strongest_final_action": "EXECUTE"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>macro_tight_mixed_regime_001</span>
+            <span class='headline'>Central bank signals ambiguous policy shift amid mixed economic data</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-macro'>macro</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('macro_tight_mixed_regime_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-macro_tight_mixed_regime_001'><pre>{
+  "case_id": "macro_tight_mixed_regime_001",
+  "category": "macro",
+  "source_rank": "A",
+  "dominant_path": {
+    "name": "policy_uncertainty_fundamental",
+    "confidence": 75.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [
+    {
+      "trace_id": "macro_tight_mixed_regime_001",
+      "symbol": "JPM",
+      "name": "摩根大通",
+      "sector": "金融",
+      "signal": "WATCH",
+      "entry_zone": {
+        "support": 184.3,
+        "resistance": 195.7
+      },
+      "price_source": "reference_snapshot",
+      "needs_price_refresh": true,
+      "risk_flags": [
+        {
+          "type": "price_data",
+          "level": "high",
+          "description": "缺少实时价格，需等待行情刷新"
+        }
+      ],
+      "final_action": "WATCH",
+      "reasoning": "金融方向WATCH，综合评分0.66",
+      "confidence": 0.66,
+      "score_100": 69.75,
+      "signal_grade": "B",
+      "state_machine_step": "mixed_regime",
+      "gate_reason_code": "MIXED_REGIME",
+      "score_breakdown": {
+        "event_exposure": 22.75,
+        "event_relevance": 17.5,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T17:00:00Z"
+    }
+  ],
+  "signals": [
+    "WATCH"
+  ],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>macro_weak_narrative_strong_asset_001</span>
+            <span class='headline'>Treasury yield curve inverts sharply as bond market prices aggressive tightening</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-macro'>macro</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>TRADE</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('macro_weak_narrative_strong_asset_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-macro_weak_narrative_strong_asset_001'><pre>{
+  "case_id": "macro_weak_narrative_strong_asset_001",
+  "category": "macro",
+  "source_rank": "B",
+  "dominant_path": {
+    "name": "yield_curve_strong_signal",
+    "confidence": 92.0,
+    "horizon": "1-5D",
+    "path_type": "asset_pricing"
+  },
+  "mixed_regime": false,
+  "opportunities": [
+    {
+      "trace_id": "macro_weak_narrative_strong_asset_001",
+      "symbol": "JPM",
+      "name": "摩根大通",
+      "sector": "金融",
+      "signal": "SHORT",
+      "entry_zone": {
+        "support": 184.3,
+        "resistance": 195.7
+      },
+      "price_source": "reference_snapshot",
+      "needs_price_refresh": true,
+      "risk_flags": [
+        {
+          "type": "price_data",
+          "level": "high",
+          "description": "缺少实时价格，需等待行情刷新"
+        }
+      ],
+      "final_action": "WATCH",
+      "reasoning": "金融方向SHORT，综合评分0.90",
+      "confidence": 0.9,
+      "score_100": 83.3,
+      "signal_grade": "A",
+      "state_machine_step": "trade_admission",
+      "gate_reason_code": "ALL_PASSED",
+      "score_breakdown": {
+        "event_exposure": 30.8,
+        "event_relevance": 23.0,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T11:00:00Z"
+    }
+  ],
+  "signals": [
+    "SHORT"
+  ],
+  "state_machine_step": "trade_admission",
+  "gate_reason_code": "ALL_PASSED",
+  "action": "TRADE",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>policy_bullish_with_risk_gate_001</span>
+            <span class='headline'>Government announces major infrastructure spending plan</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-policy'>policy</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('policy_bullish_with_risk_gate_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-policy_bullish_with_risk_gate_001'><pre>{
+  "case_id": "policy_bullish_with_risk_gate_001",
+  "category": "policy",
+  "source_rank": "A",
+  "dominant_path": {
+    "name": "fiscal_spending_fundamental",
+    "confidence": 80.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [
+    {
+      "trace_id": "policy_bullish_with_risk_gate_001",
+      "symbol": "CAT",
+      "name": "卡特彼勒",
+      "sector": "工业",
+      "signal": "LONG",
+      "entry_zone": {
+        "support": 349.2,
+        "resistance": 370.8
+      },
+      "price_source": "reference_snapshot",
+      "needs_price_refresh": true,
+      "risk_flags": [
+        {
+          "type": "market_cap",
+          "level": "medium",
+          "description": "市值体量偏小"
+        },
+        {
+          "type": "price_data",
+          "level": "high",
+          "description": "缺少实时价格，需等待行情刷新"
+        }
+      ],
+      "final_action": "WATCH",
+      "reasoning": "工业方向LONG，综合评分0.85",
+      "confidence": 0.85,
+      "score_100": 81.0,
+      "signal_grade": "A",
+      "state_machine_step": "mixed_regime",
+      "gate_reason_code": "MIXED_REGIME",
+      "score_breakdown": {
+        "event_exposure": 29.75,
+        "event_relevance": 21.75,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T16:00:00Z"
+    }
+  ],
+  "signals": [
+    "LONG"
+  ],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>policy_qe_signal_001</span>
+            <span class='headline'>Central bank signals targeted asset purchases</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-policy'>policy</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('policy_qe_signal_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-policy_qe_signal_001'><pre>{
+  "case_id": "policy_qe_signal_001",
+  "category": "policy",
+  "source_rank": "A",
+  "dominant_path": {
+    "name": "liquidity_fundamental",
+    "confidence": 83.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [
+    {
+      "trace_id": "policy_qe_signal_001",
+      "symbol": "AAPL",
+      "name": "苹果",
+      "sector": "科技",
+      "signal": "LONG",
+      "entry_zone": {
+        "support": 223.1,
+        "resistance": 236.9
+      },
+      "price_source": "live",
+      "needs_price_refresh": false,
+      "risk_flags": [],
+      "final_action": "EXECUTE",
+      "reasoning": "科技方向LONG，综合评分0.83",
+      "confidence": 0.83,
+      "score_100": 80.9,
+      "signal_grade": "A",
+      "state_machine_step": "mixed_regime",
+      "gate_reason_code": "MIXED_REGIME",
+      "score_breakdown": {
+        "event_exposure": 29.4,
+        "event_relevance": 22.0,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T15:00:00Z"
+    }
+  ],
+  "signals": [
+    "LONG"
+  ],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "EXECUTE"
+}</pre></div>
+    </div>
+    
+    <div class='case-card'>
+        <div class='case-head'>
+            <span class='case-id'>policy_tariff_escalation_001</span>
+            <span class='headline'>US announces new tariff increase on key imports</span>
+            <div style='margin-top: 8px;'>
+                <span class='tag tag-policy'>policy</span>
+                <span class='tag' style='color: var(--success)'>A1 PASS</span>
+            </div>
+        </div>
+        <div class='case-body'>
+            <div class='decision-box'>
+                <div class='dec-item'><span class='dec-label'>DECISION</span><span class='dec-val'>WATCH</span></div>
+                <div class='dec-item'><span class='dec-label'>TARGET</span><span class='dec-val'>N/A</span></div>
+            </div>
+            <div class='metrics-grid'>
+                <div class='m-key'>Expectation Gap</div><div class='m-val'>0</div>
+                <div class='m-key'>Catalyst State</div><div class='m-val'>-</div>
+                <div class='m-key'>Evidence Grade</div><div class='m-val'>-</div>
+            </div>
+            <div class='blocker-alert alert-green'>✅ GO FOR EXECUTION</div>
+        </div>
+        <div class='json-toggle' onclick="toggle('policy_tariff_escalation_001')">Show Logic Trace</div>
+        <div class='json-content' id='json-policy_tariff_escalation_001'><pre>{
+  "case_id": "policy_tariff_escalation_001",
+  "category": "policy",
+  "source_rank": "A",
+  "dominant_path": {
+    "name": "cost_push_fundamental",
+    "confidence": 79.0,
+    "horizon": "1-5D",
+    "path_type": "fundamental"
+  },
+  "mixed_regime": true,
+  "opportunities": [
+    {
+      "trace_id": "policy_tariff_escalation_001",
+      "symbol": "CAT",
+      "name": "卡特彼勒",
+      "sector": "工业",
+      "signal": "SHORT",
+      "entry_zone": {
+        "support": 349.2,
+        "resistance": 370.8
+      },
+      "price_source": "reference_snapshot",
+      "needs_price_refresh": true,
+      "risk_flags": [
+        {
+          "type": "market_cap",
+          "level": "medium",
+          "description": "市值体量偏小"
+        },
+        {
+          "type": "price_data",
+          "level": "high",
+          "description": "缺少实时价格，需等待行情刷新"
+        }
+      ],
+      "final_action": "WATCH",
+      "reasoning": "工业方向SHORT，综合评分0.81",
+      "confidence": 0.81,
+      "score_100": 78.0,
+      "signal_grade": "A",
+      "state_machine_step": "mixed_regime",
+      "gate_reason_code": "MIXED_REGIME",
+      "score_breakdown": {
+        "event_exposure": 28.0,
+        "event_relevance": 20.5,
+        "relative_strength": 14.0,
+        "liquidity_score": 8.0,
+        "risk_filter_score": 7.5
+      },
+      "timestamp": "2026-04-15T13:30:00Z"
+    }
+  ],
+  "signals": [
+    "SHORT"
+  ],
+  "state_machine_step": "mixed_regime",
+  "gate_reason_code": "MIXED_REGIME",
+  "action": "WATCH",
+  "strongest_final_action": "WATCH"
+}</pre></div>
+    </div>
+    </div>
+    </div>
+</body>
+</html>

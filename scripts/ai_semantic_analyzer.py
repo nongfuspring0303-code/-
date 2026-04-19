@@ -68,11 +68,11 @@ class SemanticAnalyzer:
         return max(0, min(100, parsed))
 
     def _timeout_ms(self) -> int:
-        value = self._semantic_cfg().get("timeout_ms", 3000)
+        value = self._semantic_cfg().get("timeout_ms", 20000)
         try:
             parsed = int(value)
         except (TypeError, ValueError):
-            return 3000
+            return 20000
         return max(1, parsed)
 
     def _provider_name(self) -> str:

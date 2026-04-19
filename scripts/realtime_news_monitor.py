@@ -563,12 +563,11 @@ class RealtimeNewsMonitor:
             logger.debug("📭 无新新闻")
             return False
 
-        triggered_any = False
-        for item in fresh:
-            self.last_news_signature = self._get_news_signature(item)
-            if self._process_news(item):
-                triggered_any = True
-        return triggered_any
+        # 【核心修复】：只取本批次中最新的一条进行处理，彻底解决堆积延迟。
+        latest_item = max(fresh, key=lambda x: str(x.get("timestamp") or ""))
+        self.last_news_signature = self._get_news_signature(latest_item)
+        logger.info(f"🆕 实时采样: 发现 {len(fresh)} 条新消息，仅处理最新一条: {latest_item.get('headline')}")
+        return self._process_news(latest_item)
     
     def run_loop(self, max_iterations: Optional[int] = None):
         """持续运行"""

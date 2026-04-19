@@ -279,10 +279,17 @@ class RealtimeNewsMonitor:
             
             result = self.workflow.run(payload)
             
+            
+
             if "intel" in result and "analysis" in result:
                 logger.info("✅ A/B计算完成")
-                sectors = result.get("analysis", {}).get("conduction", {}).get("sector_impacts", [])
+                # Update: Use correct flat mapping from result["analysis"]
+                analysis_data = result.get("analysis", {})
+                sectors = analysis_data.get("sector_impacts", [])
                 opportunities = result.get("opportunities", [])
+                if not opportunities: # Try alternative path
+                    opportunities = analysis_data.get("stock_candidates", [])
+                
                 logger.info(f"   - 板块数: {len(sectors)}")
                 logger.info(f"   - 机会数: {len(opportunities)}")
                 self._push_sectors_to_c(result, news=news, publish_event_update=publish_event_update)
@@ -320,7 +327,7 @@ class RealtimeNewsMonitor:
             batch_id = str(result.get("batch_id") or f"BATCH-{request_id}")
             
             sectors = []
-            for item in analysis.get("conduction", {}).get("sector_impacts", []):
+            for item in analysis.get("sector_impacts", []):
                 direction_raw = str(item.get("direction", "WATCH")).lower()
                 if direction_raw in {"benefit", "long"}:
                     direction = "LONG"
@@ -382,7 +389,7 @@ class RealtimeNewsMonitor:
                     "source_mode": (news or {}).get("source_mode", event_object.get("source_mode", "")),
                     "severity": event_object.get("severity", "E3"),
                     "evidence_score": 0,
-                    "narrative_state": "Fact-Driven",
+                    "narrative_state": (news or {}).get("narrative_state", event_object.get("narrative_state", "Fact-Driven")),
                     "news_timestamp": (
                         event_object.get("news_timestamp")
                         or event_object.get("published_at")
@@ -393,6 +400,15 @@ class RealtimeNewsMonitor:
                     "ai_verdict": ai_verdict,
                     "ai_confidence": ai_confidence,
                     "ai_reason": ai_reason,
+                    # v2.1 Extended Fields for Web Display
+                    "event_type": event_object.get("event_type", "unknown"),
+                    "sentiment": event_object.get("sentiment", "neutral"),
+                    "event_scope": event_object.get("event_scope", "Macro"),
+                    "event_state": event_object.get("event_state", "Initial"),
+                    "transmission_path": event_object.get("transmission_path", []),
+                    "evidence_spans": event_object.get("evidence_spans", []),
+                    "entities": event_object.get("entities", []),
+                    "risk_flags": event_object.get("risk_flags", []),
                 }
 
                 if not self._can_publish_main_chain():
@@ -411,15 +427,15 @@ class RealtimeNewsMonitor:
                             logger.info(f"✅ 推送事件到C模块成功")
             
             # 推送 opportunity-update
-            opportunities = analysis.get("opportunity_update", {}).get("opportunities", [])
-            if opportunities:
+            opps = result.get("opportunities", [])
+            if opps:
                 opp_data = {
                     "type": "opportunity_update",
                     "trace_id": trace_id,
                     "request_id": request_id,
                     "batch_id": batch_id,
                     "schema_version": "v1.0",
-                    "opportunities": opportunities,
+                    "opportunities": opps,
                     "timestamp": ts,
                 }
                 

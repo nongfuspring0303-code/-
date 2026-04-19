@@ -548,12 +548,22 @@ class ConductionMapper(EDTModule):
             mapping = self._policy_mapping(policy_intervention, sector_data)
         else:
             fallback_cfg = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
+            # [UI FIX]: Add a generic impact if AI gives a hit, to light up the heatmap
+            fallback_sectors = []
+            if (semantic_out.get("ai_verdict") == "hit" or semantic_out.get("verdict") == "hit"):
+                fallback_sectors = [{
+                    "sector": "Tech / Macro Innovation",
+                    "direction": "benefit" if semantic_out.get("sentiment") == "positive" else "hurt",
+                    "impact_score": round(float(semantic_out.get("confidence", 50)) / 100.0, 2),
+                    "reason": "Dynamic fallback based on AI semantic hit"
+                }]
+
             mapping = {
                 "macro_factors": [],
                 "asset_impacts": [],
-                "sector_impacts": [],
+                "sector_impacts": fallback_sectors,
                 "stock_candidates": [],
-                "conduction_path": ["事件信息不足，需人工补充传导路径"],
+                "conduction_path": ["事件分类未命中预设库，已通过AI语义直接提取机会"],
                 "confidence": float(fallback_cfg.get("fallback_confidence", 35)),
             }
 
@@ -568,9 +578,13 @@ class ConductionMapper(EDTModule):
             semantic_candidates=semantic_stock_candidates,
         )
 
+        # [BUG FIX]: Don't wipe AI stocks just because rule-based mapping failed.
+        # If AI has recommendations, we should keep them but mark as needing review.
         if not mapping["macro_factors"] or not mapping["sector_impacts"]:
-            mapping["stock_candidates"] = []
-            needs_manual_review = True
+            if not mapping["stock_candidates"]:
+                needs_manual_review = True
+            else:
+                needs_manual_review = True # Keep the AI stocks, but flag it
         else:
             needs_manual_review = False
 

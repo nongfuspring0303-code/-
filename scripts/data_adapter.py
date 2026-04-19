@@ -17,6 +17,11 @@ except ImportError:
     yaml = None
 
 try:
+    import yfinance as yf
+except ImportError:
+    yf = None
+
+try:
     from edt_module_base import CacheManager
 except ImportError:
     logging.warning("CacheManager import failed; DataAdapter cache is disabled.")
@@ -206,6 +211,25 @@ class DataAdapter:
         }
 
     def _fetch_vix(self) -> Optional[Dict[str, Any]]:
+        # Prefer yfinance (more resilient than direct Yahoo quote endpoint),
+        # then fallback to the legacy URL path for compatibility.
+        if yf is not None:
+            try:
+                ticker = yf.Ticker("^VIX")
+                fast = ticker.fast_info or {}
+                level = fast.get("lastPrice")
+                prev_close = fast.get("previousClose")
+                change_pct = None
+                if level is not None and prev_close not in (None, 0):
+                    change_pct = (float(level) - float(prev_close)) / float(prev_close) * 100.0
+                if level is not None:
+                    return {
+                        "level": float(level),
+                        "change_pct": change_pct,
+                    }
+            except Exception as exc:
+                logging.warning("market_data_fetch_failed source=yfinance symbol=^VIX reason=%s", exc)
+
         timeout = self._get_int_config("data_adapter.market_data.timeout_seconds", 5)
         url = self._get_config(
             "data_adapter.market_data.vix_url",
@@ -225,6 +249,19 @@ class DataAdapter:
         }
 
     def _fetch_spx(self) -> Optional[Dict[str, Any]]:
+        # Prefer yfinance first; fallback to legacy URL path.
+        if yf is not None:
+            try:
+                ticker = yf.Ticker("^GSPC")
+                fast = ticker.fast_info or {}
+                level = fast.get("lastPrice")
+                prev_close = fast.get("previousClose")
+                if level is not None and prev_close not in (None, 0):
+                    change_pct = (float(level) - float(prev_close)) / float(prev_close) * 100.0
+                    return {"change_pct": change_pct}
+            except Exception as exc:
+                logging.warning("market_data_fetch_failed source=yfinance symbol=^GSPC reason=%s", exc)
+
         timeout = self._get_int_config("data_adapter.market_data.timeout_seconds", 5)
         url = self._get_config(
             "data_adapter.market_data.spx_url",

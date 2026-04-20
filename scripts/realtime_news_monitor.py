@@ -198,7 +198,7 @@ class RealtimeNewsMonitor:
     def _c_ingest_headers(self) -> Dict[str, str]:
         return {
             "Content-Type": "application/json",
-            "X-EDT-Token": os.getenv("EDT_API_TOKEN", os.getenv("EDT_WS_TOKEN", "edt-local-dev-token")),
+            "X-EDT-Token": "edt-local-dev-token",
         }
     
     def _process_news(self, news: Dict[str, Any]) -> bool:
@@ -282,7 +282,8 @@ class RealtimeNewsMonitor:
             if "intel" in result and "analysis" in result:
                 logger.info("✅ A/B计算完成")
                 sectors = result.get("analysis", {}).get("conduction", {}).get("sector_impacts", [])
-                opportunities = result.get("opportunities", [])
+                opportunity_update = result.get("analysis", {}).get("opportunity_update", {})
+                opportunities = opportunity_update.get("opportunities", []) if opportunity_update else []
                 logger.info(f"   - 板块数: {len(sectors)}")
                 logger.info(f"   - 机会数: {len(opportunities)}")
                 self._push_sectors_to_c(result, news=news, publish_event_update=publish_event_update)
@@ -313,9 +314,9 @@ class RealtimeNewsMonitor:
             ai_confidence = intel.get("ai_confidence", 0)
             ai_reason = intel.get("ai_reason", "")
             ts = datetime.now(timezone.utc).isoformat()
-            trace_id = str(result.get("trace_id") or event_object.get("event_id", "unknown"))
-            if not trace_id.startswith(("TRC-", "REQ-", "BATCH-", "evt_")):
-                trace_id = f"TRC-{trace_id}"
+            trace_seed = str(news.get("event_id") or news.get("source_url") or news.get("source") or self._get_news_signature(news))
+            trace_hash = hashlib.sha1(trace_seed.encode("utf-8", errors="ignore")).hexdigest()[:12]
+            trace_id = f"evt_live_{trace_hash}"
             request_id = str(result.get("request_id") or trace_id)
             batch_id = str(result.get("batch_id") or f"BATCH-{request_id}")
             

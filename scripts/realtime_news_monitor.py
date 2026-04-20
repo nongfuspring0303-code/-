@@ -145,6 +145,41 @@ class RealtimeNewsMonitor:
         timestamp = news.get("timestamp", "")
         return f"{headline}|{timestamp}"
 
+    def _trace_seed_from_news(self, news: Optional[Dict[str, Any]]) -> str:
+        """Single-source trace seed for all live updates (event/sector/opportunity)."""
+        news_ctx = news if isinstance(news, dict) else {}
+        signature = self._get_news_signature(news_ctx)
+        if signature == "|":
+            signature = ""
+        return str(
+            news_ctx.get("event_id")
+            or news_ctx.get("source_url")
+            or news_ctx.get("source")
+            or signature
+            or ""
+        ).strip()
+
+    def _build_live_trace_id(
+        self,
+        news: Optional[Dict[str, Any]] = None,
+        *,
+        fallback_trace: str = "",
+        fallback_event_id: str = "",
+    ) -> str:
+        """
+        Build a stable live trace_id shared by all downstream update types.
+        This prevents UI split-brain where event and sector/opportunity use different trace ids.
+        """
+        seed = self._trace_seed_from_news(news)
+        if not seed:
+            seed = str(fallback_trace or fallback_event_id or "").strip()
+        if not seed:
+            return "evt_live_unknown"
+        if seed.startswith("evt_live_"):
+            return seed
+        trace_hash = hashlib.sha1(seed.encode("utf-8", errors="ignore")).hexdigest()[:12]
+        return f"evt_live_{trace_hash}"
+
     def _translate_headline(self, headline: str) -> Optional[str]:
         """翻译标题为中文（非官方库，失败即跳过）"""
         if not headline or not self.translator:
@@ -284,7 +319,8 @@ class RealtimeNewsMonitor:
             if "intel" in result and "analysis" in result:
                 logger.info("✅ A/B计算完成")
                 sectors = result.get("analysis", {}).get("conduction", {}).get("sector_impacts", [])
-                opportunities = result.get("opportunities", [])
+                opportunity_update = result.get("analysis", {}).get("opportunity_update", {})
+                opportunities = opportunity_update.get("opportunities", []) if opportunity_update else []
                 logger.info(f"   - 板块数: {len(sectors)}")
                 logger.info(f"   - 机会数: {len(opportunities)}")
                 self._push_sectors_to_c(result, news=news, publish_event_update=publish_event_update)
@@ -315,9 +351,11 @@ class RealtimeNewsMonitor:
             ai_confidence = intel.get("ai_confidence", 0)
             ai_reason = intel.get("ai_reason", "")
             ts = datetime.now(timezone.utc).isoformat()
-            trace_id = str(result.get("trace_id") or event_object.get("event_id", "unknown"))
-            if not trace_id.startswith(("TRC-", "REQ-", "BATCH-", "evt_")):
-                trace_id = f"TRC-{trace_id}"
+            trace_id = self._build_live_trace_id(
+                news,
+                fallback_trace=str(result.get("trace_id") or ""),
+                fallback_event_id=str(event_object.get("event_id") or ""),
+            )
             request_id = str(result.get("request_id") or trace_id)
             batch_id = str(result.get("batch_id") or f"BATCH-{request_id}")
             
@@ -454,9 +492,7 @@ class RealtimeNewsMonitor:
         if not self.api_url:
             return
 
-        trace_seed = str(news.get("event_id") or self._get_news_signature(news))
-        trace_hash = hashlib.sha1(trace_seed.encode("utf-8", errors="ignore")).hexdigest()[:12]
-        trace_id = f"evt_live_{trace_hash}"
+        trace_id = self._build_live_trace_id(news)
 
         payload = {
             "type": "event_update",

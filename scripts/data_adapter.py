@@ -175,6 +175,9 @@ class DataAdapter:
                 "region": "US",
                 "asset_class": ["equities", "bonds", "usd"],
                 "trace_id": item.get("trace_id"),
+                # Provenance / test data markers must pass through for gating.
+                "is_test_data": bool(item.get("is_test_data") or item.get("is_fallback")),
+                "provenance": item.get("provenance"),
             },
         }
 

@@ -120,8 +120,8 @@ class SemanticAnalyzer:
         return raw
 
     def _openclaw_auth_profiles_path(self) -> Path:
-        default_path = "/Users/workmac/.openclaw/agents/main/agent/auth-profiles.json"
-        configured = self._get_env("OPENCLAW_AUTH_PROFILES", default_path)
+        default_path = Path.home() / ".openclaw" / "agents" / "main" / "agent" / "auth-profiles.json"
+        configured = self._get_env("OPENCLAW_AUTH_PROFILES", str(default_path))
         return Path(configured).expanduser()
 
     def _read_openclaw_profile(self, profile_key: str = "openai-codex:default") -> Dict[str, Any]:
@@ -152,7 +152,8 @@ class SemanticAnalyzer:
         return str(profile.get("accountId", "") or "")
 
     def _gateway_token_from_openclaw_config(self) -> str:
-        config_path = Path(self._get_env("OPENCLAW_CONFIG", "/Users/workmac/.openclaw/openclaw.json")).expanduser()
+        default_config = Path.home() / ".openclaw" / "openclaw.json"
+        config_path = Path(self._get_env("OPENCLAW_CONFIG", str(default_config))).expanduser()
         if not config_path.exists():
             return ""
         try:
@@ -174,8 +175,10 @@ class SemanticAnalyzer:
         base = self._get_env("OPENAI_BASE_URL", "").strip()
         if base:
             return base.rstrip("/")
-        # Default to local OpenClaw gateway first.
-        return "http://127.0.0.1:18789"
+        # No silent fallback to local gateway; raise if not configured.
+        raise RuntimeError(
+            "OPENAI_BASE_URL is not configured. Set it via env var or .env.local file."
+        )
 
     def _is_openclaw_gateway_base(self, base_url: str) -> bool:
         lower = str(base_url or "").lower()
@@ -573,10 +576,14 @@ class SemanticAnalyzer:
         return last_response, "", last_error or "openai_endpoint_not_found"
 
     def _call_openai_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
+        try:
+            base_url = self._openai_base_url()
+        except RuntimeError as exc:
+            return self._abstain_response(fallback_reason=str(exc), provider="openai", model=model or "unknown")
+
         prompt = self._get_prompt(text)
         # Normalize Codex model id: "openai-codex/gpt-5.3-codex" -> "gpt-5.3-codex"
         use_model = self._normalize_model_name(model or self.model_name or "gpt-5.3-codex")
-        base_url = self._openai_base_url()
 
         # Auth sources:
         # 1) OpenClaw OAuth profile token (required by your workflow)

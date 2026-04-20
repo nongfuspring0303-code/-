@@ -266,3 +266,34 @@ def test_trace_id_consistent_across_preview_and_ab_updates(monkeypatch):
 
     opp_posts = [payload for url, payload in captured_posts if url.endswith("/api/ingest/opportunity-update")]
     assert len(opp_posts) == 1
+
+
+def test_run_once_queues_fresh_news_without_dropping(monkeypatch):
+    monitor = _build_monitor(monkeypatch)
+    monitor._bootstrap_done = True
+    monitor.max_process_per_cycle = 1
+
+    processed_ids = []
+
+    def _fake_process(news):
+        processed_ids.append(news.get("event_id"))
+        return True
+
+    # Ingestion order is typically newest -> oldest.
+    news_batch = [
+        {"event_id": "N2", "headline": "newer", "timestamp": "2026-04-20T10:00:10Z", "metadata": {}},
+        {"event_id": "N1", "headline": "older", "timestamp": "2026-04-20T10:00:00Z", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: news_batch
+    monitor._process_news = _fake_process
+
+    # First round: enqueue both, process 1 due to max_process_per_cycle=1.
+    assert monitor.run_once() is True
+    assert processed_ids == ["N1"]
+    assert len(monitor._pending_news) == 1
+
+    # Second round: no fresh items, but pending queue still drains.
+    monitor._fetch_latest_news = lambda: []
+    assert monitor.run_once() is True
+    assert processed_ids == ["N1", "N2"]
+    assert len(monitor._pending_news) == 0

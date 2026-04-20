@@ -344,3 +344,23 @@ def test_semantic_analyzer_v21_fields_present_and_normalized(tmp_path, monkeypat
     assert out["entities"][0] == {"type": "generic", "value": "Hormuz"}
     assert out["entities"][1] == {"type": "country", "value": "Iran"}
     assert out["transmission_path"] == ["Strait risk up", "Oil logistics tighter", "Inflation risk up"]
+
+
+def test_call_provider_has_explicit_fallback_for_unknown_provider(tmp_path):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text(
+        "modules: {}\nruntime:\n  semantic:\n    enabled: true\n    provider: custom_provider\n    model: custom-model\n    min_confidence: 10\n",
+        encoding="utf-8",
+    )
+    analyzer = SemanticAnalyzer(config_path=str(cfg))
+    payload = analyzer._call_provider(
+        "Routine market update",
+        "No special keyword hit",
+        provider="custom_provider",
+        model="custom-model",
+        timeout_ms=1000,
+    )
+    assert isinstance(payload, dict)
+    assert payload.get("fallback_reason") == "provider_unsupported"
+    assert payload.get("event_type") == "other"
+    assert payload.get("confidence") == 0

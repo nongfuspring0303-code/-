@@ -36,3 +36,19 @@ logs/canary_live/
 
 # SQLite state store
 data/*.db
+
+# OS files
+.DS_Store
+logs/.DS_Store
+
+# Runtime PID files
+.monitor.pid
+
+# PR review temp files
+pr_comment.md
+
+# Acceptance test outputs (generated, not source)
+logs/acceptance/*.html
+logs/acceptance/*.json
+logs/acceptance/*.md
+!logs/acceptance/.gitkeep

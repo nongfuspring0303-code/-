@@ -8,7 +8,7 @@ import os
 import time
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -119,14 +119,15 @@ class SemanticAnalyzer:
             return raw.split("/")[-1]
         return raw
 
-    def _openclaw_auth_profiles_path(self) -> Path:
-        default_path = "/Users/workmac/.openclaw/agents/main/agent/auth-profiles.json"
-        configured = self._get_env("OPENCLAW_AUTH_PROFILES", default_path)
+    def _openclaw_auth_profiles_path(self) -> Optional[Path]:
+        configured = self._get_env("OPENCLAW_AUTH_PROFILES", "").strip()
+        if not configured:
+            return None
         return Path(configured).expanduser()
 
     def _read_openclaw_profile(self, profile_key: str = "openai-codex:default") -> Dict[str, Any]:
         path = self._openclaw_auth_profiles_path()
-        if not path.exists():
+        if not path or not path.exists():
             return {}
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -152,7 +153,10 @@ class SemanticAnalyzer:
         return str(profile.get("accountId", "") or "")
 
     def _gateway_token_from_openclaw_config(self) -> str:
-        config_path = Path(self._get_env("OPENCLAW_CONFIG", "/Users/workmac/.openclaw/openclaw.json")).expanduser()
+        configured = self._get_env("OPENCLAW_CONFIG", "").strip()
+        if not configured:
+            return ""
+        config_path = Path(configured).expanduser()
         if not config_path.exists():
             return ""
         try:
@@ -174,8 +178,10 @@ class SemanticAnalyzer:
         base = self._get_env("OPENAI_BASE_URL", "").strip()
         if base:
             return base.rstrip("/")
-        # Default to local OpenClaw gateway first.
-        return "http://127.0.0.1:18789"
+        # No silent fallback to local gateway; raise if not configured.
+        raise RuntimeError(
+            "OPENAI_BASE_URL is not configured. Set it via env var or .env.local file."
+        )
 
     def _is_openclaw_gateway_base(self, base_url: str) -> bool:
         lower = str(base_url or "").lower()
@@ -250,6 +256,7 @@ class SemanticAnalyzer:
         self,
         *,
         fallback_reason: str,
+        fallback_detail: str = "",
         provider: str,
         model: str = "",
         latency_ms: int = 0,
@@ -261,12 +268,13 @@ class SemanticAnalyzer:
             "recommended_chain": "",
             "recommended_stocks": [],
             "verdict": "abstain",
-            "reason": fallback_reason,
+            "reason": fallback_detail or fallback_reason,
             "provider": provider,
             "model": str(model or self.model_name or ""),
             "semantic_status": "fallback",
             "latency_ms": int(max(0, latency_ms)),
             "fallback_reason": fallback_reason,
+            "fallback_detail": str(fallback_detail or ""),
             "a0_event_strength": 0,
             "expectation_gap": 0,
             "event_state": "Initial",
@@ -305,6 +313,7 @@ class SemanticAnalyzer:
             "semantic_status": str(payload.get("semantic_status", "") or ""),
             "latency_ms": int(max(0, parsed_latency)),
             "fallback_reason": str(payload.get("fallback_reason", "") or ""),
+            "fallback_detail": str(payload.get("fallback_detail", "") or ""),
             "a0_event_strength": self._clamp_int(payload.get("a0_event_strength", confidence), 0, 100, confidence),
             "expectation_gap": self._clamp_int(payload.get("expectation_gap", 0), -100, 100, 0),
             "event_state": self._normalize_event_state(payload.get("event_state") or payload.get("narrative_stage"), ""),
@@ -501,6 +510,20 @@ class SemanticAnalyzer:
                 "recommended_stocks": [],
                 "reason": "deterministic keyword match",
             }
+
+        # Deterministic fallback: keep provider contract explicit even when
+        # no provider strategy/keyword branch is matched.
+        return {
+            "event_type": "other",
+            "sentiment": "neutral",
+            "confidence": 0,
+            "recommended_chain": "",
+            "recommended_stocks": [],
+            "reason": "deterministic fallback: provider strategy not matched",
+            "fallback_reason": "provider_unsupported",
+            "provider": provider_lower or "unknown",
+        }
+
     @staticmethod
     def _safe_json(response: requests.Response) -> Dict[str, Any]:
         try:
@@ -573,10 +596,19 @@ class SemanticAnalyzer:
         return last_response, "", last_error or "openai_endpoint_not_found"
 
     def _call_openai_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
+        try:
+            base_url = self._openai_base_url()
+        except RuntimeError as exc:
+            return self._abstain_response(
+                fallback_reason="openai_base_url_missing",
+                fallback_detail=str(exc),
+                provider="openai",
+                model=model or "unknown",
+            )
+
         prompt = self._get_prompt(text)
         # Normalize Codex model id: "openai-codex/gpt-5.3-codex" -> "gpt-5.3-codex"
         use_model = self._normalize_model_name(model or self.model_name or "gpt-5.3-codex")
-        base_url = self._openai_base_url()
 
         # Auth sources:
         # 1) OpenClaw OAuth profile token (required by your workflow)
@@ -624,7 +656,8 @@ class SemanticAnalyzer:
         )
         if response is None:
             return self._abstain_response(
-                fallback_reason=f"openai_route_error:{route_error[:80]}",
+                fallback_reason="openai_route_error",
+                fallback_detail=route_error[:160],
                 provider="openai",
                 model=use_model,
             )
@@ -647,7 +680,8 @@ class SemanticAnalyzer:
             )
             if response is None:
                 return self._abstain_response(
-                    fallback_reason=f"openai_route_error:{route_error[:80]}",
+                    fallback_reason="openai_route_error",
+                    fallback_detail=route_error[:160],
                     provider="openai",
                     model=use_model,
                 )
@@ -666,7 +700,8 @@ class SemanticAnalyzer:
                 )
                 if response is None:
                     return self._abstain_response(
-                        fallback_reason=f"openai_route_error:{route_error[:80]}",
+                        fallback_reason="openai_route_error",
+                        fallback_detail=route_error[:160],
                         provider="openai",
                         model=use_model,
                     )
@@ -684,7 +719,8 @@ class SemanticAnalyzer:
             )
             if response is None:
                 return self._abstain_response(
-                    fallback_reason=f"openai_route_error:{route_error[:80]}",
+                    fallback_reason="openai_route_error",
+                    fallback_detail=route_error[:160],
                     provider="openai",
                     model=use_model,
                 )
@@ -692,7 +728,8 @@ class SemanticAnalyzer:
         if response.status_code >= 400:
             reason = self._extract_openai_error(response)
             return self._abstain_response(
-                fallback_reason=f"openai_http_{response.status_code}:{reason[:120]}",
+                fallback_reason="openai_http_error",
+                fallback_detail=f"status={response.status_code}; {reason[:120]}",
                 provider="openai",
                 model=use_model,
             )

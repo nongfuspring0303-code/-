@@ -161,6 +161,33 @@ class DataAdapter:
             return self.write_health_summary()
 
     def _normalize_news_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        raw_meta = item.get("metadata", {})
+        if not isinstance(raw_meta, dict):
+            raw_meta = {}
+
+        keywords = raw_meta.get("keywords", [])
+        if not isinstance(keywords, list):
+            keywords = []
+
+        provenance = raw_meta.get("provenance")
+        if provenance is None:
+            provenance = item.get("provenance")
+
+        is_test_data = bool(
+            raw_meta.get("is_test_data")
+            or item.get("is_test_data")
+            or item.get("is_fallback")
+        )
+
+        normalized_meta = dict(raw_meta)
+        normalized_meta["keywords"] = keywords
+        normalized_meta.setdefault("region", "US")
+        normalized_meta.setdefault("asset_class", ["equities", "bonds", "usd"])
+        normalized_meta["trace_id"] = item.get("trace_id") or raw_meta.get("trace_id")
+        normalized_meta["is_test_data"] = is_test_data
+        if provenance is not None:
+            normalized_meta["provenance"] = provenance
+
         return {
             "headline": item.get("headline", ""),
             "source": item.get("source_url", ""),
@@ -170,12 +197,9 @@ class DataAdapter:
             "timestamp": item.get("timestamp", datetime.now(timezone.utc).isoformat()),
             "raw_text": item.get("raw_text", ""),
             "event_id": item.get("event_id", ""),
-            "metadata": {
-                "keywords": [],
-                "region": "US",
-                "asset_class": ["equities", "bonds", "usd"],
-                "trace_id": item.get("trace_id"),
-            },
+            "is_test_data": is_test_data,
+            "provenance": provenance,
+            "metadata": normalized_meta,
         }
 
     def fetch_news_batch(self, max_items: int = 10) -> List[Dict[str, Any]]:

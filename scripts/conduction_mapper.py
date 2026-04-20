@@ -9,6 +9,7 @@ rule.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import sys
@@ -30,6 +31,8 @@ from transmission_engine.core.factor_vectorizer import FactorVectorizer
 
 class ConductionMapper(EDTModule):
     """Structured event conduction mapper."""
+
+    _SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
 
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("ConductionMapper", "1.0.0", config_path)
@@ -169,6 +172,15 @@ class ConductionMapper(EDTModule):
         return []
 
     @staticmethod
+    def _is_valid_symbol(symbol: Any) -> bool:
+        normalized = str(symbol or "").strip().upper()
+        if not normalized:
+            return False
+        if not ConductionMapper._SYMBOL_RE.match(normalized):
+            return False
+        return any(ch.isalpha() for ch in normalized)
+
+    @staticmethod
     def _normalize_recommended_stocks(semantic_output: Optional[Dict[str, Any]]) -> List[str]:
         if not semantic_output or not isinstance(semantic_output, dict):
             return []
@@ -179,7 +191,9 @@ class ConductionMapper(EDTModule):
         seen = set()
         for symbol in recommended:
             normalized_symbol = str(symbol or "").strip().upper()
-            if not normalized_symbol or normalized_symbol in seen:
+            if not ConductionMapper._is_valid_symbol(normalized_symbol):
+                continue
+            if normalized_symbol in seen:
                 continue
             seen.add(normalized_symbol)
             normalized.append(normalized_symbol)
@@ -203,7 +217,7 @@ class ConductionMapper(EDTModule):
             if entity_type not in {"ticker", "symbol", "stock"}:
                 continue
             raw_value = str(item.get("value", "")).strip().upper()
-            if not raw_value:
+            if not ConductionMapper._is_valid_symbol(raw_value):
                 continue
             if raw_value in seen:
                 continue
@@ -219,7 +233,7 @@ class ConductionMapper(EDTModule):
         merged: List[Dict[str, Any]] = []
         seen = set()
 
-        for candidate in semantic_candidates + base_candidates:
+        for candidate in base_candidates + semantic_candidates:
             symbol = str(candidate.get("symbol", "")).strip().upper()
             if not symbol or symbol in seen:
                 continue
@@ -257,9 +271,6 @@ class ConductionMapper(EDTModule):
             direction = "watch"
 
         sector_name = str((sector_impacts or [{}])[0].get("sector", "未知板块"))
-        confidence = float(semantic_output.get("confidence", 0) or 0)
-        novelty = float(semantic_output.get("novelty_score", 0) or 0)
-        event_beta = max(0.6, min(1.5, 0.8 + confidence / 250.0 + novelty * 0.3))
         transmission = semantic_output.get("transmission_candidates", [])
         if not isinstance(transmission, list):
             transmission = []
@@ -275,9 +286,6 @@ class ConductionMapper(EDTModule):
                     "symbol": symbol,
                     "sector": sector_name,
                     "direction": direction,
-                    "event_beta": round(event_beta, 2),
-                    "liquidity_tier": "high",
-                    "event_relevance": round(confidence, 2),
                     "reason": reason,
                     "source": "semantic",
                 }
@@ -623,7 +631,6 @@ class ConductionMapper(EDTModule):
                     "module": self.name,
                     "rule_version": "conduction_v1",
                     "decision_trace": mapping["conduction_path"],
-                    "ai_entity_stocks": self._normalize_entity_stocks(semantic_out),
                 },
             },
         )

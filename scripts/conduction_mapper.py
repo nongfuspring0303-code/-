@@ -555,28 +555,12 @@ class ConductionMapper(EDTModule):
             mapping = self._policy_mapping(policy_intervention, sector_data)
         else:
             fallback_cfg = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
-            fallback_sectors = []
-            is_hit = semantic_out.get("ai_verdict") == "hit" or semantic_out.get("verdict") == "hit"
-            if is_hit:
-                _sent = str(semantic_out.get("sentiment", "neutral")).strip().lower()
-                if _sent == "positive":
-                    _dir = "benefit"
-                elif _sent == "negative":
-                    _dir = "hurt"
-                else:
-                    _dir = "watch"
-                fallback_sectors = [{
-                    "sector": "Tech / Macro Innovation",
-                    "direction": _dir,
-                    "impact_score": round(float(semantic_out.get("confidence", 50)) / 100.0, 2),
-                    "reason": "AI Semantic Intelligence Fallback"
-                }]
             mapping = {
                 "macro_factors": [],
                 "asset_impacts": [],
-                "sector_impacts": fallback_sectors,
+                "sector_impacts": [],
                 "stock_candidates": [],
-                "conduction_path": ["事件信息无法精确分类，已通过 AI 语义自动映射"],
+                "conduction_path": ["事件信息不足，需人工补充传导路径"],
                 "confidence": float(fallback_cfg.get("fallback_confidence", 35)),
             }
 
@@ -591,13 +575,7 @@ class ConductionMapper(EDTModule):
             semantic_candidates=semantic_stock_candidates,
         )
 
-        if not mapping["macro_factors"] or not mapping["sector_impacts"]:
-            if not mapping.get("stock_candidates"):
-                needs_manual_review = True
-            else:
-                needs_manual_review = True # Keep AI candidates, just flag for audit
-        else:
-            needs_manual_review = False
+        needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"])
 
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,

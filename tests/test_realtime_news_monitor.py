@@ -187,3 +187,82 @@ def test_translate_headline_falls_back_when_translator_errors(monkeypatch):
     assert translated is not None
     assert "美国SEC" in translated
     assert "市场" in translated
+
+
+def test_trace_id_consistent_across_preview_and_ab_updates(monkeypatch):
+    captured_posts = []
+
+    class _FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def _fake_urlopen(req, timeout=10):
+        import json
+
+        payload = json.loads(req.data.decode("utf-8"))
+        captured_posts.append((req.full_url, payload))
+        return _FakeResponse()
+
+    monitor = _build_monitor(monkeypatch)
+    monitor.api_url = "http://127.0.0.1:9999"
+
+    import urllib.request
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    # Simulate real news lacking event_id but carrying source_url.
+    news = {
+        "headline": "Fed officials still foresee rate cut",
+        "source_url": "https://www.cnbc.com/example",
+        "source_type": "rss",
+        "source_mode": "push",
+        "timestamp": "2026-04-08T18:00:00Z",
+        "metadata": {},
+    }
+    monitor._push_news_preview(news)
+
+    result = {
+        "analysis": {
+            "conduction": {
+                "sector_impacts": [{"sector": "Energy", "direction": "benefit", "confidence": 80}],
+                "confidence": 80,
+            },
+            "opportunity_update": {
+                "opportunities": [
+                    {"symbol": "XOM", "name": "Exxon", "sector": "Energy", "signal": "LONG"}
+                ]
+            },
+        },
+        "intel": {
+            "event_object": {
+                "event_id": "ME-D-20260409-001.V1.0",
+                "headline": "Fed officials still foresee rate cut",
+                "source_url": "https://www.cnbc.com/example",
+                "severity": "E0",
+                "detected_at": "2026-04-08T18:00:00Z",
+            }
+        },
+        "trace_id": "ME-D-20260409-001.V1.0",
+    }
+    monitor._push_sectors_to_c(result, news=news, publish_event_update=True)
+
+    related = [
+        payload
+        for url, payload in captured_posts
+        if url.endswith("/api/ingest/event-update")
+        or url.endswith("/api/ingest/sector-update")
+        or url.endswith("/api/ingest/opportunity-update")
+    ]
+    assert related, "expected ingest payloads to be posted"
+
+    trace_ids = {str(payload.get("trace_id", "")) for payload in related}
+    assert len(trace_ids) == 1
+    assert trace_ids == {monitor._build_live_trace_id(news)}
+
+    opp_posts = [payload for url, payload in captured_posts if url.endswith("/api/ingest/opportunity-update")]
+    assert len(opp_posts) == 1

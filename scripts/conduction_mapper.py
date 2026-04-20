@@ -254,8 +254,7 @@ class ConductionMapper(EDTModule):
         elif sentiment == "negative":
             direction = "short"
         else:
-            first_direction = str((sector_impacts or [{}])[0].get("direction", "benefit")).strip().lower()
-            direction = "long" if first_direction in {"benefit", "long"} else "short"
+            direction = "watch"
 
         sector_name = str((sector_impacts or [{}])[0].get("sector", "未知板块"))
         confidence = float(semantic_output.get("confidence", 0) or 0)
@@ -551,9 +550,16 @@ class ConductionMapper(EDTModule):
             fallback_sectors = []
             is_hit = semantic_out.get("ai_verdict") == "hit" or semantic_out.get("verdict") == "hit"
             if is_hit:
+                _sent = str(semantic_out.get("sentiment", "neutral")).strip().lower()
+                if _sent == "positive":
+                    _dir = "benefit"
+                elif _sent == "negative":
+                    _dir = "hurt"
+                else:
+                    _dir = "watch"
                 fallback_sectors = [{
                     "sector": "Tech / Macro Innovation",
-                    "direction": "benefit" if semantic_out.get("sentiment") == "positive" else "hurt",
+                    "direction": _dir,
                     "impact_score": round(float(semantic_out.get("confidence", 50)) / 100.0, 2),
                     "reason": "AI Semantic Intelligence Fallback"
                 }]
@@ -602,7 +608,6 @@ class ConductionMapper(EDTModule):
                 "market_impact_confidence": classification.get("market_impact_confidence"),
                 "ai_recommendation_source": "semantic_analyzer" if ai_recommended_stocks else "none",
                 "ai_recommended_stocks": ai_recommended_stocks,
-                "ai_entity_stocks": self._normalize_entity_stocks(semantic_out),
                 "ai_recommendation_chain": semantic_out.get("recommended_chain", ""),
                 "ai_recommendation_confidence": semantic_out.get("confidence", 0),
                 "time_horizons": {
@@ -618,6 +623,7 @@ class ConductionMapper(EDTModule):
                     "module": self.name,
                     "rule_version": "conduction_v1",
                     "decision_trace": mapping["conduction_path"],
+                    "ai_entity_stocks": self._normalize_entity_stocks(semantic_out),
                 },
             },
         )

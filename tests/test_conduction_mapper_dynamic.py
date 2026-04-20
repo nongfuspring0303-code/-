@@ -210,7 +210,137 @@ def test_conduction_mapper_injects_semantic_candidates_into_stock_candidates(mon
     symbols = [str(x.get("symbol", "")).upper() for x in out.data.get("stock_candidates", [])]
     assert "NVDA" in symbols
     assert "AAPL" in symbols
-    assert out.data.get("ai_entity_stocks") == ["AAPL"]
+    assert out.data.get("audit", {}).get("ai_entity_stocks") == ["AAPL"]
+
+
+def test_conduction_mapper_filters_non_ticker_entities(monkeypatch):
+    """Non-ticker/symbol/stock entity types must be filtered out (T-002)."""
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic,
+        "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "",
+            "recommended_stocks": ["TSLA"],
+            "entities": [
+                {"type": "ticker", "value": "AAPL"},
+                {"type": "company", "value": "Google"},
+                {"type": "person", "value": "Jerome Powell"},
+                {"type": "symbol", "value": "MSFT"},
+            ],
+            "transmission_candidates": [],
+            "novelty_score": 0.3,
+            "confidence": 60,
+            "event_type": "tech",
+            "sentiment": "positive",
+        },
+    )
+    out = mapper.run({
+        "event_id": "ME-E-TEST-008",
+        "category": "E",
+        "severity": "E2",
+        "headline": "Tech sector update",
+        "summary": "",
+        "lifecycle_state": "Active",
+        "sector_data": [{"symbol": "XLK", "sector": "Technology", "industry": "Technology", "change_pct": 0.5}],
+    })
+    assert out.status.value == "success"
+    entity_stocks = out.data.get("audit", {}).get("ai_entity_stocks", [])
+    assert "AAPL" in entity_stocks
+    assert "MSFT" in entity_stocks
+    assert "Google" not in str(entity_stocks)
+    assert "Jerome Powell" not in str(entity_stocks)
+    symbols = [str(x.get("symbol", "")).upper() for x in out.data.get("stock_candidates", [])]
+    assert "TSLA" in symbols
+    assert "AAPL" in symbols
+    assert "MSFT" in symbols
+
+
+def test_conduction_mapper_neutral_sentiment_fallback_is_watch(monkeypatch):
+    """Neutral sentiment must map to 'watch' direction, not 'hurt' (T-003, BLOCKER fix verification)."""
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic,
+        "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "",
+            "recommended_stocks": ["SPY"],
+            "entities": [],
+            "transmission_candidates": [],
+            "novelty_score": 0.1,
+            "confidence": 40,
+            "event_type": "other",
+            "sentiment": "neutral",
+            "verdict": "hit",
+        },
+    )
+    monkeypatch.setattr(mapper.shock_classifier, "classify", lambda category=None, headline=None, summary=None, severity=None: {
+        "category": "E",
+        "event_type_lv1": "other",
+        "event_type_lv2": None,
+        "classification_confidence": 30,
+        "market_impact_confidence": 20,
+        "shock_profile": None,
+    })
+    def mock_match_chain_template(category, headline, summary, semantic_output=None):
+        return None
+    monkeypatch.setattr(mapper, "_match_chain_template", mock_match_chain_template)
+
+    out = mapper.run({
+        "event_id": "ME-E-TEST-009",
+        "category": "X",
+        "severity": "E3",
+        "headline": "Mixed economic data released",
+        "summary": "No clear direction",
+        "lifecycle_state": "Active",
+        "sector_data": [],
+    })
+    assert out.status.value == "success"
+    sector_impacts = out.data.get("sector_impacts", [])
+    assert len(sector_impacts) == 1
+    assert sector_impacts[0]["direction"] == "watch", (
+        f"Neutral sentiment should map to 'watch', got '{sector_impacts[0]['direction']}'"
+    )
+    candidates = out.data.get("stock_candidates", [])
+    assert len(candidates) == 1
+    assert candidates[0]["direction"] == "watch", (
+        f"Neutral stock candidate direction should be 'watch', got '{candidates[0]['direction']}'"
+    )
+
+
+def test_conduction_mapper_semantic_candidates_priority_over_rule(monkeypatch):
+    """Semantic candidates should appear before rule-based candidates (T-004)."""
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic,
+        "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "rate_cut_chain",
+            "recommended_stocks": ["NVDA", "AAPL"],
+            "entities": [{"type": "ticker", "value": "AAPL"}],
+            "transmission_candidates": ["risk_appetite"],
+            "novelty_score": 0.5,
+            "confidence": 80,
+            "event_type": "monetary",
+            "sentiment": "positive",
+        },
+    )
+    out = mapper.run({
+        "event_id": "ME-E-TEST-010",
+        "category": "E",
+        "severity": "E2",
+        "headline": "Fed signals rate cuts ahead",
+        "summary": "Policy easing expected",
+        "lifecycle_state": "Active",
+        "sector_data": [{"symbol": "XLF", "sector": "Financial Services", "industry": "Financial Services", "change_pct": 0.8}],
+    })
+    assert out.status.value == "success"
+    candidates = out.data.get("stock_candidates", [])
+    symbols = [str(x.get("symbol", "")).upper() for x in candidates]
+    assert "NVDA" in symbols
+    assert "AAPL" in symbols
+    sources = [str(x.get("source", "")) for x in candidates]
+    assert "semantic" in sources
 
 
 def test_trade_talk_context_not_overridden_by_broad_tariff_tokens():

@@ -198,7 +198,7 @@ class RealtimeNewsMonitor:
     def _c_ingest_headers(self) -> Dict[str, str]:
         return {
             "Content-Type": "application/json",
-            "X-EDT-Token": "edt-local-dev-token",
+            "X-EDT-Token": os.getenv("EDT_API_TOKEN", os.getenv("EDT_WS_TOKEN", "edt-local-dev-token")),
         }
     
     def _process_news(self, news: Dict[str, Any]) -> bool:
@@ -314,9 +314,20 @@ class RealtimeNewsMonitor:
             ai_confidence = intel.get("ai_confidence", 0)
             ai_reason = intel.get("ai_reason", "")
             ts = datetime.now(timezone.utc).isoformat()
-            trace_seed = str(news.get("event_id") or news.get("source_url") or news.get("source") or self._get_news_signature(news))
-            trace_hash = hashlib.sha1(trace_seed.encode("utf-8", errors="ignore")).hexdigest()[:12]
-            trace_id = f"evt_live_{trace_hash}"
+            news_ctx = news if isinstance(news, dict) else {}
+            trace_seed = str(
+                news_ctx.get("event_id")
+                or news_ctx.get("source_url")
+                or news_ctx.get("source")
+                or result.get("trace_id")
+                or event_object.get("event_id")
+                or ""
+            ).strip()
+            if trace_seed:
+                trace_hash = hashlib.sha1(trace_seed.encode("utf-8", errors="ignore")).hexdigest()[:12]
+                trace_id = f"evt_live_{trace_hash}"
+            else:
+                trace_id = str(result.get("trace_id") or event_object.get("event_id") or "evt_live_unknown")
             request_id = str(result.get("request_id") or trace_id)
             batch_id = str(result.get("batch_id") or f"BATCH-{request_id}")
             

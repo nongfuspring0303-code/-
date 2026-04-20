@@ -54,9 +54,8 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
         return json.loads(raw or "{}")
 
     def _is_authorized(self) -> bool:
-        # Non-prod mode: allow all requests for easier testing
-        if not self.runtime_role or self.runtime_role != "prod":
-            return True
+        if self.runtime_role == "prod" and not self.auth_token:
+            return False
         if not self.auth_token:
             return True
         header_token = self.headers.get("X-EDT-Token", "").strip()

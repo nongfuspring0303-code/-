@@ -19,3 +19,7 @@ This folder holds execution-level governance docs for the EDT phase-5 rollout.
 
 ## Freeze Command
 - `python3 scripts/freeze_stage0_baseline.py`
+
+## Rollback Sanitization Command
+- Dry-run: `python3 scripts/rollback_sanitize_v22.py --mode dry-run --db-action downgrade_v22_metadata`
+- Apply: `python3 scripts/rollback_sanitize_v22.py --mode apply --db-action downgrade_v22_metadata`

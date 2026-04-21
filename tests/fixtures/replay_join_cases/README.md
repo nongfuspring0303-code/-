@@ -8,3 +8,7 @@ Required key fields:
 - batch_id
 - event_hash
 - idempotency_key
+
+Current files:
+- `replay_join_valid_001.json`
+- `replay_join_orphan_001.json`

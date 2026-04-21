@@ -16,6 +16,8 @@
 - [x] gate truth-source frozen
 - [x] dual-write plan frozen
 - [x] Go/No-Go checklist complete
+- [x] golden fixtures landed (`tests/fixtures/edt_goldens/*.json`)
+- [x] rollback sanitization supports DB compatibility downgrade
 
 ## Phase 2 Start Criteria
 - [x] stage 1 logs can carry provenance and reject reason

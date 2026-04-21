@@ -1,0 +1,15 @@
+{
+  "case_id": "B-GOLD-015",
+  "category": "执行红线验证",
+  "headline": "Routine diplomatic visit announced with no asset linkage",
+  "semantic_event_type": "地缘",
+  "expected_sector_candidates": [],
+  "expected_ticker_candidates": [],
+  "allowed_actions": [
+    "NO_ACTION"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "缺明确资产映射依据时，不得进入EXECUTE。"
+}

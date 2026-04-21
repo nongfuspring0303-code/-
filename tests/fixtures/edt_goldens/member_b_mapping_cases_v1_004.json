@@ -1,0 +1,22 @@
+{
+  "case_id": "B-GOLD-004",
+  "category": "宏观_利率",
+  "headline": "US CPI comes in hotter than expected",
+  "semantic_event_type": "宏观",
+  "expected_sector_candidates": [
+    "成长股"
+  ],
+  "expected_ticker_candidates": [
+    "NVDA",
+    "TSLA",
+    "AMZN"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "SHORT"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "高通胀压制成长估值，不应默认金融多头。"
+}

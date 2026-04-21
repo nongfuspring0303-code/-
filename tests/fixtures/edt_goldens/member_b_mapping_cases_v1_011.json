@@ -1,0 +1,22 @@
+{
+  "case_id": "B-GOLD-011",
+  "category": "消费",
+  "headline": "China rolls out subsidies to boost consumer electronics demand",
+  "semantic_event_type": "政策",
+  "expected_sector_candidates": [
+    "消费",
+    "科技"
+  ],
+  "expected_ticker_candidates": [
+    "AAPL",
+    "AMZN"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "消费电子补贴偏消费/科技。"
+}

@@ -21,3 +21,4 @@ Current files:
 - `false_positive_financial_blackhole_001.json`
 - `missing_opportunity_but_execute_001.json`
 - `replay_orphan_join_failure_001.json`
+- `member_b_mapping_cases_v1_001.json` - `member_b_mapping_cases_v1_018.json`

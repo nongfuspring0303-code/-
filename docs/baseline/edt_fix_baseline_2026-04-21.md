@@ -1,7 +1,7 @@
 # EDT Fix Baseline Snapshot (2026-04-21)
 
 Status: FROZEN-VALUES (computed from reproducible local logs)
-Owner: Member A (schema), Member C (collection), Member B (mapping validation)
+Owner: Phase 0 execution owner = Member A; Member B/C review & sign-off only
 
 ## Metric Schema
 - `missing_opportunity_but_execute_rate`

@@ -54,6 +54,23 @@ GRADE_RANK = {
     "D": 1,
 }
 
+OUTPUT_GATE_SIGNAL_FIELDS = (
+    "has_opportunity",
+    "market_data_present",
+    "market_data_source",
+    "market_data_stale",
+    "market_data_default_used",
+    "market_data_fallback_used",
+    "tradeable",
+)
+
+OUTPUT_GATE_PROVENANCE_FIELDS = (
+    "market_data_source",
+    "market_data_stale",
+    "market_data_default_used",
+    "market_data_fallback_used",
+)
+
 
 class WorkflowRunner:
     """Main orchestration for execution-layer flow."""
@@ -584,8 +601,40 @@ class WorkflowRunner:
             return value != 0
         return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
+    def _validate_output_gate_contract(self, payload: Dict[str, Any]) -> list[str]:
+        contract_signals_present = any(field in payload for field in OUTPUT_GATE_SIGNAL_FIELDS)
+        if not contract_signals_present:
+            return []
+
+        missing: list[str] = []
+
+        market_contract_signals_present = any(
+            field in payload
+            for field in (
+                "market_data_present",
+                "market_data_source",
+                "market_data_stale",
+                "market_data_default_used",
+                "market_data_fallback_used",
+                "tradeable",
+            )
+        )
+        if market_contract_signals_present and "has_opportunity" not in payload:
+            missing.append("gate_contract_missing_has_opportunity")
+        if market_contract_signals_present and "market_data_present" not in payload:
+            missing.append("gate_contract_missing_market_data_present")
+
+        provenance_signals_present = any(field in payload for field in OUTPUT_GATE_PROVENANCE_FIELDS)
+        if "market_data_present" in payload or provenance_signals_present:
+            for field in OUTPUT_GATE_PROVENANCE_FIELDS:
+                if field not in payload:
+                    missing.append(f"gate_contract_missing_{field}")
+
+        return missing
+
     def _evaluate_output_gate(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         blockers: list[str] = []
+        blockers.extend(self._validate_output_gate_contract(payload))
 
         # Only enforce "missing opportunity" when upstream explicitly provides this field.
         if "has_opportunity" in payload and not self._is_true(payload.get("has_opportunity")):
@@ -607,7 +656,7 @@ class WorkflowRunner:
         if not blockers:
             return {"blocked": False, "action": "ALLOW", "blockers": [], "reason": ""}
 
-        action = "BLOCK" if "tradeable_false" in blockers else "WATCH"
+        action = "BLOCK" if any(item.startswith("gate_contract_missing_") for item in blockers) or "tradeable_false" in blockers else "WATCH"
         return {
             "blocked": True,
             "action": action,

@@ -1,0 +1,22 @@
+{
+  "case_id": "B-GOLD-017",
+  "category": "A1_target_tracking",
+  "headline": "Utility-scale grid upgrade spending increases sharply",
+  "semantic_event_type": "政策",
+  "expected_sector_candidates": [
+    "公用事业",
+    "工业"
+  ],
+  "expected_ticker_candidates": [
+    "NEE",
+    "CAT"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "A1 必须绑定真实目标资产，不得泛市场高分。"
+}

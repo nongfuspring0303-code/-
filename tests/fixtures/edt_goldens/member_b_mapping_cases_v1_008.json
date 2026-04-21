@@ -1,0 +1,19 @@
+{
+  "case_id": "B-GOLD-008",
+  "category": "地缘政治",
+  "headline": "New sanctions target defense-linked supply chains",
+  "semantic_event_type": "地缘",
+  "expected_sector_candidates": [
+    "工业"
+  ],
+  "expected_ticker_candidates": [
+    "CAT"
+  ],
+  "allowed_actions": [
+    "WATCH"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "当前pool缺LMT/NOC/RTX，只能以工业占位，不得塌缩金融。"
+}

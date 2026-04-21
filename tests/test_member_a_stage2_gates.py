@@ -41,6 +41,7 @@ def test_output_gate_blocks_execute_when_opportunity_missing(tmp_path):
         {
             "has_opportunity": False,
             "market_data_present": True,
+            "market_data_source": "payload_direct",
             "market_data_stale": False,
             "market_data_default_used": False,
             "market_data_fallback_used": False,
@@ -63,6 +64,7 @@ def test_output_gate_blocks_execute_when_market_data_stale(tmp_path):
         {
             "has_opportunity": True,
             "market_data_present": True,
+            "market_data_source": "payload_direct",
             "market_data_stale": True,
             "market_data_default_used": False,
             "market_data_fallback_used": False,
@@ -73,6 +75,26 @@ def test_output_gate_blocks_execute_when_market_data_stale(tmp_path):
 
     assert out["final"]["action"] == "WATCH"
     assert "market_data_stale" in out["final"]["reason"]
+
+
+def test_output_gate_blocks_when_contract_fields_are_missing(tmp_path):
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_a2b.txt"),
+        audit_dir=str(tmp_path / "logs_a2b"),
+    )
+    payload = _strong_payload()
+    payload.update(
+        {
+            "has_opportunity": True,
+            "market_data_source": "payload_direct",
+        }
+    )
+    payload.pop("market_data_present", None)
+
+    out = runner.run(payload)
+
+    assert out["final"]["action"] == "BLOCK"
+    assert "gate_contract_missing_market_data_present" in out["final"]["reason"]
 
 
 def test_enforce_resolved_symbol_blocks_unknown_symbol(tmp_path):
@@ -86,6 +108,10 @@ def test_enforce_resolved_symbol_blocks_unknown_symbol(tmp_path):
         {
             "has_opportunity": True,
             "market_data_present": True,
+            "market_data_source": "payload_direct",
+            "market_data_stale": False,
+            "market_data_default_used": False,
+            "market_data_fallback_used": False,
             "enforce_resolved_symbol": True,
             "target_leader": [],
             "target_etf": [],

@@ -1,0 +1,20 @@
+{
+  "case_id": "B-GOLD-012",
+  "category": "出口",
+  "headline": "Export growth beats expectations in manufacturing hubs",
+  "semantic_event_type": "宏观",
+  "expected_sector_candidates": [
+    "工业"
+  ],
+  "expected_ticker_candidates": [
+    "CAT"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "出口/制造偏工业，不应默认金融。"
+}

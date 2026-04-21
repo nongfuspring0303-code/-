@@ -1,0 +1,16 @@
+{
+  "case_id": "B-GOLD-010",
+  "category": "中性噪音",
+  "headline": "Officials hold routine bilateral meeting without policy shift",
+  "semantic_event_type": "地缘",
+  "expected_sector_candidates": [],
+  "expected_ticker_candidates": [],
+  "allowed_actions": [
+    "NO_ACTION",
+    "WATCH"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "例行会晤不应几乎什么都算hit。"
+}

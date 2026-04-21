@@ -64,7 +64,7 @@
 
 | 阶段 | 阶段名称 | 主责 | 配合 | 是否必须先单独完成 | 是否允许并行 | 核心交付物 |
 |---|---|---|---|---|---|---|
-| 阶段 0 | 施工准备 | A 牵头 | B、C | 是 | 否 | 基线、样本、flags、rollback、真源锁定 |
+| 阶段 0 | 施工准备 | A 全负责执行 | B、C 仅 review / sign-off | 是 | 否 | 基线、样本、flags、rollback、真源锁定 |
 | 阶段 1 | 最小可用证据日志 | C 主责 | A、B | 否 | 可与阶段 2 并行 | 4 类关键日志（5 文件） |
 | 阶段 2 | P0 blocker | A 主责 | C、B | 否 | 可与阶段 1 并行 | A1 默认值伪装切断、Gate 红线 |
 | 阶段 3A | replay / join / 越权修复 | C 主责 | A | 否 | 可与 3B 并行 | replay 主键、join、越权堵死 |
@@ -77,9 +77,9 @@
 # 四、阶段 0：施工准备
 
 ## 4.1 主责
-**A 牵头**
+**A 全负责执行**
 
-## 4.2 为什么由 A 牵头
+## 4.2 为什么由 A 全负责执行
 因为阶段 0 涉及的核心事项包括：
 - `contract_version`
 - dual-write
@@ -88,19 +88,21 @@
 - schema / config / registry 真源锁定
 - Joint Review 触点清单
 
-这些都更接近 A 的契约 / Gate / 兼容层主责。
+这些都属于 A 的契约 / Gate / 兼容层执行范围，因此阶段 0 由 A 统一负责落地，B/C 只做审核与 sign-off。
 
-## 4.3 B 的配合任务
-- 锁定 sector 白名单唯一真源
-- 准备映射类黄金样本
-- 确认 `semantic_event_type / sector_candidates / ticker_candidates` 的消费侧需求
-- 确认 `theme_tags / A0 / A1` 不会被后续 blocker 修复破坏
+## 4.3 B 的 review / sign-off 任务
+- review sector 白名单唯一真源
+- sign-off 映射类黄金样本
+- Joint Review `semantic_event_type / sector_candidates / ticker_candidates` 的消费侧需求
+- 审核 `theme_tags / A0 / A1` 不会被后续 blocker 修复破坏
+- 审核执行结果与门禁是否满足
 
-## 4.4 C 的配合任务
-- 准备 replay / join / orphan 样本
-- 准备 raw ingest / quarantine 相关样本
-- 准备压测基线与观测位
-- 预建 rejected / quarantine 流
+## 4.4 C 的 review / sign-off 任务
+- review replay / join / orphan 样本
+- sign-off raw ingest / quarantine 相关样本
+- Joint Review 压测基线与观测位
+- 审核 rejected / quarantine 流是否满足阶段 0 门禁
+- 审核执行结果与门禁是否满足
 
 ## 4.5 本阶段必须单独先做
 **是。**  
@@ -117,9 +119,9 @@
 - Joint Review 触点清单
 
 ## 4.7 完成标志
-- [ ] A 已冻结契约前提
-- [ ] B 已冻结映射真源与样本
-- [ ] C 已准备 replay/raw/quarantine/压测前置项
+- [ ] A 已完成阶段0全部交付物
+- [ ] B 已完成审核
+- [ ] C 已完成审核
 - [ ] Go / No-Go 门禁满足
 
 ---
@@ -421,8 +423,8 @@
 # 十一、最简阶段负责人摘要
 
 ## 阶段 0
-- **A 牵头**
-- B/C 配合
+- **A 全负责执行**
+- B/C 仅 review / sign-off
 - **必须先单独完成**
 
 ## 阶段 1

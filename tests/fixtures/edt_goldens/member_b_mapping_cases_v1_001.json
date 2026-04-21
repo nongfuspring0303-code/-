@@ -1,0 +1,24 @@
+{
+  "case_id": "B-GOLD-001",
+  "category": "AI_半导体",
+  "headline": "Amazon backs Anthropic buildout in major AI infrastructure push",
+  "semantic_event_type": "AI",
+  "expected_sector_candidates": [
+    "半导体",
+    "科技"
+  ],
+  "expected_ticker_candidates": [
+    "NVDA",
+    "AVGO",
+    "MSFT",
+    "GOOGL"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "AI算力/云基础设施利好，不应塌缩到金融。"
+}

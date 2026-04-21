@@ -576,45 +576,6 @@ class WorkflowRunner:
         event_type = str(raw_type or "").strip().lower()
         return event_type if event_type in allowed else "other"
 
-    @staticmethod
-    def _is_true(value: Any) -> bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, (int, float)):
-            return value != 0
-        return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
-
-    def _evaluate_output_gate(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        blockers: list[str] = []
-
-        # Only enforce "missing opportunity" when upstream explicitly provides this field.
-        if "has_opportunity" in payload and not self._is_true(payload.get("has_opportunity")):
-            blockers.append("missing_opportunity")
-
-        # Explicit tradeability has highest priority.
-        if "tradeable" in payload and not self._is_true(payload.get("tradeable")):
-            blockers.append("tradeable_false")
-
-        if "market_data_present" in payload and not self._is_true(payload.get("market_data_present")):
-            blockers.append("market_data_missing")
-        if "market_data_stale" in payload and self._is_true(payload.get("market_data_stale")):
-            blockers.append("market_data_stale")
-        if "market_data_default_used" in payload and self._is_true(payload.get("market_data_default_used")):
-            blockers.append("market_data_default_used")
-        if "market_data_fallback_used" in payload and self._is_true(payload.get("market_data_fallback_used")):
-            blockers.append("market_data_fallback_used")
-
-        if not blockers:
-            return {"blocked": False, "action": "ALLOW", "blockers": [], "reason": ""}
-
-        action = "BLOCK" if "tradeable_false" in blockers else "WATCH"
-        return {
-            "blocked": True,
-            "action": action,
-            "blockers": blockers,
-            "reason": ";".join(blockers),
-        }
-
     def _log_replay_task(
         self,
         *,
@@ -788,13 +749,6 @@ class WorkflowRunner:
             "request_id": request_id,
             "batch_id": batch_id,
         }
-        contract_version = str(payload.get("contract_version", "v2.2"))
-        legacy_contract_version = str(payload.get("legacy_contract_version", "v1.0"))
-        result["contract"] = {
-            "contract_version": contract_version,
-            "legacy_contract_version": legacy_contract_version,
-            "dual_write": bool(payload.get("dual_write", True)),
-        }
         if self._is_request_processed(request_id):
             result["final"] = {
                 "action": "DUPLICATE_IGNORED",
@@ -802,7 +756,6 @@ class WorkflowRunner:
                 "trace_id": trace_id,
                 "request_id": request_id,
                 "batch_id": batch_id,
-                "contract_version": contract_version,
             }
             return result
 
@@ -956,30 +909,20 @@ class WorkflowRunner:
                 return result
         # ================= A2.5 阶段结束 =================
 
-        output_gate = self._evaluate_output_gate(payload)
-        result["output_gate"] = output_gate
-
-        forced_action = str(gate_out.data.get("final_action", "EXECUTE"))
-        forced_reason = "Blocked by gates or no valid position."
-        if output_gate.get("blocked") and forced_action not in ("BLOCK", "FORCE_CLOSE", "WATCH"):
-            forced_action = str(output_gate.get("action", "WATCH"))
-            forced_reason = f"Blocked by output gate: {output_gate.get('reason', 'unknown')}"
-
-        if forced_action in ("BLOCK", "FORCE_CLOSE", "WATCH"):
+        if gate_out.data["final_action"] in ("BLOCK", "FORCE_CLOSE", "WATCH"):
             result["final"] = {
-                "action": forced_action,
-                "reason": forced_reason,
+                "action": gate_out.data["final_action"],
+                "reason": "Blocked by gates or no valid position.",
                 "trace_id": trace_id,
                 "request_id": request_id,
                 "batch_id": batch_id,
-                "contract_version": contract_version,
             }
-            result["action_card"] = self._build_action_card(payload, ai_factors, float(score), forced_action)
+            result["action_card"] = self._build_action_card(payload, ai_factors, float(score), gate_out.data["final_action"])
             self._submit_replay_log(
                 trace_id=trace_id,
                 request_id=request_id,
                 batch_id=batch_id,
-                final_action=forced_action,
+                final_action=str(gate_out.data["final_action"]),
                 payload=payload,
                 action_card=result["action_card"],
             )
@@ -998,7 +941,6 @@ class WorkflowRunner:
                 "trace_id": trace_id,
                 "request_id": request_id,
                 "batch_id": batch_id,
-                "contract_version": contract_version,
             }
             result["human_confirm"] = {
                 "required": True,
@@ -1013,34 +955,6 @@ class WorkflowRunner:
                 payload=payload,
                 action_card=result["action_card"],
             )
-            return result
-
-        target_bucket, resolved_target = self._resolve_target(payload)
-        enforce_resolved_symbol = self._is_true(payload.get("enforce_resolved_symbol", False))
-        symbol_from_payload = str(payload.get("symbol", "")).strip()
-        resolved_symbol = symbol_from_payload or (resolved_target if target_bucket != "Sector" else "")
-        if not resolved_symbol:
-            resolved_symbol = "UNKNOWN"
-
-        if enforce_resolved_symbol and (resolved_symbol in {"UNKNOWN", "N/A", ""} or target_bucket == "Sector"):
-            result["final"] = {
-                "action": "WATCH",
-                "reason": "Blocked by output gate: missing_tradeable_symbol",
-                "trace_id": trace_id,
-                "request_id": request_id,
-                "batch_id": batch_id,
-                "contract_version": contract_version,
-            }
-            result["action_card"] = self._build_action_card(payload, ai_factors, float(score), "WATCH")
-            self._submit_replay_log(
-                trace_id=trace_id,
-                request_id=request_id,
-                batch_id=batch_id,
-                final_action="WATCH",
-                payload=payload,
-                action_card=result["action_card"],
-            )
-            self._mark_request_processed(request_id)
             return result
 
         size_in = {
@@ -1070,7 +984,6 @@ class WorkflowRunner:
                 "trace_id": trace_id,
                 "request_id": request_id,
                 "batch_id": batch_id,
-                "contract_version": contract_version,
             }
             result["action_card"] = self._build_action_card(payload, ai_factors, float(score), "WATCH")
             self._submit_replay_log(
@@ -1110,7 +1023,7 @@ class WorkflowRunner:
         # Build execution order and pass to adapter (dry-run by default).
         order = {
             "action": "OPEN_LONG" if normalized_direction == "long" else "OPEN_SHORT",
-            "symbol": resolved_symbol,
+            "symbol": payload.get("symbol", "UNKNOWN"),
             "notional": size_out.data["final_notional"],
             "entry_price": payload.get("entry_price", 100.0),
             "stop_loss": exit_out.data["hard_stop"],
@@ -1132,7 +1045,6 @@ class WorkflowRunner:
             "trace_id": trace_id,
             "request_id": request_id,
             "batch_id": batch_id,
-            "contract_version": contract_version,
         }
         result["human_confirm"] = {
             "required": require_human_confirm,

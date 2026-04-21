@@ -1,0 +1,14 @@
+{
+  "sample_id": "false_positive_financial_blackhole_001",
+  "category": "historical_false_positive",
+  "description": "历史误判回归：非金融事件不得强行归并金融",
+  "news": {
+    "headline": "半导体设备交付延期导致产线扩产节奏放缓",
+    "source": "reuters",
+    "timestamp": "2026-04-21T16:00:00Z"
+  },
+  "expected": {
+    "forbidden_primary_sector": "金融",
+    "must_emit_sector_update": true
+  }
+}

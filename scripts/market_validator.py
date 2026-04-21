@@ -136,13 +136,6 @@ class MarketValidator(EDTModule):
         raw = input_data.raw_data
         conduction_output = raw.get("conduction_output", {})
 
-        if not raw.get("price_changes") and not raw.get("volume_changes"):
-            return ModuleOutput(
-                status=ModuleStatus.FAILED,
-                data={},
-                errors=[{"code": "MISSING_MARKET_DATA", "message": "Missing price and volume context"}],
-            )
-
         if not conduction_output:
             return ModuleOutput(
                 status=ModuleStatus.FAILED,
@@ -152,9 +145,24 @@ class MarketValidator(EDTModule):
 
         price_changes = raw.get("price_changes", {})
         volume_changes = raw.get("volume_changes", {})
+        if not isinstance(price_changes, dict):
+            price_changes = {}
+        if not isinstance(volume_changes, dict):
+            volume_changes = {}
+        missing_market_data = not price_changes and not volume_changes
+
         linkage = raw.get("cross_asset_linkage", {})
+        if not isinstance(linkage, dict):
+            linkage = {}
         persistence_minutes = float(raw.get("persistence_minutes", 0))
         dispersion = raw.get("winner_loser_dispersion", {})
+        if not isinstance(dispersion, dict):
+            dispersion = {}
+        market_data_source = str(raw.get("market_data_source", "unknown")).strip().lower() or "unknown"
+        market_data_present = bool(raw.get("market_data_present", bool(price_changes or volume_changes)))
+        market_data_stale = bool(raw.get("market_data_stale", False))
+        market_data_default_used = bool(raw.get("market_data_default_used", False))
+        market_data_fallback_used = bool(raw.get("market_data_fallback_used", False))
 
         price_score = 20 if any(abs(v) >= 0.8 for v in price_changes.values()) else 5
         volume_score = 15 if any(v >= 1.4 for v in volume_changes.values()) else 0
@@ -165,6 +173,8 @@ class MarketValidator(EDTModule):
         a1 = price_score + volume_score + linkage_score + persistence_score + divergence_score
 
         failed_checks = []
+        if missing_market_data:
+            failed_checks.append("missing_market_data")
         if price_score < 20:
             failed_checks.append("price_confirmation")
         if volume_score < 15:
@@ -200,6 +210,11 @@ class MarketValidator(EDTModule):
                 "validation_state": state,
                 "failed_checks": failed_checks,
                 "validation_notes": "市场验证按价格、量能、联动、持续性、分化五项计算",
+                "market_data_source": market_data_source,
+                "market_data_present": market_data_present,
+                "market_data_stale": market_data_stale,
+                "market_data_default_used": market_data_default_used,
+                "market_data_fallback_used": market_data_fallback_used,
                 **confirmations,
                 "needs_manual_review": False,
                 "audit": {

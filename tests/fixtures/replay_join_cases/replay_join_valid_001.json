@@ -1,0 +1,8 @@
+{
+  "case_id": "replay_join_valid_001",
+  "event_trace_id": "TRC-VALID-001",
+  "request_id": "REQ-VALID-001",
+  "batch_id": "BATCH-VALID-001",
+  "event_hash": "hash_valid_001",
+  "idempotency_key": "TRC-VALID-001:REQ-VALID-001:BATCH-VALID-001"
+}

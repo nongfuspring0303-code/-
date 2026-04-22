@@ -1,0 +1,23 @@
+{
+  "case_id": "B-GOLD-014",
+  "category": "金融黑洞历史错误",
+  "headline": "Anthropic partnership to accelerate AI datacenter deployment",
+  "semantic_event_type": "AI",
+  "expected_sector_candidates": [
+    "半导体",
+    "科技"
+  ],
+  "expected_ticker_candidates": [
+    "NVDA",
+    "MSFT",
+    "AVGO"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "已知错误样本再冻结。"
+}

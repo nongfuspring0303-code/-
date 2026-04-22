@@ -1,0 +1,21 @@
+{
+  "case_id": "B-GOLD-016",
+  "category": "主题标签",
+  "headline": "Consumer AI phones highlighted in conference commentary",
+  "semantic_event_type": "科技",
+  "expected_sector_candidates": [
+    "科技",
+    "消费"
+  ],
+  "expected_ticker_candidates": [
+    "AAPL",
+    "MSFT"
+  ],
+  "allowed_actions": [
+    "WATCH"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "theme_tags 可辅助，但不能单独触发 EXECUTE。"
+}

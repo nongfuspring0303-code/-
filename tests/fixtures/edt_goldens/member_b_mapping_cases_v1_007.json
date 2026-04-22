@@ -1,0 +1,16 @@
+{
+  "case_id": "B-GOLD-007",
+  "category": "地缘政治",
+  "headline": "Ceasefire talks resume as regional tensions ease",
+  "semantic_event_type": "地缘",
+  "expected_sector_candidates": [],
+  "expected_ticker_candidates": [],
+  "allowed_actions": [
+    "NO_ACTION",
+    "WATCH"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "事件中性偏观察，不应强制映射成可交易金融。"
+}

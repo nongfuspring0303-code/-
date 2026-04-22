@@ -1,0 +1,20 @@
+{
+  "case_id": "B-GOLD-006",
+  "category": "商品_黄金",
+  "headline": "Gold rises as investors seek safety amid geopolitical tensions",
+  "semantic_event_type": "商品",
+  "expected_sector_candidates": [
+    "材料"
+  ],
+  "expected_ticker_candidates": [
+    "LIN"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "当前pool缺典型金矿股，先用材料作为占位验收。"
+}

@@ -1,0 +1,24 @@
+{
+  "case_id": "B-GOLD-002",
+  "category": "AI_半导体",
+  "headline": "Chip equipment makers rally after foundry expansion plan",
+  "semantic_event_type": "AI",
+  "expected_sector_candidates": [
+    "半导体",
+    "科技"
+  ],
+  "expected_ticker_candidates": [
+    "NVDA",
+    "AVGO",
+    "AAPL",
+    "MSFT"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "偏半导体/科技，B侧后续可补更细ticker_pool。"
+}

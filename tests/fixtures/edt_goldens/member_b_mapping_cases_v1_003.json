@@ -1,0 +1,25 @@
+{
+  "case_id": "B-GOLD-003",
+  "category": "宏观_利率",
+  "headline": "Fed signals rate cuts may start earlier than expected",
+  "semantic_event_type": "宏观",
+  "expected_sector_candidates": [
+    "科技",
+    "公用事业",
+    "房地产"
+  ],
+  "expected_ticker_candidates": [
+    "MSFT",
+    "NVDA",
+    "NEE",
+    "AMT"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "降息偏成长与利率敏感资产。"
+}

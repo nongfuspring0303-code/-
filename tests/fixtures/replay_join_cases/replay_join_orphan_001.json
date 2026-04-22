@@ -1,0 +1,8 @@
+{
+  "case_id": "replay_join_orphan_001",
+  "event_trace_id": "TRC-ORPHAN-001",
+  "request_id": null,
+  "batch_id": null,
+  "event_hash": "hash_orphan_001",
+  "idempotency_key": null
+}

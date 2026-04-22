@@ -1,0 +1,20 @@
+{
+  "case_id": "B-GOLD-018",
+  "category": "消费_防御",
+  "headline": "Coca-Cola beats earnings with resilient global beverage demand",
+  "semantic_event_type": "公司事件",
+  "expected_sector_candidates": [
+    "消费"
+  ],
+  "expected_ticker_candidates": [
+    "KO"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "验证消费与ticker对齐，不得错配其他板块。"
+}

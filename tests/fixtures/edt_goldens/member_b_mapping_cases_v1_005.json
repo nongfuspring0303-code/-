@@ -1,0 +1,23 @@
+{
+  "case_id": "B-GOLD-005",
+  "category": "商品_原油",
+  "headline": "Oil prices jump after supply disruption concerns",
+  "semantic_event_type": "商品",
+  "expected_sector_candidates": [
+    "能源",
+    "航空"
+  ],
+  "expected_ticker_candidates": [
+    "XOM",
+    "CAT"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG",
+    "SHORT"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "能源受益、航空承压；后续方向交由规则决定。"
+}

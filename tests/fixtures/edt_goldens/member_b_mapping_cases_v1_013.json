@@ -1,0 +1,22 @@
+{
+  "case_id": "B-GOLD-013",
+  "category": "金融黑洞历史错误",
+  "headline": "6G pilot network plan expands faster than expected",
+  "semantic_event_type": "科技",
+  "expected_sector_candidates": [
+    "科技"
+  ],
+  "expected_ticker_candidates": [
+    "AAPL",
+    "MSFT",
+    "GOOGL"
+  ],
+  "allowed_actions": [
+    "WATCH",
+    "LONG"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "已知容易被错误打成金融/JPM的类型。"
+}

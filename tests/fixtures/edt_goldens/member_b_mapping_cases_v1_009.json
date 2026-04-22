@@ -1,0 +1,15 @@
+{
+  "case_id": "B-GOLD-009",
+  "category": "天气_中性",
+  "headline": "Heavy rain warning issued for multiple regions",
+  "semantic_event_type": "天气",
+  "expected_sector_candidates": [],
+  "expected_ticker_candidates": [],
+  "allowed_actions": [
+    "NO_ACTION"
+  ],
+  "must_not_route_to": [
+    "JPM"
+  ],
+  "notes": "天气预警默认不应进tradeable路径。"
+}

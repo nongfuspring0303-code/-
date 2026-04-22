@@ -25,6 +25,13 @@ def _payload():
         "entry_price": 100.0,
         "risk_per_share": 2.0,
         "direction": "long",
+        "has_opportunity": True,
+        "market_data_present": True,
+        "market_data_source": "payload_direct",
+        "market_data_stale": False,
+        "market_data_default_used": False,
+        "market_data_fallback_used": False,
+        "tradeable": True,
     }
 
 
@@ -42,4 +49,3 @@ def test_e2e_human_confirm_pending():
     out = WorkflowRunner().run(p)
     assert out["final"]["action"] == "PENDING_CONFIRM"
     assert out["human_confirm"]["required"] is True
-

@@ -27,6 +27,13 @@ def _base_payload():
         "risk_per_share": 2.0,
         "direction": "long",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "has_opportunity": True,
+        "market_data_present": True,
+        "market_data_source": "payload_direct",
+        "market_data_stale": False,
+        "market_data_default_used": False,
+        "market_data_fallback_used": False,
+        "tradeable": True,
     }
 
 
@@ -79,4 +86,3 @@ def test_regression_duplicate_idempotent_across_restart(tmp_path):
     runner2 = WorkflowRunner(request_store_path=str(store), audit_dir=str(tmp_path / "logs6"))
     second = runner2.run(p)
     assert second["final"]["action"] == "DUPLICATE_IGNORED"
-

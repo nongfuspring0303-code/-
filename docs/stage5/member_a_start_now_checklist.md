@@ -32,3 +32,4 @@
   - market_data_stale -> no EXECUTE
   - market_data_default_used -> no EXECUTE
   - market_data_fallback_used -> no EXECUTE
+- [x] Legacy full-missing output-gate payload path blocked (`gate_contract_missing_has_opportunity`)

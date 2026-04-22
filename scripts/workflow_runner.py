@@ -623,23 +623,20 @@ class WorkflowRunner:
         return [value]
 
     def _validate_output_gate_contract(self, payload: Dict[str, Any]) -> list[str]:
-        contract_signals_present = any(field in payload for field in OUTPUT_GATE_SIGNAL_FIELDS)
-        if not contract_signals_present:
-            return []
-
         missing: list[str] = []
 
-        # Contract-bearing payloads that expose opportunity signal must also
-        # carry market gate fields; otherwise default bypass can happen.
-        if "has_opportunity" in payload:
+        # Stage2 policy decision (issue #77): strict gate on all WorkflowRunner
+        # entrypoints. `has_opportunity` is mandatory even for legacy callers;
+        # otherwise a full-missing payload can bypass output-gate constraints.
+        if "has_opportunity" not in payload:
+            missing.append("gate_contract_missing_has_opportunity")
+        else:
             if "market_data_present" not in payload:
                 missing.append("gate_contract_missing_market_data_present")
             for field in OUTPUT_GATE_PROVENANCE_FIELDS:
                 if field not in payload:
                     missing.append(f"gate_contract_missing_{field}")
 
-        if "has_opportunity" not in payload:
-            missing.append("gate_contract_missing_has_opportunity")
         market_contract_signals_present = any(
             field in payload
             for field in (

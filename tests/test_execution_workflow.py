@@ -10,6 +10,18 @@ from execution_modules import ExitManager, LiquidityChecker, PositionSizer, Risk
 from workflow_runner import WorkflowRunner
 
 
+def _with_output_gate_contract(payload: dict, *, has_opportunity: bool = True, tradeable: bool = True) -> dict:
+    merged = dict(payload)
+    merged.setdefault("has_opportunity", has_opportunity)
+    merged.setdefault("market_data_present", True)
+    merged.setdefault("market_data_source", "payload_direct")
+    merged.setdefault("market_data_stale", False)
+    merged.setdefault("market_data_default_used", False)
+    merged.setdefault("market_data_fallback_used", False)
+    merged.setdefault("tradeable", tradeable)
+    return merged
+
+
 def test_liquidity_checker_red():
     mod = LiquidityChecker()
     out = mod.run({"vix": 35, "ted": 120, "correlation": 0.85, "spread_pct": 0.02})
@@ -138,6 +150,13 @@ def test_workflow_runner_execute(tmp_path):
             "entry_price": 100.0,
             "risk_per_share": 2.0,
             "direction": "long",
+            "has_opportunity": True,
+            "market_data_present": True,
+            "market_data_source": "payload_direct",
+            "market_data_stale": False,
+            "market_data_default_used": False,
+            "market_data_fallback_used": False,
+            "tradeable": True,
         }
     )
     assert out["final"]["action"] in ("EXECUTE", "WATCH", "BLOCK", "FORCE_CLOSE")
@@ -148,7 +167,7 @@ def test_workflow_runner_execute(tmp_path):
 def test_workflow_runner_idempotent_request(tmp_path):
     store = tmp_path / "seen_ids.txt"
     runner = WorkflowRunner(request_store_path=str(store), audit_dir=str(tmp_path / "logs"))
-    payload = {
+    payload = _with_output_gate_contract({
         "request_id": "REQ-001",
         "A0": 30,
         "A-1": 70,
@@ -166,7 +185,7 @@ def test_workflow_runner_idempotent_request(tmp_path):
         "entry_price": 100.0,
         "risk_per_share": 2.0,
         "direction": "long",
-    }
+    })
     first = runner.run(payload)
     second = runner.run(payload)
     assert first["final"]["action"] in ("EXECUTE", "WATCH", "BLOCK", "FORCE_CLOSE", "PENDING_CONFIRM")
@@ -177,7 +196,7 @@ def test_workflow_runner_idempotent_request(tmp_path):
 
 def test_workflow_runner_idempotent_persisted_across_instances(tmp_path):
     store = tmp_path / "seen_ids.txt"
-    p = {
+    p = _with_output_gate_contract({
         "request_id": "REQ-PERSIST-001",
         "A0": 30,
         "A-1": 70,
@@ -195,7 +214,7 @@ def test_workflow_runner_idempotent_persisted_across_instances(tmp_path):
         "entry_price": 100.0,
         "risk_per_share": 2.0,
         "direction": "long",
-    }
+    })
     r1 = WorkflowRunner(request_store_path=str(store), audit_dir=str(tmp_path / "logs"))
     _ = r1.run(p)
     r2 = WorkflowRunner(request_store_path=str(store), audit_dir=str(tmp_path / "logs"))
@@ -209,7 +228,7 @@ def test_workflow_runner_stable_trace_id_without_request_id(tmp_path):
         request_store_path=str(tmp_path / "seen_ids_stable.txt"),
         audit_dir=str(tmp_path / "logs_stable"),
     )
-    payload = {
+    payload = _with_output_gate_contract({
         "A0": 30,
         "A-1": 70,
         "A1": 78,
@@ -226,7 +245,7 @@ def test_workflow_runner_stable_trace_id_without_request_id(tmp_path):
         "entry_price": 100.0,
         "risk_per_share": 2.0,
         "direction": "long",
-    }
+    })
     first = runner.run(payload)
     second = runner.run(payload)
     assert first["request_id"] is None
@@ -241,7 +260,7 @@ def test_workflow_runner_propagates_batch_id(tmp_path):
         request_store_path=str(tmp_path / "seen_ids_batch.txt"),
         audit_dir=str(tmp_path / "logs_batch"),
     )
-    payload = {
+    payload = _with_output_gate_contract({
         "request_id": "REQ-BATCH-001",
         "batch_id": "BATCH-REQ-BATCH-001",
         "A0": 30,
@@ -260,7 +279,7 @@ def test_workflow_runner_propagates_batch_id(tmp_path):
         "entry_price": 100.0,
         "risk_per_share": 2.0,
         "direction": "long",
-    }
+    })
     out = runner.run(payload)
     assert out["trace_id"] == "REQ-BATCH-001"
     assert out["batch_id"] == "BATCH-REQ-BATCH-001"
@@ -274,7 +293,7 @@ def test_workflow_runner_honors_explicit_trace_id(tmp_path):
         audit_dir=str(tmp_path / "logs_trace"),
     )
     out = runner.run(
-        {
+        _with_output_gate_contract({
             "trace_id": "TRACE-CHAIN-001",
             "A0": 30,
             "A-1": 70,
@@ -292,7 +311,7 @@ def test_workflow_runner_honors_explicit_trace_id(tmp_path):
             "entry_price": 100.0,
             "risk_per_share": 2.0,
             "direction": "long",
-        }
+        })
     )
     assert out["trace_id"] == "TRACE-CHAIN-001"
     assert out["final"]["trace_id"] == "TRACE-CHAIN-001"
@@ -305,7 +324,7 @@ def test_workflow_runner_live_mode_receipt(tmp_path):
         audit_dir=str(tmp_path / "logs_live"),
     )
     out = runner.run(
-        {
+        _with_output_gate_contract({
             "request_id": "REQ-LIVE-001",
             "A0": 30,
             "A-1": 70,
@@ -323,7 +342,7 @@ def test_workflow_runner_live_mode_receipt(tmp_path):
             "entry_price": 100.0,
             "risk_per_share": 2.0,
             "direction": "long",
-        }
+        })
     )
     assert out["execution_receipt"]["mode"] == "live"
     assert out["execution_receipt"]["status"] == "not_implemented"
@@ -335,7 +354,7 @@ def test_workflow_runner_normalizes_flip_long_direction(tmp_path):
         audit_dir=str(tmp_path / "logs_flip_long"),
     )
     out = runner.run(
-        {
+        _with_output_gate_contract({
             "request_id": "REQ-FLIP-LONG-001",
             "A0": 30,
             "A-1": 70,
@@ -353,7 +372,7 @@ def test_workflow_runner_normalizes_flip_long_direction(tmp_path):
             "entry_price": 100.0,
             "risk_per_share": 2.0,
             "direction": "flip_long",
-        }
+        })
     )
     assert out["direction"]["normalized"] == "long"
     assert out["direction"]["normalized_from_flip"] is True
@@ -367,7 +386,7 @@ def test_workflow_runner_normalizes_flip_short_direction(tmp_path):
         audit_dir=str(tmp_path / "logs_flip_short"),
     )
     out = runner.run(
-        {
+        _with_output_gate_contract({
             "request_id": "REQ-FLIP-SHORT-001",
             "A0": 30,
             "A-1": 70,
@@ -385,7 +404,7 @@ def test_workflow_runner_normalizes_flip_short_direction(tmp_path):
             "entry_price": 100.0,
             "risk_per_share": 2.0,
             "direction": "flip_short",
-        }
+        })
     )
     assert out["direction"]["normalized"] == "short"
     assert out["direction"]["normalized_from_flip"] is True
@@ -399,7 +418,7 @@ def test_workflow_runner_consumes_ai_signal_adapter(tmp_path):
         audit_dir=str(tmp_path / "logs_ai"),
     )
     out = runner.run(
-        {
+        _with_output_gate_contract({
             "request_id": "REQ-AI-001",
             "event_id": "ME-C-20260402-001.V1.0",
             "severity": "E3",
@@ -428,7 +447,7 @@ def test_workflow_runner_consumes_ai_signal_adapter(tmp_path):
                 "temperature": 0.1,
                 "timeout_ms": 10000,
             },
-        }
+        })
     )
     assert "ai_factors" in out
     assert out["ai_factors"]["A0"] == 82
@@ -517,7 +536,7 @@ def test_workflow_runner_pending_confirm_then_execute_same_request_id(tmp_path):
         request_store_path=str(tmp_path / "seen_ids_confirm.txt"),
         audit_dir=str(tmp_path / "logs_confirm"),
     )
-    base_payload = {
+    base_payload = _with_output_gate_contract({
         "request_id": "REQ-CONFIRM-001",
         "A0": 30,
         "A-1": 70,
@@ -537,7 +556,7 @@ def test_workflow_runner_pending_confirm_then_execute_same_request_id(tmp_path):
         "direction": "long",
         "require_human_confirm": True,
         "human_confirmed": False,
-    }
+    })
     pending = runner.run(base_payload)
     assert pending["final"]["action"] == "PENDING_CONFIRM"
 

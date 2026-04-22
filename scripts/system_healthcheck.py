@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import argparse
 import ast
+import os
 import subprocess
 import sys
 import tempfile
@@ -501,12 +502,18 @@ def check_external_data_health(mode: str = "dev") -> CheckResult:
 
 def check_canary_source_health(mode: str = "dev") -> CheckResult:
     health = CanarySourceHealth()
-    try:
-        health.collect_once()
-    except Exception as exc:  # noqa: BLE001
-        refresh_error = f"canary refresh failed: {exc}"
+    ci_env = str(os.getenv("CI", "")).strip().lower() == "true"
+    force_refresh = str(os.getenv("HEALTHCHECK_CANARY_FORCE_REFRESH", "")).strip().lower() in {"1", "true", "yes", "on"}
+    skip_refresh = ci_env and mode == "dev" and not force_refresh
+    if skip_refresh:
+        refresh_error = "canary refresh skipped in CI dev mode; using existing summary snapshot."
     else:
-        refresh_error = ""
+        try:
+            health.collect_once()
+        except Exception as exc:  # noqa: BLE001
+            refresh_error = f"canary refresh failed: {exc}"
+        else:
+            refresh_error = ""
     summary = health.read_summary()
     assessment = health.assess(summary=summary, mode=mode)
     result = CheckResult(

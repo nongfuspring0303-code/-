@@ -1,4 +1,5 @@
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -206,3 +207,70 @@ def test_dev_mode_keeps_non_latency_canary_red_blocking():
     overall = system_healthcheck._stage_status_for_overall(checks, mode="dev")
 
     assert overall == "RED"
+
+
+def test_canary_refresh_skipped_in_ci_dev_mode(monkeypatch):
+    called = {"collect_once": 0}
+
+    class _FakeCanary:
+        def collect_once(self):
+            called["collect_once"] += 1
+
+        def read_summary(self):
+            return {
+                "windows": {"60": {"total_attempts": 0, "live_sample_count": 0}},
+                "recent_30m": {"new_item_count": 0},
+            }
+
+        def assess(self, summary=None, mode="dev"):
+            return SimpleNamespace(
+                status="YELLOW",
+                summary="no live samples",
+                warnings=[],
+                errors=[],
+                evidence=[],
+                windows={},
+            )
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.delenv("HEALTHCHECK_CANARY_FORCE_REFRESH", raising=False)
+    monkeypatch.setattr(system_healthcheck, "CanarySourceHealth", _FakeCanary)
+
+    out = system_healthcheck.check_canary_source_health(mode="dev")
+
+    assert called["collect_once"] == 0
+    assert out.status == "YELLOW"
+    assert any("skipped in CI dev mode" in w for w in out.warnings)
+
+
+def test_canary_refresh_can_be_forced_in_ci_dev_mode(monkeypatch):
+    called = {"collect_once": 0}
+
+    class _FakeCanary:
+        def collect_once(self):
+            called["collect_once"] += 1
+
+        def read_summary(self):
+            return {
+                "windows": {"60": {"total_attempts": 0, "live_sample_count": 0}},
+                "recent_30m": {"new_item_count": 0},
+            }
+
+        def assess(self, summary=None, mode="dev"):
+            return SimpleNamespace(
+                status="YELLOW",
+                summary="no live samples",
+                warnings=[],
+                errors=[],
+                evidence=[],
+                windows={},
+            )
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("HEALTHCHECK_CANARY_FORCE_REFRESH", "1")
+    monkeypatch.setattr(system_healthcheck, "CanarySourceHealth", _FakeCanary)
+
+    out = system_healthcheck.check_canary_source_health(mode="dev")
+
+    assert called["collect_once"] == 1
+    assert out.status == "YELLOW"

@@ -174,3 +174,35 @@ def test_stage_status_keeps_canary_red_in_dev():
     overall = system_healthcheck._stage_status_for_overall(checks, mode="dev")
 
     assert overall == "RED"
+
+
+def test_dev_mode_keeps_latency_only_canary_red_blocking():
+    checks = [
+        system_healthcheck.CheckResult(
+            name="CANARY_SOURCE_HEALTH",
+            status="RED",
+            summary="canary red",
+            errors=["p95_latency_ms_1h=4642.93 > 3000.0"],
+        ),
+        system_healthcheck.CheckResult(name="CHAIN", status="GREEN", summary="chain ok"),
+    ]
+
+    overall = system_healthcheck._stage_status_for_overall(checks, mode="dev")
+
+    assert overall == "RED"
+
+
+def test_dev_mode_keeps_non_latency_canary_red_blocking():
+    checks = [
+        system_healthcheck.CheckResult(
+            name="CANARY_SOURCE_HEALTH",
+            status="RED",
+            summary="canary red",
+            errors=["success_rate_1h=0.82 < 0.95"],
+        ),
+        system_healthcheck.CheckResult(name="CHAIN", status="GREEN", summary="chain ok"),
+    ]
+
+    overall = system_healthcheck._stage_status_for_overall(checks, mode="dev")
+
+    assert overall == "RED"

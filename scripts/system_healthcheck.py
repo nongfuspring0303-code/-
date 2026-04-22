@@ -54,6 +54,11 @@ from theme_gate_policy import (
 
 STATUS_ORDER = {"GREEN": 0, "YELLOW": 1, "RED": 2}
 
+# Dev mode policy (follow-up #81):
+# - CANARY_SOURCE_HEALTH=YELLOW is treated as non-blocking (normalized to GREEN)
+# - CANARY_SOURCE_HEALTH=RED always remains blocking (never downgraded)
+DEV_CANARY_NON_BLOCKING_STATUS = "YELLOW"
+
 
 @dataclass
 class CheckResult:
@@ -659,7 +664,11 @@ def _stage_status_for_overall(checks: list[CheckResult], mode: str) -> str:
     statuses: list[str] = []
     for check in checks:
         status = check.status
-        if mode == "dev" and check.name == "CANARY_SOURCE_HEALTH" and status == "YELLOW":
+        if (
+            mode == "dev"
+            and check.name == "CANARY_SOURCE_HEALTH"
+            and status == DEV_CANARY_NON_BLOCKING_STATUS
+        ):
             status = "GREEN"
         statuses.append(status)
     return worst_status(statuses)

@@ -33,6 +33,7 @@ class ConductionMapper(EDTModule):
     """Structured event conduction mapper."""
 
     _SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
+    _INVALID_SYMBOLS = {"N/A", "NA", "NONE", "NULL", "UNKNOWN", "UNDEFINED", "TBD"}
 
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("ConductionMapper", "1.0.0", config_path)
@@ -58,6 +59,8 @@ class ConductionMapper(EDTModule):
         self.selector = AIConductionSelector()
         self.shock_classifier = ShockClassifier(config_dir=base / "configs")
         self.factor_vectorizer = FactorVectorizer(config_dir=base / "configs")
+        self._sector_mapping = self._load_sector_mapping()
+        self._sector_whitelist = self._load_sector_whitelist()
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["event_id", "category", "severity", "lifecycle_state"]
@@ -73,6 +76,47 @@ class ConductionMapper(EDTModule):
             return payload.get("mapping", {})
         except Exception:
             return {}
+
+    def _load_sector_whitelist(self) -> set[str]:
+        path = Path(__file__).resolve().parent.parent / "configs" / "sector_impact_mapping.yaml"
+        try:
+            payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            return set()
+
+        whitelist: set[str] = set()
+        for item in payload.get("mappings", []) or []:
+            if not isinstance(item, dict):
+                continue
+            sector = str(item.get("sector", "")).strip()
+            if sector:
+                whitelist.add(sector)
+
+        mapping = payload.get("mapping", {})
+        if isinstance(mapping, dict):
+            for values in mapping.values():
+                if not isinstance(values, list):
+                    continue
+                for sector in values:
+                    sector_name = str(sector or "").strip()
+                    if sector_name:
+                        whitelist.add(sector_name)
+
+        return whitelist
+
+    def _normalize_sector_name(self, sector: Any) -> str:
+        raw = str(sector or "").strip()
+        if not raw:
+            return ""
+        if raw in self._sector_whitelist:
+            return raw
+        mapped = self._sector_mapping.get(raw, [])
+        if isinstance(mapped, list):
+            for candidate in mapped:
+                candidate_name = str(candidate or "").strip()
+                if candidate_name:
+                    return candidate_name
+        return raw
 
     def _load_chain_config(self) -> Dict[str, Any]:
         payload = self.config_center.get_registered("conduction_chain", {})
@@ -175,6 +219,8 @@ class ConductionMapper(EDTModule):
     def _is_valid_symbol(symbol: Any) -> bool:
         normalized = str(symbol or "").strip().upper()
         if not normalized:
+            return False
+        if normalized in ConductionMapper._INVALID_SYMBOLS:
             return False
         if not ConductionMapper._SYMBOL_RE.match(normalized):
             return False
@@ -321,16 +367,21 @@ class ConductionMapper(EDTModule):
 
         stock_candidates = []
         for item in self._level_items(levels, "sector"):
-            sector_name = str(item.get("name", ""))
+            sector_name = self._normalize_sector_name(item.get("name", ""))
+            if sector_name not in self._sector_whitelist:
+                continue
             for candidate in sector_data:
                 candidate_sector = str(candidate.get("sector") or candidate.get("industry") or "")
                 if not candidate_sector:
                     continue
+                candidate_symbol = str(candidate.get("symbol", "")).strip().upper()
+                if not self._is_valid_symbol(candidate_symbol):
+                    continue
                 if sector_name and sector_name.lower() in candidate_sector.lower():
                     stock_candidates.append(
                         {
-                            "symbol": candidate.get("symbol", ""),
-                            "sector": candidate_sector,
+                            "symbol": candidate_symbol,
+                            "sector": self._normalize_sector_name(candidate_sector),
                             "direction": item.get("direction", "benefit"),
                             "event_beta": 1.0,
                             "liquidity_tier": "high",
@@ -362,14 +413,27 @@ class ConductionMapper(EDTModule):
         mapping = self._load_sector_mapping()
         if not mapping:
             return
-        available = {item.get("sector"): item for item in sector_data if item.get("sector")}
+        available = {str(item.get("sector", "")).strip(): item for item in sector_data if str(item.get("sector", "")).strip()}
         for impact in sector_impacts:
-            tag = impact.get("sector")
+            tag = str(impact.get("sector", "")).strip()
             candidates = mapping.get(tag, [])
-            for name in candidates:
-                if name in available:
-                    impact["sector"] = name
-                    break
+            chosen = ""
+            if isinstance(candidates, list):
+                for name in candidates:
+                    candidate_name = str(name or "").strip()
+                    if candidate_name in available:
+                        chosen = candidate_name
+                        break
+                if not chosen:
+                    for name in candidates:
+                        candidate_name = str(name or "").strip()
+                        if candidate_name:
+                            chosen = candidate_name
+                            break
+            if chosen:
+                impact["sector"] = self._normalize_sector_name(chosen)
+            else:
+                impact["sector"] = self._normalize_sector_name(tag)
 
     def _tariff_mapping(self) -> Dict[str, Any]:
         return {
@@ -437,46 +501,51 @@ class ConductionMapper(EDTModule):
         # Real-data path: derive sector impact from live ETF sector snapshot.
         sector_impacts: List[Dict[str, Any]] = []
         for item in sector_data:
-            change_pct = self._safe_float(item.get("change_pct"), 0.0)
-            # Skip near-flat moves to reduce noise.
-            if abs(change_pct) < 0.1:
+            raw_change_pct = item.get("change_pct", None)
+            change_pct = None
+            if raw_change_pct is not None:
+                change_pct = self._safe_float(raw_change_pct, 0.0)
+                # Skip near-flat moves to reduce noise when a live delta exists.
+                if abs(change_pct) < 0.1:
+                    continue
+                direction = "benefit" if change_pct >= 0 else "hurt"
+                reason = f"实时ETF变化 {change_pct:+.2f}%"
+            else:
+                direction = "benefit"
+                reason = "实时ETF快照映射"
+            sector_name = self._normalize_sector_name(item.get("industry") or item.get("sector") or "")
+            if not sector_name or sector_name not in self._sector_whitelist:
                 continue
-            direction = "benefit" if change_pct >= 0 else "hurt"
-            sector_name = item.get("industry") or item.get("sector") or "未知板块"
-            sector_impacts.append(
-                {
-                    "sector": sector_name,
-                    "direction": direction,
-                    "driver_type": "market_validation",
-                    "reason": f"实时ETF变化 {change_pct:+.2f}%",
-                    "change_pct": round(change_pct, 2),
-                }
-            )
-
-        # Fallback to baseline policy mapping if live sector moves unavailable.
-        if not sector_impacts:
-            sector_impacts = [
-                {
-                    "sector": "金融",
-                    "direction": "benefit",
-                    "driver_type": "beta",
-                    "reason": "流动性宽松预期支撑估值",
-                }
-            ]
+            impact = {
+                "sector": sector_name,
+                "direction": direction,
+                "driver_type": "market_validation",
+                "reason": reason,
+            }
+            if change_pct is not None:
+                impact["change_pct"] = round(change_pct, 2)
+            sector_impacts.append(impact)
 
         stock_candidates: List[Dict[str, Any]] = []
         for impact in sector_impacts[:2]:
             direction = "long" if impact.get("direction") == "benefit" else "short"
-            stock_candidates.append(
-                {
-                    "symbol": "JPM" if "金融" in str(impact.get("sector", "")) else "SPY",
-                    "sector": impact.get("sector", "未知板块"),
-                    "direction": direction,
-                    "event_beta": 0.9,
-                    "liquidity_tier": "high",
-                    "reason": impact.get("reason", "实时板块映射"),
-                }
-            )
+            impact_sector = self._normalize_sector_name(impact.get("sector", ""))
+            for item in sector_data:
+                candidate_sector = self._normalize_sector_name(item.get("industry") or item.get("sector") or "")
+                symbol = str(item.get("symbol", "")).strip().upper()
+                if candidate_sector != impact_sector or not self._is_valid_symbol(symbol):
+                    continue
+                stock_candidates.append(
+                    {
+                        "symbol": symbol,
+                        "sector": impact_sector,
+                        "direction": direction,
+                        "event_beta": 0.9,
+                        "liquidity_tier": "high",
+                        "reason": impact.get("reason", "实时板块映射"),
+                    }
+                )
+                break
 
         policy_cfg = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
         confidence = float(policy_cfg.get("policy_base_confidence", 74))
@@ -575,7 +644,24 @@ class ConductionMapper(EDTModule):
             semantic_candidates=semantic_stock_candidates,
         )
 
-        needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"])
+        mapping["sector_impacts"] = [
+            impact
+            for impact in mapping.get("sector_impacts", [])
+            if self._normalize_sector_name(impact.get("sector", "")) in self._sector_whitelist
+        ]
+        for impact in mapping["sector_impacts"]:
+            impact["sector"] = self._normalize_sector_name(impact.get("sector", ""))
+
+        mapping["stock_candidates"] = [
+            cand
+            for cand in mapping.get("stock_candidates", [])
+            if self._is_valid_symbol(cand.get("symbol")) and self._normalize_sector_name(cand.get("sector", "")) in self._sector_whitelist
+        ]
+        for cand in mapping["stock_candidates"]:
+            cand["symbol"] = str(cand.get("symbol", "")).strip().upper()
+            cand["sector"] = self._normalize_sector_name(cand.get("sector", ""))
+
+        needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"] and mapping["stock_candidates"])
 
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,

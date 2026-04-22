@@ -9,7 +9,7 @@
 ## 1) 未误伤项
 
 - `A1` 的数值、语义和可读性是否保持稳定。
-- `target_tracking` 是否仍可从当前契约面被识别和复盘。
+- `target_tracking`（如未来引入该字段）是否仍可从当前契约面被识别和复盘。
 - `semantic_event_type / sector_candidates / ticker_candidates / a1_score / theme_tags / tradeable / opportunity_count` 是否仍保留在日志里。
 
 ## 2) 正确拦截项
@@ -32,6 +32,5 @@
 - Blocker reason:
 - Mapping summary preserved:
 - A1 preserved:
-- target_tracking preserved:
+- target_tracking preserved (N/A unless field is introduced):
 - Decision:
-

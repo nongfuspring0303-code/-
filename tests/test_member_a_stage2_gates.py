@@ -97,6 +97,34 @@ def test_output_gate_blocks_when_contract_fields_are_missing(tmp_path):
     assert "gate_contract_missing_market_data_present" in out["final"]["reason"]
 
 
+def test_output_gate_blocks_when_only_has_opportunity_is_provided(tmp_path):
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_a2c.txt"),
+        audit_dir=str(tmp_path / "logs_a2c"),
+    )
+    payload = _strong_payload()
+    payload.update(
+        {
+            "has_opportunity": True,
+        }
+    )
+    for field in (
+        "market_data_present",
+        "market_data_source",
+        "market_data_stale",
+        "market_data_default_used",
+        "market_data_fallback_used",
+        "tradeable",
+    ):
+        payload.pop(field, None)
+
+    out = runner.run(payload)
+
+    assert out["final"]["action"] == "BLOCK"
+    assert "gate_contract_missing_market_data_present" in out["final"]["reason"]
+    assert "gate_contract_missing_market_data_source" in out["final"]["reason"]
+
+
 def test_enforce_resolved_symbol_blocks_unknown_symbol(tmp_path):
     runner = WorkflowRunner(
         request_store_path=str(tmp_path / "seen_ids_a3.txt"),

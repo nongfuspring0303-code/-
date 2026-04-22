@@ -54,6 +54,22 @@ GRADE_RANK = {
     "D": 1,
 }
 
+OUTPUT_GATE_SIGNAL_FIELDS = (
+    "has_opportunity",
+    "market_data_present",
+    "market_data_source",
+    "market_data_stale",
+    "market_data_default_used",
+    "market_data_fallback_used",
+    "tradeable",
+)
+
+OUTPUT_GATE_PROVENANCE_FIELDS = (
+    "market_data_stale",
+    "market_data_default_used",
+    "market_data_fallback_used",
+)
+
 
 class WorkflowRunner:
     """Main orchestration for execution-layer flow."""
@@ -74,7 +90,18 @@ class WorkflowRunner:
         self._request_lock = threading.Lock()
         self._seen_request_ids = self._load_seen_request_ids()
         self._replay_log_path = self.logs_dir / "action_card_replay.jsonl"
+        self._replay_write_log_path = self.logs_dir / "replay_write.jsonl"
+        self._decision_gate_log_path = self.logs_dir / "decision_gate.jsonl"
+        self._execution_emit_log_path = self.logs_dir / "execution_emit.jsonl"
+        for path in (
+            self._replay_log_path,
+            self._replay_write_log_path,
+            self._decision_gate_log_path,
+            self._execution_emit_log_path,
+        ):
+            path.touch(exist_ok=True)
         self._replay_lock = threading.Lock()
+        self._evidence_lock = threading.Lock()
         self._replay_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
         self.scorer = SignalScorer()
@@ -584,8 +611,41 @@ class WorkflowRunner:
             return value != 0
         return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
+    def _validate_output_gate_contract(self, payload: Dict[str, Any]) -> list[str]:
+        contract_signals_present = any(field in payload for field in OUTPUT_GATE_SIGNAL_FIELDS)
+        if not contract_signals_present:
+            return []
+
+        missing: list[str] = []
+
+        if "has_opportunity" not in payload:
+            missing.append("gate_contract_missing_has_opportunity")
+
+        market_contract_signals_present = any(
+            field in payload
+            for field in (
+                "market_data_present",
+                "market_data_source",
+                "market_data_stale",
+                "market_data_default_used",
+                "market_data_fallback_used",
+                "tradeable",
+            )
+        )
+        if market_contract_signals_present and "market_data_present" not in payload:
+            missing.append("gate_contract_missing_market_data_present")
+
+        provenance_signals_present = any(field in payload for field in OUTPUT_GATE_PROVENANCE_FIELDS)
+        if provenance_signals_present:
+            for field in OUTPUT_GATE_PROVENANCE_FIELDS:
+                if field not in payload:
+                    missing.append(f"gate_contract_missing_{field}")
+
+        return missing
+
     def _evaluate_output_gate(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         blockers: list[str] = []
+        blockers.extend(self._validate_output_gate_contract(payload))
 
         # Only enforce "missing opportunity" when upstream explicitly provides this field.
         if "has_opportunity" in payload and not self._is_true(payload.get("has_opportunity")):
@@ -607,7 +667,7 @@ class WorkflowRunner:
         if not blockers:
             return {"blocked": False, "action": "ALLOW", "blockers": [], "reason": ""}
 
-        action = "BLOCK" if "tradeable_false" in blockers else "WATCH"
+        action = "BLOCK" if any(item.startswith("gate_contract_missing_") for item in blockers) or "tradeable_false" in blockers else "WATCH"
         return {
             "blocked": True,
             "action": action,
@@ -628,16 +688,18 @@ class WorkflowRunner:
         record = {
             "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "trace_id": trace_id,
+            "event_trace_id": trace_id,
             "request_id": request_id,
             "batch_id": batch_id,
             "final_action": final_action,
             "event_id": payload.get("event_id"),
+            "event_hash": payload.get("event_hash"),
             "action_card": action_card,
         }
-        line = json.dumps(record, ensure_ascii=False)
         with self._replay_lock:
-            with open(self._replay_log_path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+            for path in (self._replay_log_path, self._replay_write_log_path):
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def _submit_replay_log(
         self,
@@ -661,6 +723,64 @@ class WorkflowRunner:
             )
         except Exception as exc:
             logging.warning("replay_log_submit_failed: %s", exc)
+
+    def _append_jsonl(self, path: Path, record: Dict[str, Any], lock: threading.Lock) -> None:
+        line = json.dumps(record, ensure_ascii=False)
+        with lock:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+
+    def _log_decision_gate(
+        self,
+        *,
+        trace_id: str,
+        request_id: str | None,
+        batch_id: str | None,
+        payload: Dict[str, Any],
+        gate_output: Dict[str, Any] | None,
+        output_gate: Dict[str, Any] | None,
+        final_action: str,
+        reason: str,
+    ) -> None:
+        record = {
+            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "trace_id": trace_id,
+            "event_trace_id": trace_id,
+            "request_id": request_id,
+            "batch_id": batch_id,
+            "event_id": payload.get("event_id"),
+            "event_hash": payload.get("event_hash"),
+            "contract_version": payload.get("contract_version", "v2.2"),
+            "final_action": final_action,
+            "final_reason": reason,
+            "gate_output": gate_output or {},
+            "output_gate": output_gate or {},
+        }
+        self._append_jsonl(self._decision_gate_log_path, record, self._evidence_lock)
+
+    def _log_execution_emit(
+        self,
+        *,
+        trace_id: str,
+        request_id: str | None,
+        batch_id: str | None,
+        payload: Dict[str, Any],
+        order: Dict[str, Any],
+        execution_receipt: Dict[str, Any],
+    ) -> None:
+        record = {
+            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "trace_id": trace_id,
+            "event_trace_id": trace_id,
+            "request_id": request_id,
+            "batch_id": batch_id,
+            "event_id": payload.get("event_id"),
+            "event_hash": payload.get("event_hash"),
+            "contract_version": payload.get("contract_version", "v2.2"),
+            "order": order,
+            "execution_receipt": execution_receipt,
+        }
+        self._append_jsonl(self._execution_emit_log_path, record, self._evidence_lock)
 
     def _build_action_card(
         self,
@@ -779,7 +899,7 @@ class WorkflowRunner:
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         request_id = payload.get("request_id")
-        trace_id = _stable_trace_id(payload, request_id)
+        trace_id = str(payload.get("trace_id") or _stable_trace_id(payload, request_id))
         batch_id = payload.get("batch_id")
         result: Dict[str, Any] = {
             "input": payload,
@@ -921,6 +1041,16 @@ class WorkflowRunner:
                     payload=payload,
                     action_card=result["action_card"],
                 )
+                self._log_decision_gate(
+                    trace_id=trace_id,
+                    request_id=request_id,
+                    batch_id=batch_id,
+                    payload=payload,
+                    gate_output=gate_out.data,
+                    output_gate=None,
+                    final_action="BLOCK",
+                    reason=result["final"]["reason"],
+                )
                 result["theme_output"] = theme_output
                 self._mark_request_processed(request_id)
                 return result
@@ -950,6 +1080,16 @@ class WorkflowRunner:
                     final_action="WATCH",
                     payload=payload,
                     action_card=result["action_card"],
+                )
+                self._log_decision_gate(
+                    trace_id=trace_id,
+                    request_id=request_id,
+                    batch_id=batch_id,
+                    payload=payload,
+                    gate_output=gate_out.data,
+                    output_gate=None,
+                    final_action="WATCH",
+                    reason=result["final"]["reason"],
                 )
                 result["theme_output"] = theme_output
                 self._mark_request_processed(request_id)
@@ -983,6 +1123,16 @@ class WorkflowRunner:
                 payload=payload,
                 action_card=result["action_card"],
             )
+            self._log_decision_gate(
+                trace_id=trace_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                payload=payload,
+                gate_output=gate_out.data,
+                output_gate=output_gate,
+                final_action=forced_action,
+                reason=result["final"]["reason"],
+            )
             self._mark_request_processed(request_id)
             return result
 
@@ -1013,6 +1163,16 @@ class WorkflowRunner:
                 payload=payload,
                 action_card=result["action_card"],
             )
+            self._log_decision_gate(
+                trace_id=trace_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                payload=payload,
+                gate_output=gate_out.data,
+                output_gate=output_gate,
+                final_action="PENDING_CONFIRM",
+                reason=result["final"]["reason"],
+            )
             return result
 
         target_bucket, resolved_target = self._resolve_target(payload)
@@ -1039,6 +1199,16 @@ class WorkflowRunner:
                 final_action="WATCH",
                 payload=payload,
                 action_card=result["action_card"],
+            )
+            self._log_decision_gate(
+                trace_id=trace_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                payload=payload,
+                gate_output=gate_out.data,
+                output_gate=output_gate,
+                final_action="WATCH",
+                reason=result["final"]["reason"],
             )
             self._mark_request_processed(request_id)
             return result
@@ -1081,6 +1251,16 @@ class WorkflowRunner:
                 payload=payload,
                 action_card=result["action_card"],
             )
+            self._log_decision_gate(
+                trace_id=trace_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                payload=payload,
+                gate_output=gate_out.data,
+                output_gate=output_gate,
+                final_action="WATCH",
+                reason=result["final"]["reason"],
+            )
             self._mark_request_processed(request_id)
             return result
 
@@ -1120,6 +1300,14 @@ class WorkflowRunner:
             "batch_id": payload.get("batch_id"),
         }
         execution_receipt = self.executor.execute(order)
+        self._log_execution_emit(
+            trace_id=trace_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            payload=payload,
+            order=order,
+            execution_receipt=execution_receipt,
+        )
 
         result["final"] = {
             "action": "EXECUTE",
@@ -1152,6 +1340,16 @@ class WorkflowRunner:
             final_action="EXECUTE",
             payload=payload,
             action_card=result["action_card"],
+        )
+        self._log_decision_gate(
+            trace_id=trace_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            payload=payload,
+            gate_output=gate_out.data,
+            output_gate=output_gate,
+            final_action="EXECUTE",
+            reason="passed_gate_and_executed",
         )
         result["ai_factors"] = {
             "A0": ai_factors["A0"],

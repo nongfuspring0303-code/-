@@ -5,7 +5,9 @@ Full-chain runner: Intel -> Analysis -> Execution.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -30,7 +32,7 @@ from transmission_engine.core.path_adjudicator import PathAdjudicator
 class FullWorkflowRunner:
     """End-to-end runner across all implemented layers."""
 
-    def __init__(self, config_path: str | None = None, state_db_path: str | None = None):
+    def __init__(self, config_path: str | None = None, state_db_path: str | None = None, audit_dir: str | None = None):
         self.intel = IntelPipeline()
         self.lifecycle = LifecycleManager(config_path=config_path)
         self.state_store = EventStateStore(db_path=state_db_path)
@@ -43,8 +45,25 @@ class FullWorkflowRunner:
         self.path_adjudicator = PathAdjudicator(config_path=config_path)
         self.scorer = SignalScorer(config_path=config_path)
         self.opportunity = OpportunityScorer()
-        self.execution = WorkflowRunner()
+        self.logs_dir = Path(audit_dir) if audit_dir else ROOT / "logs"
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.execution = WorkflowRunner(audit_dir=str(self.logs_dir))
         self.config_path = config_path
+        self.raw_news_ingest_log_path = self.logs_dir / "raw_news_ingest.jsonl"
+        self.market_data_provenance_log_path = self.logs_dir / "market_data_provenance.jsonl"
+        self.raw_news_ingest_log_path.touch(exist_ok=True)
+        self.market_data_provenance_log_path.touch(exist_ok=True)
+        self._evidence_lock = threading.Lock()
+
+    def _append_jsonl(self, path: Path, record: Dict[str, Any]) -> None:
+        with self._evidence_lock:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    @staticmethod
+    def _event_hash(headline: str, ts: str) -> str:
+        raw = f"{headline}|{ts}"
+        return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16].upper()
 
     @staticmethod
     def _to_float(value: Any) -> float | None:
@@ -143,6 +162,29 @@ class FullWorkflowRunner:
         event_object = intel_out["event_object"]
         source_rank = intel_out["source_rank"]
         event_id = event_object["event_id"]
+        request_id = payload.get("request_id")
+        batch_id = payload.get("batch_id")
+        trace_id = str(payload.get("trace_id") or event_id)
+        event_hash = self._event_hash(event_object.get("headline", ""), str(event_object.get("detected_at", "")))
+
+        self._append_jsonl(
+            self.raw_news_ingest_log_path,
+            {
+                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "trace_id": trace_id,
+                "event_trace_id": trace_id,
+                "request_id": request_id,
+                "batch_id": batch_id,
+                "event_id": event_id,
+                "event_hash": event_hash,
+                "headline": event_object.get("headline"),
+                "source": payload.get("source"),
+                "detected_at": event_object.get("detected_at"),
+                "ingest_seq": payload.get("ingest_seq", payload.get("sequence")),
+                "process_seq": payload.get("process_seq", payload.get("sequence")),
+                "source_rank": source_rank,
+            },
+        )
 
         prev_state = self.state_store.get_state(event_id)
         previous_lifecycle = prev_state["lifecycle_state"] if prev_state else None
@@ -194,6 +236,24 @@ class FullWorkflowRunner:
 
         validation_input = self._build_market_validation_input(payload, event_object, conduction_out)
         validation_out = self.validation.run(validation_input).data
+        self._append_jsonl(
+            self.market_data_provenance_log_path,
+            {
+                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "trace_id": trace_id,
+                "event_trace_id": trace_id,
+                "request_id": request_id,
+                "batch_id": batch_id,
+                "event_id": event_id,
+                "event_hash": event_hash,
+                "market_data_source": validation_out.get("market_data_source", "unknown"),
+                "market_data_present": bool(validation_out.get("market_data_present", False)),
+                "market_data_stale": bool(validation_out.get("market_data_stale", False)),
+                "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
+                "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
+                "validation_state": validation_out.get("validation_state"),
+            },
+        )
 
         semantic_out = self.semantic.analyze(event_object["headline"], payload.get("summary", event_object["headline"]))
         event_contract = self.semantic.analyze_event(
@@ -295,6 +355,10 @@ class FullWorkflowRunner:
         }
 
         execution_in = {
+            "trace_id": trace_id,
+            "request_id": request_id,
+            "batch_id": batch_id,
+            "event_hash": event_hash,
             "A0": payload.get("A0", intel_out["severity"]["A0"]),
             "A-1": payload.get("A-1", 65),
             "A1": analysis_out["market_validation"]["A1"],

@@ -163,3 +163,14 @@ def test_theme_gate_healthcheck_rejects_missing_fallback_reason(monkeypatch):
 
     assert out.status == "RED"
     assert out.errors
+
+
+def test_stage_status_keeps_canary_red_in_dev():
+    checks = [
+        system_healthcheck.CheckResult(name="CANARY_SOURCE_HEALTH", status="RED", summary="canary red"),
+        system_healthcheck.CheckResult(name="CHAIN", status="GREEN", summary="chain ok"),
+    ]
+
+    overall = system_healthcheck._stage_status_for_overall(checks, mode="dev")
+
+    assert overall == "RED"

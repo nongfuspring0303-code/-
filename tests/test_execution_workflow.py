@@ -268,6 +268,36 @@ def test_workflow_runner_propagates_batch_id(tmp_path):
     assert out["final"]["batch_id"] == "BATCH-REQ-BATCH-001"
 
 
+def test_workflow_runner_honors_explicit_trace_id(tmp_path):
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_trace.txt"),
+        audit_dir=str(tmp_path / "logs_trace"),
+    )
+    out = runner.run(
+        {
+            "trace_id": "TRACE-CHAIN-001",
+            "A0": 30,
+            "A-1": 70,
+            "A1": 78,
+            "A1.5": 60,
+            "A0.5": 0,
+            "severity": "E3",
+            "fatigue_index": 45,
+            "event_state": "Active",
+            "correlation": 0.5,
+            "vix": 18,
+            "ted": 40,
+            "spread_pct": 0.002,
+            "account_equity": 100000,
+            "entry_price": 100.0,
+            "risk_per_share": 2.0,
+            "direction": "long",
+        }
+    )
+    assert out["trace_id"] == "TRACE-CHAIN-001"
+    assert out["final"]["trace_id"] == "TRACE-CHAIN-001"
+
+
 def test_workflow_runner_live_mode_receipt(tmp_path):
     runner = WorkflowRunner(
         execution_mode="live",

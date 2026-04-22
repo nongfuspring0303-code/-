@@ -65,6 +65,7 @@ OUTPUT_GATE_SIGNAL_FIELDS = (
 )
 
 OUTPUT_GATE_PROVENANCE_FIELDS = (
+    "market_data_source",
     "market_data_stale",
     "market_data_default_used",
     "market_data_fallback_used",
@@ -628,6 +629,15 @@ class WorkflowRunner:
 
         missing: list[str] = []
 
+        # If upstream explicitly emits opportunity signal, full market provenance
+        # must also be present. Otherwise output gate can be bypassed.
+        if "has_opportunity" in payload:
+            if "market_data_present" not in payload:
+                missing.append("gate_contract_missing_market_data_present")
+            for field in OUTPUT_GATE_PROVENANCE_FIELDS:
+                if field not in payload:
+                    missing.append(f"gate_contract_missing_{field}")
+
         if "has_opportunity" not in payload:
             missing.append("gate_contract_missing_has_opportunity")
 
@@ -651,7 +661,8 @@ class WorkflowRunner:
                 if field not in payload:
                     missing.append(f"gate_contract_missing_{field}")
 
-        return missing
+        # keep deterministic output and avoid duplicated blockers in reason text
+        return list(dict.fromkeys(missing))
 
     def _evaluate_output_gate(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         blockers: list[str] = []

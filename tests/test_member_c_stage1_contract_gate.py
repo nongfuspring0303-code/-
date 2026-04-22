@@ -69,3 +69,47 @@ def test_contract_gate_blocks_when_provenance_partial(tmp_path):
 
     assert out["final"]["action"] == "BLOCK"
     assert "gate_contract_missing_market_data_fallback_used" in out["final"]["reason"]
+
+
+def test_contract_gate_blocks_when_market_data_source_missing_with_has_opportunity(tmp_path):
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_c3.txt"),
+        audit_dir=str(tmp_path / "logs_c3"),
+    )
+    payload = _base_payload()
+    payload.update(
+        {
+            "has_opportunity": True,
+            "market_data_present": True,
+            "market_data_stale": False,
+            "market_data_default_used": False,
+            "market_data_fallback_used": False,
+        }
+    )
+
+    out = runner.run(payload)
+
+    assert out["final"]["action"] == "BLOCK"
+    assert "gate_contract_missing_market_data_source" in out["final"]["reason"]
+
+
+def test_contract_gate_blocks_when_has_opportunity_without_provenance_fields(tmp_path):
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_c4.txt"),
+        audit_dir=str(tmp_path / "logs_c4"),
+    )
+    payload = _base_payload()
+    payload.update(
+        {
+            "has_opportunity": True,
+            "market_data_present": True,
+        }
+    )
+
+    out = runner.run(payload)
+
+    assert out["final"]["action"] == "BLOCK"
+    assert "gate_contract_missing_market_data_source" in out["final"]["reason"]
+    assert "gate_contract_missing_market_data_stale" in out["final"]["reason"]
+    assert "gate_contract_missing_market_data_default_used" in out["final"]["reason"]
+    assert "gate_contract_missing_market_data_fallback_used" in out["final"]["reason"]

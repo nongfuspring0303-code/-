@@ -659,7 +659,7 @@ def _stage_status_for_overall(checks: list[CheckResult], mode: str) -> str:
     statuses: list[str] = []
     for check in checks:
         status = check.status
-        if mode == "dev" and check.name == "CANARY_SOURCE_HEALTH" and status in {"YELLOW", "RED"}:
+        if mode == "dev" and check.name == "CANARY_SOURCE_HEALTH" and status == "YELLOW":
             status = "GREEN"
         statuses.append(status)
     return worst_status(statuses)

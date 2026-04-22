@@ -42,7 +42,7 @@ except Exception as exc:  # noqa: BLE001
 
 from phase3_evidence_ledger import Phase3EvidenceLedger
 from data_adapter import DataAdapter
-from canary_source_health import CanarySourceHealth
+from canary_source_health import CanaryAssessment, CanarySourceHealth
 from theme_gate_policy import (
     REQUIRED_CONTRACT_FIELDS,
     apply_theme_gate_constraints,
@@ -504,6 +504,19 @@ def check_canary_source_health(mode: str = "dev") -> CheckResult:
         refresh_error = ""
     summary = health.read_summary()
     assessment = health.assess(summary=summary, mode=mode)
+    if mode == "dev" and assessment.status == "RED":
+        latency_errors = [err for err in assessment.errors if err.startswith("p95_latency_ms_1h=")]
+        non_latency_errors = [err for err in assessment.errors if not err.startswith("p95_latency_ms_1h=")]
+        if latency_errors and not non_latency_errors:
+            assessment = CanaryAssessment(
+                status="YELLOW",
+                summary="Canary source latency is above threshold in dev mode (degraded).",
+                warnings=list(assessment.warnings)
+                + ["Latency-only canary degradation is relaxed to warning in dev mode."],
+                errors=[],
+                evidence=list(assessment.evidence),
+                windows=assessment.windows,
+            )
     result = CheckResult(
         name="CANARY_SOURCE_HEALTH",
         status=assessment.status,

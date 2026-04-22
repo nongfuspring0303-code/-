@@ -151,3 +151,74 @@ def test_stage3a_execution_join_validation_passes(tmp_path):
     assert replay["request_id"] == execution["request_id"]
     assert replay["batch_id"] == execution["batch_id"]
     assert replay["event_hash"] == execution["event_hash"]
+
+
+def test_stage3a_acceptance_orphan_replay_zero_on_nominal_paths(tmp_path):
+    logs_dir = tmp_path / "logs"
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_c_s3a_5.txt"),
+        audit_dir=str(logs_dir),
+    )
+
+    scenarios = [
+        (
+            "BLOCK",
+            {
+                "request_id": "REQ-C-S3A-ACC-BLOCK-001",
+                "batch_id": "BATCH-C-S3A-ACC-BLOCK-001",
+                "event_hash": "EVHASH-C-S3A-ACC-BLOCK-001",
+                "drop_has_opportunity": True,
+            },
+        ),
+        (
+            "WATCH",
+            {
+                "request_id": "REQ-C-S3A-ACC-WATCH-001",
+                "batch_id": "BATCH-C-S3A-ACC-WATCH-001",
+                "event_hash": "EVHASH-C-S3A-ACC-WATCH-001",
+                "market_data_stale": True,
+            },
+        ),
+        (
+            "PENDING_CONFIRM",
+            {
+                "request_id": "REQ-C-S3A-ACC-PENDING-001",
+                "batch_id": "BATCH-C-S3A-ACC-PENDING-001",
+                "event_hash": "EVHASH-C-S3A-ACC-PENDING-001",
+                "require_human_confirm": True,
+                "human_confirmed": False,
+            },
+        ),
+        (
+            "EXECUTE",
+            {
+                "request_id": "REQ-C-S3A-ACC-EXEC-001",
+                "batch_id": "BATCH-C-S3A-ACC-EXEC-001",
+                "event_hash": "EVHASH-C-S3A-ACC-EXEC-001",
+            },
+        ),
+    ]
+
+    observed_actions = []
+    for expected_action, options in scenarios:
+        payload = _execute_payload()
+        payload.update(options)
+        if options.get("drop_has_opportunity"):
+            payload.pop("has_opportunity", None)
+            payload.pop("drop_has_opportunity", None)
+        out = runner.run(payload)
+        observed_actions.append(out["final"]["action"])
+
+        assert out["final"]["action"] == expected_action
+        validation = out["replay_join_validation"]
+        assert validation["orphan_replay_count"] == 0
+        assert validation["replay_primary_key_completeness_ratio"] == 1.0
+        assert validation["validation_status"] == "pass"
+        if expected_action == "EXECUTE":
+            assert validation["orphan_execution_count"] == 0
+
+    assert set(observed_actions) == {"BLOCK", "WATCH", "PENDING_CONFIRM", "EXECUTE"}
+
+    validation_records = _read_jsonl(logs_dir / "replay_join_validation.jsonl")
+    assert len(validation_records) == 4
+    assert all(record["orphan_replay_count"] == 0 for record in validation_records)

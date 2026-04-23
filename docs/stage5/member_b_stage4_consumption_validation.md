@@ -133,3 +133,41 @@ Measurement basis:
   - Provider optimization did not break `sector_candidates` / `ticker_candidates` / `A1(a1_score)` / `theme_tags` consumer readability or semantics on B fixture coverage.
   - fallback/default/manual-review paths remain interpretable and auditable (`WATCH` reasons preserved, fallback blockers explicit).
   - No observed output-quality degradation on B acceptance metrics (`null_rate` and placeholder leakage both within <=1% threshold).
+
+## 8) Fixture vs Real-window Metrics (parallel view)
+
+### 8.1 Runtime window source (real-window)
+
+- Window source: `captured_local_execution_window` (not production live logs)
+- Log types:
+  - `decision_gate.jsonl` (primary metrics source)
+  - `replay_write.jsonl` (chain continuity)
+  - `execution_emit.jsonl` (EXECUTE-path continuity)
+- Stats helper: `scripts/member_b_stage4_runtime_window_stats.py`
+- Generation command:
+
+```bash
+python3 scripts/member_b_stage4_runtime_window_stats.py --pretty
+```
+
+- Time range: `2026-04-23T19:44:41.908161Z` ~ `2026-04-23T19:44:41.911011Z`
+- Sample size:
+  - `decision_gate_count = 6`
+  - `replay_write_count = 6`
+  - `execution_emit_count = 4`
+
+### 8.2 Metrics comparison (fixture-based vs real-window)
+
+| Metric | Fixture-based | Real-window (captured local execution window) |
+| --- | --- | --- |
+| null/empty rate | 0.00% | 0.00% |
+| fallback_used_ratio | 33.33% | 33.33% |
+| default_used_ratio | 0.00% | 0.00% |
+| manual_review_ratio | 33.33% | 33.33% |
+| placeholder_leakage_ratio | 0.00% | 0.00% |
+| quality degradation threshold | PASS | PASS |
+
+### 8.3 Real-window conclusion
+
+- Real-window stats confirm fixture-driven conclusions on the same B-side acceptance dimensions.
+- This window is explicitly `captured_local_execution_window`; it strengthens auditability but does not claim online production representativeness.

@@ -10,7 +10,7 @@
 ## 1. 统一门禁（必须同时满足）
 - [x] G1: C 侧交付完成：adapter / batch / cache / failover / queue / idempotency
 - [x] G2: A 侧完成兼容与契约校验（含结论与问题ID）
-- [x] G3: B 侧完成消费侧验证（含结论与证据路径）
+- [x] G3: B 侧完成消费侧验证（fixture + real-window 双口径，含结论与证据路径）
 - [x] G4: 新旧压测对比有明确改善且无语义回归
 - [x] G5: 强制测试 7/8/9 全通过
 - [x] G6: failover 与 cache 行为有可复核证据
@@ -75,16 +75,19 @@
 - tests/fixtures/edt_goldens/member_b_stage4_consumption_cases.json
 - tests/test_member_b_stage4_consumption_validation.py
 
-### 4.3 B 侧待补“真实运行数据”口径
+### 4.3 B 侧真实运行窗口口径（已补）
 - [x] null/empty rate（按字段维度）
 - [x] fallback/default_used ratio
 - [x] manual review ratio（WATCH/PENDING_CONFIRM/BLOCK）
 - [x] 质量劣化阈值实测结论（相对基线）
+- [x] 窗口来源（captured local execution window）与日志类型
+- [x] 时间范围与样本量
 
 证据引用（B 侧）：
-- docs/stage5/member_b_stage4_consumption_validation.md（含 runtime metric caliber、measured results、formal sign-off）
+- docs/stage5/member_b_stage4_consumption_validation.md（含 fixture 指标 + real-window 指标并列、formal sign-off）
 - docs/stage5/member_b_stage4_rules_test_mapping.md（R-B-S4-001 ~ R-B-S4-004 与测试锚点）
 - tests/fixtures/edt_goldens/member_b_stage4_consumption_cases.json（B-S4-001 ~ B-S4-007 用例集）
+- scripts/member_b_stage4_runtime_window_stats.py（B 侧真实窗口统计 helper）
 
 ## 5. 强制测试（Stage4 Gate 7/8/9）
 - [x] 7. dual_write_backward_compat_test
@@ -115,7 +118,7 @@
 ## 7. 最终结论（联审签字）
 - C 结论：PASS（2026-04-24，见 2.3 与 C-side sign-off 评论）
 - A 结论：PASS WITH NOTE（2026-04-24，见 3.3）
-- B 结论：PASS（2026-04-24，见 `docs/stage5/member_b_stage4_consumption_validation.md` 第7节）
+- B 结论：PASS（2026-04-24，见 `docs/stage5/member_b_stage4_consumption_validation.md` 第7节与第8节）
 
 流程门禁备注：
 - 当前内容签字已闭环；合并前仍需 A/B/C 提交正式 GitHub review approvals（非普通评论）。

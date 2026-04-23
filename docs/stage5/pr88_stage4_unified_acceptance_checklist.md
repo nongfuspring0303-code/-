@@ -8,29 +8,38 @@
 基于阶段4标准（9.3~9.9），将 C 实现、A 契约校验、B 消费验证收敛为同一份可审计验收闭环，确保“性能提升不破坏语义”。
 
 ## 1. 统一门禁（必须同时满足）
-- [ ] G1: C 侧交付完成：adapter / batch / cache / failover / queue / idempotency
+- [x] G1: C 侧交付完成：adapter / batch / cache / failover / queue / idempotency
 - [x] G2: A 侧完成兼容与契约校验（含结论与问题ID）
 - [ ] G3: B 侧完成消费侧验证（含结论与证据路径）
-- [ ] G4: 新旧压测对比有明确改善且无语义回归
+- [x] G4: 新旧压测对比有明确改善且无语义回归
 - [x] G5: 强制测试 7/8/9 全通过
-- [ ] G6: failover 与 cache 行为有可复核证据
+- [x] G6: failover 与 cache 行为有可复核证据
 
 任一门禁未满足 => 结论只能是“需修改后再审”。
 
 ## 2. C 侧（实现与证据）
 ### 2.1 实现项
-- [ ] MarketDataAdapter 统一入口（active/fallback/deprecated）
-- [ ] 单票路径已改 batch 抓价主路径
-- [ ] cache 策略（TTL/命中/失效）已落地
-- [ ] failover 触发/回切逻辑可观察
-- [ ] queue 顺序语义与 ingest_seq/process_seq 校验可追踪
-- [ ] idempotency_key 在写入/消费两侧生效
+- [x] MarketDataAdapter 统一入口（active/fallback/deprecated）
+- [x] 单票路径已改 batch 抓价主路径
+- [x] cache 策略（TTL/命中/失效）已落地
+- [x] failover 触发/回切逻辑可观察
+- [x] queue 顺序语义与 ingest_seq/process_seq 校验可追踪
+- [x] idempotency_key 在写入/消费两侧生效
 
 ### 2.2 证据项
-- [ ] provider 链路元信息（attempted/succeeded/unresolved）
-- [ ] cache 命中/未命中证据
-- [ ] failover 触发原因、切换链路、恢复时间
-- [ ] replay/execution 去重证据（重复请求不重复执行）
+- [x] provider 链路元信息（attempted/succeeded/unresolved）
+- [x] cache 命中/未命中证据
+- [x] failover 触发原因、切换链路、恢复时间
+- [x] replay/execution 去重证据（重复请求不重复执行）
+
+### 2.3 C 侧当前签字结论（2026-04-24）
+- 结论：**PASS**
+- 证据：
+  - `docs/stage5/pr88_stage4_perf_report.md`
+  - `docs/stage5/artifacts/pr88_stage4_perf_benchmark.json`
+  - `tests/test_market_data_adapter.py`
+  - `tests/test_member_c_stage4_provider_perf.py`
+  - `tests/test_opportunity_score.py::test_price_fetch_disabled_does_not_call_adapter`
 
 ## 3. A 侧（兼容与契约签字）
 ### 3.1 必核项
@@ -83,18 +92,18 @@
 
 ## 6. 压测对比（新旧基线）
 ### 6.1 指标
-- [ ] 吞吐（TPS/QPS）
-- [ ] P95/P99 延迟
-- [ ] 失败率
-- [ ] 超时率
+- [x] 吞吐（TPS/QPS）
+- [x] P95/P99 延迟
+- [x] 失败率
+- [x] 超时率
 
 ### 6.2 语义安全护栏
-- [ ] 无新增契约穿透
-- [ ] 无新增不可解释 fallback
-- [ ] 无 replay/execution 重复触发
+- [x] 无新增契约穿透
+- [x] 无新增不可解释 fallback
+- [x] 无 replay/execution 重复触发
 
 ## 7. 最终结论（联审签字）
-- C 结论：PASS / PASS WITH NOTE / FAIL
+- C 结论：PASS（2026-04-24，见 2.3 与 C-side sign-off 评论）
 - A 结论：PASS / PASS WITH NOTE / FAIL
 - B 结论：PASS / PASS WITH NOTE / FAIL
 

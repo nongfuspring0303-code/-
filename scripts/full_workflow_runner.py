@@ -10,7 +10,7 @@ import json
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,14 +51,164 @@ class FullWorkflowRunner:
         self.config_path = config_path
         self.raw_news_ingest_log_path = self.logs_dir / "raw_news_ingest.jsonl"
         self.market_data_provenance_log_path = self.logs_dir / "market_data_provenance.jsonl"
-        self.raw_news_ingest_log_path.touch(exist_ok=True)
-        self.market_data_provenance_log_path.touch(exist_ok=True)
+        self.pipeline_stage_log_path = self.logs_dir / "pipeline_stage.jsonl"
+        self.rejected_events_log_path = self.logs_dir / "rejected_events.jsonl"
+        self.quarantine_replay_log_path = self.logs_dir / "quarantine_replay.jsonl"
+        self.trace_scorecard_log_path = self.logs_dir / "trace_scorecard.jsonl"
+        for path in (
+            self.raw_news_ingest_log_path,
+            self.market_data_provenance_log_path,
+            self.pipeline_stage_log_path,
+            self.rejected_events_log_path,
+            self.quarantine_replay_log_path,
+            self.trace_scorecard_log_path,
+        ):
+            path.touch(exist_ok=True)
         self._evidence_lock = threading.Lock()
 
     def _append_jsonl(self, path: Path, record: Dict[str, Any]) -> None:
         with self._evidence_lock:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    @staticmethod
+    def _utc_now() -> str:
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def _log_pipeline_stage(
+        self,
+        *,
+        trace_id: str,
+        event_id: str,
+        request_id: str | None,
+        batch_id: str | None,
+        event_hash: str,
+        stage_seq: int,
+        stage: str,
+        status: str,
+        details: Dict[str, Any] | None = None,
+    ) -> None:
+        self._append_jsonl(
+            self.pipeline_stage_log_path,
+            {
+                "logged_at": self._utc_now(),
+                "trace_id": trace_id,
+                "event_trace_id": trace_id,
+                "request_id": request_id,
+                "batch_id": batch_id,
+                "event_id": event_id,
+                "event_hash": event_hash,
+                "stage_seq": stage_seq,
+                "stage": stage,
+                "status": status,
+                "details": details or {},
+            },
+        )
+
+    @staticmethod
+    def _grade_from_score(score: float) -> str:
+        if score >= 85:
+            return "A"
+        if score >= 70:
+            return "B"
+        if score >= 55:
+            return "C"
+        return "D"
+
+    def _build_trace_scorecard(
+        self,
+        *,
+        trace_id: str,
+        event_id: str,
+        request_id: str | None,
+        batch_id: str | None,
+        event_hash: str,
+        execution_in: Dict[str, Any],
+        execution_out: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        final = execution_out.get("final", {}) if isinstance(execution_out, dict) else {}
+        final_action = str(final.get("action", "UNKNOWN")).upper()
+        stale = bool(execution_in.get("market_data_stale", False))
+        default_used = bool(execution_in.get("market_data_default_used", False))
+        fallback_used = bool(execution_in.get("market_data_fallback_used", False))
+        has_opportunity = bool(execution_in.get("has_opportunity", False))
+        semantic_event_type = str(execution_in.get("semantic_event_type", "unknown"))
+        sector_candidates = execution_in.get("sector_candidates", [])
+        ticker_candidates = execution_in.get("ticker_candidates", [])
+
+        gate_safety_score = 100.0
+        if stale:
+            gate_safety_score -= 25.0
+        if default_used:
+            gate_safety_score -= 35.0
+        if fallback_used:
+            gate_safety_score -= 20.0
+        if final_action == "EXECUTE" and (stale or default_used):
+            gate_safety_score -= 20.0
+        gate_safety_score = max(0.0, min(100.0, gate_safety_score))
+
+        output_quality_score = 60.0
+        if has_opportunity:
+            output_quality_score += 15.0
+        if semantic_event_type != "unknown":
+            output_quality_score += 10.0
+        if isinstance(sector_candidates, list) and sector_candidates:
+            output_quality_score += 10.0
+        if isinstance(ticker_candidates, list) and ticker_candidates:
+            output_quality_score += 5.0
+        output_quality_score = max(0.0, min(100.0, output_quality_score))
+
+        provider_freshness_score = 100.0
+        if stale:
+            provider_freshness_score -= 40.0
+        if default_used:
+            provider_freshness_score -= 35.0
+        if fallback_used:
+            provider_freshness_score -= 20.0
+        provider_freshness_score = max(0.0, min(100.0, provider_freshness_score))
+
+        audit_completeness_score = 0.0
+        if trace_id:
+            audit_completeness_score += 30.0
+        if event_hash:
+            audit_completeness_score += 30.0
+        if request_id:
+            audit_completeness_score += 20.0
+        if batch_id:
+            audit_completeness_score += 20.0
+
+        total_score = (
+            0.35 * gate_safety_score
+            + 0.30 * output_quality_score
+            + 0.20 * provider_freshness_score
+            + 0.15 * audit_completeness_score
+        )
+        total_score = round(max(0.0, min(100.0, total_score)), 2)
+
+        return {
+            "logged_at": self._utc_now(),
+            "trace_id": trace_id,
+            "event_trace_id": trace_id,
+            "request_id": request_id,
+            "batch_id": batch_id,
+            "event_id": event_id,
+            "event_hash": event_hash,
+            "final_action": final_action,
+            "scores": {
+                "gate_safety_score": round(gate_safety_score, 2),
+                "output_quality_score": round(output_quality_score, 2),
+                "provider_freshness_score": round(provider_freshness_score, 2),
+                "audit_completeness_score": round(audit_completeness_score, 2),
+                "total_score": total_score,
+                "grade": self._grade_from_score(total_score),
+            },
+            "owner_dimensions": {
+                "A_gate_safety": round(gate_safety_score, 2),
+                "B_output_quality": round(output_quality_score, 2),
+                "C_provider_freshness": round(provider_freshness_score, 2),
+                "C_audit_completeness": round(audit_completeness_score, 2),
+            },
+        }
 
     @staticmethod
     def _event_hash(headline: str, ts: str) -> str:
@@ -276,6 +426,17 @@ class FullWorkflowRunner:
                 "source_rank": source_rank,
             },
         )
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=1,
+            stage="intel_ingest",
+            status="success",
+            details={"source_rank": source_rank.get("rank"), "headline": event_object.get("headline")},
+        )
 
         prev_state = self.state_store.get_state(event_id)
         previous_lifecycle = prev_state["lifecycle_state"] if prev_state else None
@@ -299,6 +460,17 @@ class FullWorkflowRunner:
                 "retry_count": retry_count,
             }
         ).data
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=2,
+            stage="lifecycle",
+            status="success",
+            details={"lifecycle_state": lifecycle_out.get("lifecycle_state"), "internal_state": lifecycle_out.get("internal_state")},
+        )
 
         fatigue_out = self.fatigue.run(
             {
@@ -311,6 +483,17 @@ class FullWorkflowRunner:
                 "days_since_last_dead": payload.get("days_since_last_dead", 5),
             }
         ).data
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=3,
+            stage="fatigue",
+            status="success",
+            details={"fatigue_final": fatigue_out.get("fatigue_final"), "watch_mode": fatigue_out.get("watch_mode")},
+        )
 
         conduction_out = self.conduction.run(
             {
@@ -324,6 +507,17 @@ class FullWorkflowRunner:
                 "policy_intervention": payload.get("policy_intervention", "NONE"),
             }
         ).data
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=4,
+            stage="conduction",
+            status="success",
+            details={"confidence": conduction_out.get("confidence"), "path_len": len(conduction_out.get("conduction_path", []))},
+        )
 
         validation_input = self._build_market_validation_input(payload, event_object, conduction_out)
         validation_out = self.validation.run(validation_input).data
@@ -345,6 +539,22 @@ class FullWorkflowRunner:
                 "validation_state": validation_out.get("validation_state"),
             },
         )
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=5,
+            stage="market_validation",
+            status="success",
+            details={
+                "market_data_source": validation_out.get("market_data_source"),
+                "market_data_stale": bool(validation_out.get("market_data_stale", False)),
+                "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
+                "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
+            },
+        )
 
         semantic_out = self.semantic.analyze(event_object["headline"], payload.get("summary", event_object["headline"]))
         event_contract = self.semantic.analyze_event(
@@ -353,6 +563,17 @@ class FullWorkflowRunner:
             semantic_output=semantic_out,
             event_id=event_object["event_id"],
             event_time=event_object.get("detected_at", event_object.get("updated_at", "")),
+        )
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=6,
+            stage="semantic",
+            status="success",
+            details={"semantic_event_type": semantic_out.get("event_type", "other")},
         )
 
         transmission_paths = [
@@ -380,6 +601,17 @@ class FullWorkflowRunner:
                 "target_leader": [s.get("symbol") for s in conduction_out.get("stock_candidates", []) if s.get("symbol")][:2],
             }
         ).data
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=7,
+            stage="path_adjudication",
+            status="success",
+            details={"primary_path": (path_out.get("primary_path") or {}).get("path_text", "undetermined")},
+        )
 
         signal_out = self.scorer.run(
             {
@@ -401,6 +633,17 @@ class FullWorkflowRunner:
                 "weights_version": "score_v1",
             }
         ).data
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=8,
+            stage="signal",
+            status="success",
+            details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},
+        )
 
         analysis_out = {
             "lifecycle": lifecycle_out,
@@ -436,6 +679,17 @@ class FullWorkflowRunner:
         analysis_out["opportunity_update"] = opportunity_update
         opportunities = opportunity_update.get("opportunities", []) if isinstance(opportunity_update, dict) else []
         has_opportunity = bool(opportunities)
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=9,
+            stage="opportunity",
+            status="success",
+            details={"opportunity_count": len(opportunities), "has_opportunity": has_opportunity},
+        )
 
         contract_version = "v2.2"
         legacy_contract_version = "v1.0"
@@ -510,6 +764,75 @@ class FullWorkflowRunner:
             "dual_write": True,
         }
         execution_out = self.execution.run(execution_in)
+        final = execution_out.get("final", {}) if isinstance(execution_out, dict) else {}
+        final_action = str(final.get("action", "UNKNOWN")).upper()
+        final_reason = str(final.get("reason", ""))
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=10,
+            stage="execution",
+            status="success",
+            details={"final_action": final_action, "final_reason": final_reason},
+        )
+
+        if final_action in {"WATCH", "BLOCK", "FORCE_CLOSE", "PENDING_CONFIRM"}:
+            reject_reason_code = "EXECUTION_GATE_REJECTED"
+            if "missing_opportunity" in final_reason:
+                reject_reason_code = "MISSING_OPPORTUNITY"
+            elif "market_data_default_used" in final_reason:
+                reject_reason_code = "MARKET_DATA_DEFAULT_USED"
+            elif "market_data_fallback_used" in final_reason:
+                reject_reason_code = "MARKET_DATA_FALLBACK_USED"
+            elif "market_data_stale" in final_reason:
+                reject_reason_code = "MARKET_DATA_STALE"
+
+            rejected_record = {
+                "logged_at": self._utc_now(),
+                "trace_id": trace_id,
+                "event_trace_id": trace_id,
+                "request_id": request_id,
+                "batch_id": batch_id,
+                "event_id": event_id,
+                "event_hash": event_hash,
+                "stage": "execution",
+                "reject_reason_code": reject_reason_code,
+                "reject_reason_text": final_reason,
+                "contract_version": execution_in.get("contract_version", "v2.2"),
+                "ingest_ts": event_object.get("detected_at"),
+                "decision_ts": self._utc_now(),
+                "final_action": final_action,
+            }
+            self._append_jsonl(self.rejected_events_log_path, rejected_record)
+
+            quarantine_record = {
+                "logged_at": self._utc_now(),
+                "trace_id": trace_id,
+                "event_trace_id": trace_id,
+                "request_id": request_id,
+                "batch_id": batch_id,
+                "event_id": event_id,
+                "event_hash": event_hash,
+                "final_action": final_action,
+                "quarantine_reason_code": reject_reason_code,
+                "quarantine_reason_text": final_reason,
+                "contract_version": execution_in.get("contract_version", "v2.2"),
+            }
+            self._append_jsonl(self.quarantine_replay_log_path, quarantine_record)
+
+        trace_scorecard = self._build_trace_scorecard(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            execution_in=execution_in,
+            execution_out=execution_out,
+        )
+        self._append_jsonl(self.trace_scorecard_log_path, trace_scorecard)
 
         self.state_store.upsert_state(event_id, {
             "internal_state": lifecycle_out["internal_state"],

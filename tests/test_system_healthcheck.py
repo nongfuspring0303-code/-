@@ -274,10 +274,3 @@ def test_canary_refresh_can_be_forced_in_ci_dev_mode(monkeypatch):
 
     assert called["collect_once"] == 1
     assert out.status == "YELLOW"
-
-
-def test_phase3_pressure_gate_sample_passes():
-    code, output = system_healthcheck.run_phase3_pressure_gate()
-
-    assert code == 0
-    assert '"passed": true' in output

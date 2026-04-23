@@ -110,13 +110,26 @@ class ConductionMapper(EDTModule):
             return ""
         if raw in self._sector_whitelist:
             return raw
-        mapped = self._sector_mapping.get(raw, [])
-        if isinstance(mapped, list):
-            for candidate in mapped:
-                candidate_name = str(candidate or "").strip()
-                if candidate_name:
-                    return candidate_name
+        raw_lower = raw.lower()
+        for candidate_name in self._sector_whitelist:
+            if candidate_name.lower() == raw_lower:
+                return candidate_name
+        for mapped_key, mapped_values in self._sector_mapping.items():
+            if str(mapped_key or "").strip().lower() != raw_lower:
+                continue
+            if isinstance(mapped_values, list):
+                for candidate in mapped_values:
+                    candidate_name = str(candidate or "").strip()
+                    if candidate_name:
+                        return candidate_name
         return raw
+
+    @staticmethod
+    def _resolve_sector_snapshot_name(item: Dict[str, Any]) -> str:
+        sector = str(item.get("sector", "") or "").strip()
+        if sector:
+            return sector
+        return str(item.get("industry", "") or "").strip()
 
     def _load_chain_config(self) -> Dict[str, Any]:
         payload = self.config_center.get_registered("conduction_chain", {})
@@ -513,7 +526,7 @@ class ConductionMapper(EDTModule):
             else:
                 direction = "benefit"
                 reason = "实时ETF快照映射"
-            sector_name = self._normalize_sector_name(item.get("industry") or item.get("sector") or "")
+            sector_name = self._normalize_sector_name(self._resolve_sector_snapshot_name(item))
             if not sector_name or sector_name not in self._sector_whitelist:
                 continue
             impact = {
@@ -531,7 +544,7 @@ class ConductionMapper(EDTModule):
             direction = "long" if impact.get("direction") == "benefit" else "short"
             impact_sector = self._normalize_sector_name(impact.get("sector", ""))
             for item in sector_data:
-                candidate_sector = self._normalize_sector_name(item.get("industry") or item.get("sector") or "")
+                candidate_sector = self._normalize_sector_name(self._resolve_sector_snapshot_name(item))
                 symbol = str(item.get("symbol", "")).strip().upper()
                 if candidate_sector != impact_sector or not self._is_valid_symbol(symbol):
                     continue

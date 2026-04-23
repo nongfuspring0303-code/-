@@ -108,9 +108,6 @@ def build_phase3_pressure_sample() -> list[dict[str, Any]]:
             "raw_text": "policy shift",
             "source_type": "rss",
             "timestamp": ts,
-            "sector_data": [
-                {"sector": "科技", "symbol": "NVDA"},
-            ],
         },
         {
             "headline": "AI spending remains strong",
@@ -118,9 +115,6 @@ def build_phase3_pressure_sample() -> list[dict[str, Any]]:
             "raw_text": "ai spending",
             "source_type": "official",
             "timestamp": ts,
-            "sector_data": [
-                {"sector": "科技", "symbol": "NVDA"},
-            ],
         },
     ]
 

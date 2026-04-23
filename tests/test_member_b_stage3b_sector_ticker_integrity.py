@@ -52,6 +52,37 @@ def test_stage3b_sectors_final_output_whitelist_only():
     assert sectors.issubset(whitelist)
 
 
+def test_stage3b_policy_mapping_prefers_canonical_sector_field():
+    out = ConductionMapper().run(
+        {
+            "event_id": "ME-B-S3B-001B",
+            "category": "E",
+            "severity": "E2",
+            "headline": "Fed signals rate cuts ahead",
+            "summary": "Policy easing expected",
+            "lifecycle_state": "Active",
+            "sector_data": [
+                {"symbol": "XLF", "sector": "Financials", "industry": "金融", "change_pct": 0.8},
+            ],
+        }
+    )
+
+    sectors = {str(item.get("sector", "")).strip() for item in out.data.get("sector_impacts", [])}
+    symbols = {str(item.get("symbol", "")).strip().upper() for item in out.data.get("stock_candidates", [])}
+
+    assert "Financial Services" in sectors
+    assert "XLF" in symbols
+    assert out.data.get("needs_manual_review") is False
+
+
+def test_stage3b_sector_normalization_is_case_insensitive():
+    mapper = ConductionMapper()
+
+    assert mapper._normalize_sector_name("Financials") == "Financial Services"  # noqa: SLF001
+    assert mapper._normalize_sector_name("financials") == "Financial Services"  # noqa: SLF001
+    assert mapper._normalize_sector_name("FINANCIALS") == "Financial Services"  # noqa: SLF001
+
+
 def test_stage3b_ticker_pool_requires_truth_source():
     scorer = OpportunityScorer()
     known = scorer.build_opportunity_update(

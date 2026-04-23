@@ -69,3 +69,5 @@
 - placeholder 泄漏率 ≤ 1%
 - template collapse 不再污染正式输出
 
+补充说明：
+- `scripts/system_healthcheck.py` / `tests/test_system_healthcheck.py` 已拆到独立的健康检查 PR（PR86）并单独合并，PR85 仅保留 stage3B 主线与其验收口径。

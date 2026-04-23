@@ -37,6 +37,7 @@
 - 证据：
   - `docs/stage5/pr88_stage4_perf_report.md`
   - `docs/stage5/artifacts/pr88_stage4_perf_benchmark.json`
+  - `docs/stage5/artifacts/pr88_stage4_runtime_window_metrics.json`
   - `tests/test_market_data_adapter.py`
   - `tests/test_member_c_stage4_provider_perf.py`
   - `tests/test_opportunity_score.py::test_price_fetch_disabled_does_not_call_adapter`
@@ -106,6 +107,10 @@
 - [x] 无新增契约穿透
 - [x] 无新增不可解释 fallback
 - [x] 无 replay/execution 重复触发
+- C 侧证据：
+  - `docs/stage5/pr88_stage4_perf_report.md`
+  - `docs/stage5/artifacts/pr88_stage4_perf_benchmark.json`
+  - `docs/stage5/artifacts/pr88_stage4_runtime_window_metrics.json`
 
 ## 7. 最终结论（联审签字）
 - C 结论：PASS（2026-04-24，见 2.3 与 C-side sign-off 评论）

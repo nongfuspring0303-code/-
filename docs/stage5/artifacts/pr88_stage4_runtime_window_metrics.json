@@ -1,0 +1,42 @@
+{
+  "window_name": "pr88_stage4_runtime_window",
+  "window_start_utc": "2026-04-23T19:43:18.298725Z",
+  "window_end_utc": "2026-04-23T19:43:18.316682Z",
+  "source": {
+    "mode": "generated_runtime_window_from_fixture_payloads",
+    "fixture_path": "tests/fixtures/edt_goldens/member_b_stage4_consumption_cases.json",
+    "logs_dir": "transient_tempdir_runtime_logs",
+    "total_runs": 30,
+    "fixture_cases": 6,
+    "rounds": 5
+  },
+  "counts": {
+    "decision_gate_rows": 30,
+    "replay_write_rows": 30,
+    "execution_emit_rows": 20,
+    "execute_rows": 20,
+    "manual_review_rows": 10
+  },
+  "ratios": {
+    "fallback_used_ratio": 0.3333333333333333,
+    "default_used_ratio": 0.0,
+    "manual_review_ratio": 0.3333333333333333,
+    "execution_emit_per_decision_ratio": 0.6666666666666666
+  },
+  "replay_execution_alignment": {
+    "execution_ids_missing_in_replay": [],
+    "replay_ids_without_execution": [
+      "PR88-S4-00-001",
+      "PR88-S4-00-004",
+      "PR88-S4-01-001",
+      "PR88-S4-01-004",
+      "PR88-S4-02-001",
+      "PR88-S4-02-004",
+      "PR88-S4-03-001",
+      "PR88-S4-03-004",
+      "PR88-S4-04-001",
+      "PR88-S4-04-004"
+    ],
+    "alignment_ok": true
+  }
+}

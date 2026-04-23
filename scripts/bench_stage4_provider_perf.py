@@ -8,7 +8,7 @@ import random
 import statistics
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from market_data_adapter import MarketDataAdapter
 
@@ -51,6 +51,21 @@ def _fake_fallback(symbols: List[str]) -> Dict[str, float]:
     return out
 
 
+def _build_stage4_adapter() -> MarketDataAdapter:
+    cfg = {
+        "runtime.price_fetch.cache_ttl_seconds": 120,
+        "runtime.price_fetch.max_batch_size": 40,
+        "runtime.price_fetch.timeout_seconds": 5,
+        "runtime.price_fetch.providers.active": ["primary"],
+        "runtime.price_fetch.providers.fallback": ["fallback"],
+        "runtime.price_fetch.providers.deprecated": [],
+    }
+    return MarketDataAdapter(
+        config_getter=lambda k, d=None: cfg.get(k, d),
+        providers={"primary": _fake_primary, "fallback": _fake_fallback},
+    )
+
+
 def _baseline_fetch(symbols: List[str], timeout_s: float) -> Tuple[Dict[str, float], int]:
     prices: Dict[str, float] = {}
     timeout_count = 0
@@ -69,86 +84,83 @@ def _baseline_fetch(symbols: List[str], timeout_s: float) -> Tuple[Dict[str, flo
     return prices, timeout_count
 
 
-def _build_stage4_adapter() -> MarketDataAdapter:
-    cfg = {
-        "runtime.price_fetch.cache_ttl_seconds": 120,
-        "runtime.price_fetch.max_batch_size": 40,
-        "runtime.price_fetch.timeout_seconds": 5,
-        "runtime.price_fetch.providers.active": ["primary"],
-        "runtime.price_fetch.providers.fallback": ["fallback"],
-        "runtime.price_fetch.providers.deprecated": [],
+def _stage4_fetch(adapter: MarketDataAdapter, symbols: List[str], timeout_s: float) -> Tuple[Dict[str, float], int]:
+    started = time.perf_counter()
+    prices = adapter.quote_many(symbols)
+    elapsed = time.perf_counter() - started
+    per_quote_elapsed = elapsed / max(len(symbols), 1)
+    timeout_count = len(symbols) if per_quote_elapsed > timeout_s else 0
+    return prices, timeout_count
+
+
+def _summarize(label: str, rounds: int, symbols: List[str], durations_ms: List[float], failures: int, timeouts: int) -> Dict[str, Any]:
+    sorted_d = sorted(durations_ms)
+    total_quotes = rounds * len(symbols)
+    total_seconds = sum(durations_ms) / 1000.0
+    return {
+        "label": label,
+        "rounds": rounds,
+        "quotes": total_quotes,
+        "throughput_qps": total_quotes / max(total_seconds, 1e-9),
+        "latency_ms_p95": _percentile(sorted_d, 0.95),
+        "latency_ms_p99": _percentile(sorted_d, 0.99),
+        "failure_rate": failures / max(total_quotes, 1),
+        "timeout_rate": timeouts / max(total_quotes, 1),
+        "avg_latency_ms": statistics.mean(durations_ms) if durations_ms else 0.0,
+        "timeout_metric_basis": "per-quote operation timeout (same rule for baseline/stage4)",
     }
-    return MarketDataAdapter(
-        config_getter=lambda k, d=None: cfg.get(k, d),
-        providers={"primary": _fake_primary, "fallback": _fake_fallback},
-    )
 
 
-def _run_baseline(rounds: int, symbols: List[str], timeout_s: float) -> Dict[str, float]:
+def _run_baseline(rounds: int, symbols: List[str], timeout_s: float) -> Dict[str, Any]:
     durations_ms: List[float] = []
     failures = 0
     timeouts = 0
-    total_quotes = rounds * len(symbols)
-
     for _ in range(rounds):
-        t0 = time.perf_counter()
+        started = time.perf_counter()
         fetched, timeout_count = _baseline_fetch(symbols, timeout_s)
-        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
         durations_ms.append(elapsed_ms)
         failures += len(symbols) - len(fetched)
         timeouts += timeout_count
-
-    sorted_d = sorted(durations_ms)
-    total_seconds = sum(durations_ms) / 1000.0
-    return {
-        "rounds": rounds,
-        "quotes": total_quotes,
-        "throughput_qps": total_quotes / max(total_seconds, 1e-9),
-        "latency_ms_p95": _percentile(sorted_d, 0.95),
-        "latency_ms_p99": _percentile(sorted_d, 0.99),
-        "failure_rate": failures / max(total_quotes, 1),
-        "timeout_rate": timeouts / max(total_quotes, 1),
-        "avg_latency_ms": statistics.mean(durations_ms),
-    }
+    return _summarize("baseline_serial", rounds, symbols, durations_ms, failures, timeouts)
 
 
-def _run_stage4(rounds: int, symbols: List[str], timeout_s: float) -> Dict[str, float]:
+def _run_stage4_cold(rounds: int, symbols: List[str], timeout_s: float) -> Dict[str, Any]:
     durations_ms: List[float] = []
     failures = 0
     timeouts = 0
-    total_quotes = rounds * len(symbols)
-
-    adapter = _build_stage4_adapter()
-    adapter.quote_many(symbols)
-
     for _ in range(rounds):
-        t0 = time.perf_counter()
-        fetched = adapter.quote_many(symbols)
-        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        adapter = _build_stage4_adapter()
+        started = time.perf_counter()
+        fetched, timeout_count = _stage4_fetch(adapter, symbols, timeout_s)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
         durations_ms.append(elapsed_ms)
         failures += len(symbols) - len(fetched)
-        if (elapsed_ms / 1000.0) > timeout_s:
-            timeouts += len(symbols)
-
-    sorted_d = sorted(durations_ms)
-    total_seconds = sum(durations_ms) / 1000.0
-    return {
-        "rounds": rounds,
-        "quotes": total_quotes,
-        "throughput_qps": total_quotes / max(total_seconds, 1e-9),
-        "latency_ms_p95": _percentile(sorted_d, 0.95),
-        "latency_ms_p99": _percentile(sorted_d, 0.99),
-        "failure_rate": failures / max(total_quotes, 1),
-        "timeout_rate": timeouts / max(total_quotes, 1),
-        "avg_latency_ms": statistics.mean(durations_ms),
-    }
+        timeouts += timeout_count
+    return _summarize("stage4_cold", rounds, symbols, durations_ms, failures, timeouts)
 
 
-def _improvement(base: Dict[str, float], new: Dict[str, float]) -> Dict[str, float]:
-    def ratio(b: float, n: float) -> float:
-        if b == 0:
+def _run_stage4_warm(rounds: int, symbols: List[str], timeout_s: float) -> Dict[str, Any]:
+    durations_ms: List[float] = []
+    failures = 0
+    timeouts = 0
+    adapter = _build_stage4_adapter()
+    adapter.quote_many(symbols)
+    for _ in range(rounds):
+        started = time.perf_counter()
+        fetched, timeout_count = _stage4_fetch(adapter, symbols, timeout_s)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        durations_ms.append(elapsed_ms)
+        failures += len(symbols) - len(fetched)
+        timeouts += timeout_count
+    return _summarize("stage4_warm", rounds, symbols, durations_ms, failures, timeouts)
+
+
+def _improvement(base: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, float]:
+    def ratio(before: float, after: float) -> float:
+        if before == 0:
             return 0.0
-        return (b - n) / b
+        return (before - after) / before
 
     return {
         "throughput_gain": 0.0 if base["throughput_qps"] == 0 else (new["throughput_qps"] - base["throughput_qps"]) / base["throughput_qps"],
@@ -160,37 +172,40 @@ def _improvement(base: Dict[str, float], new: Dict[str, float]) -> Dict[str, flo
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Stage4 provider performance benchmark (baseline vs adapter batch/cache/failover)")
+    parser = argparse.ArgumentParser(description="Stage4 provider performance benchmark with equal-caliber timeout metric and cold/warm split.")
     parser.add_argument("--rounds", type=int, default=60)
     parser.add_argument("--symbols", type=int, default=40)
     parser.add_argument("--timeout-ms", type=float, default=10.0)
-    parser.add_argument(
-        "--out",
-        type=Path,
-        default=Path("docs/stage5/artifacts/pr88_stage4_perf_benchmark.json"),
-    )
+    parser.add_argument("--out", type=Path, default=Path("docs/stage5/artifacts/pr88_stage4_perf_benchmark.json"))
     args = parser.parse_args()
 
     random.seed(42)
+    rounds = max(1, args.rounds)
     symbols = _symbols(max(1, args.symbols))
     timeout_s = max(0.001, args.timeout_ms / 1000.0)
 
-    baseline = _run_baseline(max(1, args.rounds), symbols, timeout_s)
-    stage4 = _run_stage4(max(1, args.rounds), symbols, timeout_s)
-    improvements = _improvement(baseline, stage4)
+    baseline = _run_baseline(rounds, symbols, timeout_s)
+    stage4_cold = _run_stage4_cold(rounds, symbols, timeout_s)
+    stage4_warm = _run_stage4_warm(rounds, symbols, timeout_s)
 
     report = {
-        "benchmark": "pr88_stage4_provider_perf",
+        "benchmark": "pr88_stage4_provider_perf_equal_caliber",
         "parameters": {
-            "rounds": max(1, args.rounds),
+            "rounds": rounds,
             "symbols_per_round": len(symbols),
             "timeout_ms": args.timeout_ms,
+            "timeout_metric_basis": "per-quote operation timeout (same rule for baseline/stage4)",
             "baseline": "serial single-symbol fetch primary->fallback",
-            "stage4": "MarketDataAdapter batch+cache+failover",
+            "stage4_cold": "MarketDataAdapter batch+cache+failover (fresh adapter each round)",
+            "stage4_warm": "MarketDataAdapter batch+cache+failover (adapter warmed, cache reusable)",
         },
         "baseline": baseline,
-        "stage4": stage4,
-        "improvements": improvements,
+        "stage4_cold": stage4_cold,
+        "stage4_warm": stage4_warm,
+        "improvements_vs_baseline": {
+            "stage4_cold": _improvement(baseline, stage4_cold),
+            "stage4_warm": _improvement(baseline, stage4_warm),
+        },
     }
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

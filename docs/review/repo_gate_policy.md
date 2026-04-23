@@ -5,19 +5,7 @@
 
 ## Main Branch Protection Rules
 
-`main` must stay protected with these baseline controls:
-
-- No direct pushes to `main`
-- No force pushes
-- No branch deletions
-- Required status checks must pass before merge
-- Required pull request reviews must be present before merge
-- At least 1 approval is required
-- Code owner review is required for files covered by `CODEOWNERS`
-- Stale reviews are dismissed on new pushes
-- The latest push must be approved after review when the PR changes again
-- All review conversations must be resolved before merge
-- Admin bypass remains enforced unless explicitly waived for an incident
+The full `main` branch baseline lives in Section 1 below. Use this section as the short navigation entry for branch-protection rules.
 
 ## 1. Main branch protection baseline
 
@@ -35,6 +23,8 @@ The `main` branch must remain protected with the following baseline controls:
 
 ## 2. Required status checks
 
+See Section 1 for the baseline `main` protection rules.
+
 At minimum, PRs targeting `main` must pass:
 
 - `test`
@@ -42,6 +32,8 @@ At minimum, PRs targeting `main` must pass:
 If a PR introduces stage-specific CI checks, those checks must be added to the required status check list before the PR is allowed to merge.
 
 ## 3. Required approvals
+
+See Section 1 for the baseline `main` protection rules.
 
 Baseline merge requirement:
 
@@ -91,8 +83,8 @@ For stage-critical PRs, the default requirement is strengthened by the stage sig
 
 A PR targeting `main` is merge-eligible only when all of the following are true:
 
-- required status checks are green
-- required approvals are present
+- required status checks from Section 1 are green
+- required approvals from Section 1 are present
 - required sign-offs for the touched stage(s) are recorded
 - scope is not mixed with unrelated cleanup or follow-up work
 - any process incident noted in `docs/review/` is explicitly acknowledged before merge

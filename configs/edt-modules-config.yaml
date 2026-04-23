@@ -706,7 +706,13 @@ runtime:
   price_fetch:
     enabled: true
     cache_ttl_seconds: 120
+    max_batch_size: 40
+    timeout_seconds: 5
     yahoo_quote_base: "https://query1.finance.yahoo.com/v7/finance/quote?symbols="
+    providers:
+      active: ["yahoo"]
+      fallback: ["stooq"]
+      deprecated: []
   hurt_to_short: false
   semantic:
     enabled: true

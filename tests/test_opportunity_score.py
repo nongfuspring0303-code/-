@@ -288,6 +288,40 @@ def test_entry_zone_uses_realtime_price_first():
     assert opp["needs_price_refresh"] is False
 
 
+def test_price_fetch_disabled_does_not_call_adapter():
+    scorer = OpportunityScorer()
+
+    class FailingAdapter:
+        def quote_one(self, _symbol):
+            raise AssertionError("quote_one should not be called when price fetch is disabled")
+
+        def quote_many_with_context(self, _symbols, trace_id=None, request_id=None):
+            raise AssertionError("quote_many_with_context should not be called when price fetch is disabled")
+
+    scorer._price_fetch_enabled = False
+    scorer._market_data_adapter = FailingAdapter()
+
+    payload = {
+        "trace_id": "evt_price_fetch_disabled",
+        "schema_version": "v1.0",
+        "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.9}],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.3,
+            }
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+    assert len(out["opportunities"]) == 1
+    opp = out["opportunities"][0]
+    assert opp["final_action"] == "WATCH"
+    assert any(f.get("type") == "price_data" for f in opp["risk_flags"])
+
+
 def test_fallback_pool_supports_sector_alias_dictionary():
     scorer = OpportunityScorer()
     payload = {

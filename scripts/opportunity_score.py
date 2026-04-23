@@ -24,6 +24,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 from config_center import ConfigCenter
+from market_data_adapter import MarketDataAdapter
 
 try:
     from transmission_engine.core.state_machine import evaluate_state
@@ -273,6 +274,7 @@ class OpportunityScorer:
         self._price_fetch_enabled = self._get_price_fetch_enabled()
         self._price_cache_ttl = self._get_price_cache_ttl()
         self._price_fetch_base = self._get_price_fetch_base()
+        self._market_data_adapter = MarketDataAdapter(config_getter=self.config.get)
 
     def _gp(self, dotted_path: str, default: Any) -> Any:
         current: Any = self._gate_policy
@@ -416,6 +418,10 @@ class OpportunityScorer:
         key = symbol.upper().strip()
         if not key:
             return None
+
+        if self._market_data_adapter is not None:
+            return self._market_data_adapter.quote_one(key)
+
         now = time.time()
         cached = self._price_cache.get(key)
         if cached and now - cached.get("ts", 0) < self._price_cache_ttl:
@@ -436,6 +442,18 @@ class OpportunityScorer:
         except Exception:
             return None
 
+    def _batch_prefetch_prices(self, stock_candidates: List[Dict[str, Any]]) -> Dict[str, float]:
+        if not self._price_fetch_enabled or self._market_data_adapter is None:
+            return {}
+        symbols = []
+        for candidate in stock_candidates:
+            raw = str(candidate.get("symbol", "")).upper().strip()
+            if raw:
+                symbols.append(raw)
+        if not symbols:
+            return {}
+        return self._market_data_adapter.quote_many(symbols)
+
     def _build_opportunity(
         self,
         trace_id: str,
@@ -446,6 +464,7 @@ class OpportunityScorer:
         stock: PremiumStock,
         candidate: Dict[str, Any],
         timestamp: str,
+        prefetched_prices: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
         event_beta = self._safe_float(candidate.get("event_beta", 1.0), 1.0)
         score = self._compute_score(impact_score, sector_confidence, event_beta)
@@ -465,6 +484,8 @@ class OpportunityScorer:
 
         candidate_direction = self._candidate_direction(candidate)
         realtime_price = self._candidate_realtime_price(candidate)
+        if realtime_price is None and prefetched_prices:
+            realtime_price = prefetched_prices.get(stock.symbol)
         if realtime_price is None:
             realtime_price = self._fetch_realtime_price(stock.symbol)
         risk_flags = self._build_risk_flags(stock, score, sector_confidence, candidate_direction, target_signal)
@@ -513,6 +534,7 @@ class OpportunityScorer:
 
         max_per_sector = int(self.pool.rules.get("max_candidates_per_sector", 5))
         max_global_candidates = int(self._safe_float(self._gp("signal_grade.max_stock_candidates", 5), 5))
+        prefetched_prices = self._batch_prefetch_prices(stock_candidates)
         opportunities: List[Dict[str, Any]] = []
 
         for sector in sectors:
@@ -541,6 +563,7 @@ class OpportunityScorer:
                         stock=stock,
                         candidate=match_candidate,
                         timestamp=timestamp,
+                        prefetched_prices=prefetched_prices,
                     )
                 )
 

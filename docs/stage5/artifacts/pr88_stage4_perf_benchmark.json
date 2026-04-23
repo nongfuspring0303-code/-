@@ -1,0 +1,64 @@
+{
+  "benchmark": "pr88_stage4_provider_perf_equal_caliber",
+  "parameters": {
+    "rounds": 60,
+    "symbols_per_round": 40,
+    "timeout_ms": 10.0,
+    "timeout_metric_basis": "per-quote operation timeout (same rule for baseline/stage4)",
+    "baseline": "serial single-symbol fetch primary->fallback",
+    "stage4_cold": "MarketDataAdapter batch+cache+failover (fresh adapter each round)",
+    "stage4_warm": "MarketDataAdapter batch+cache+failover (adapter warmed, cache reusable)"
+  },
+  "baseline": {
+    "label": "baseline_serial",
+    "rounds": 60,
+    "quotes": 2400,
+    "throughput_qps": 213.68149414568194,
+    "latency_ms_p95": 189.5447478999996,
+    "latency_ms_p99": 190.4742847799991,
+    "failure_rate": 0.025,
+    "timeout_rate": 0.0004166666666666667,
+    "avg_latency_ms": 187.19449786666664,
+    "timeout_metric_basis": "per-quote operation timeout (same rule for baseline/stage4)"
+  },
+  "stage4_cold": {
+    "label": "stage4_cold",
+    "rounds": 60,
+    "quotes": 2400,
+    "throughput_qps": 4571.23118131267,
+    "latency_ms_p95": 9.155801749999792,
+    "latency_ms_p99": 9.504870469999902,
+    "failure_rate": 0.025,
+    "timeout_rate": 0.0,
+    "avg_latency_ms": 8.75037783333322,
+    "timeout_metric_basis": "per-quote operation timeout (same rule for baseline/stage4)"
+  },
+  "stage4_warm": {
+    "label": "stage4_warm",
+    "rounds": 60,
+    "quotes": 2400,
+    "throughput_qps": 4581.033838860092,
+    "latency_ms_p95": 9.036029199998907,
+    "latency_ms_p99": 9.04500802999948,
+    "failure_rate": 0.025,
+    "timeout_rate": 0.0,
+    "avg_latency_ms": 8.731653466666659,
+    "timeout_metric_basis": "per-quote operation timeout (same rule for baseline/stage4)"
+  },
+  "improvements_vs_baseline": {
+    "stage4_cold": {
+      "throughput_gain": 20.392733140456865,
+      "latency_p95_reduction": 0.9516958298689963,
+      "latency_p99_reduction": 0.9500989307770433,
+      "failure_rate_reduction": 0.0,
+      "timeout_rate_reduction": 1.0
+    },
+    "stage4_warm": {
+      "throughput_gain": 20.438608229390578,
+      "latency_p95_reduction": 0.9523277257739363,
+      "latency_p99_reduction": 0.9525132327419074,
+      "failure_rate_reduction": 0.0,
+      "timeout_rate_reduction": 1.0
+    }
+  }
+}

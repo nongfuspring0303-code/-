@@ -70,10 +70,16 @@ def test_stage5_pipeline_stage_and_scorecard_written(tmp_path):
     assert latest["scores"]["total_score"] >= 0
     assert latest["scores"]["grade"] in {"A", "B", "C", "D"}
     assert "A_gate_safety" in latest["owner_dimensions"]
+    assert "A_audit_completeness" in latest["owner_dimensions"]
     assert "B_output_quality" in latest["owner_dimensions"]
     assert "C_provider_freshness" in latest["owner_dimensions"]
     assert "final_reason" in latest
     assert isinstance(latest["theme_tags"], list)
+    assert isinstance(latest["a_gate_blocker_codes"], list)
+    assert isinstance(latest["a_gate_blocker_count"], int)
+    assert isinstance(latest["a_gate_blocker_present"], bool)
+    assert isinstance(latest["a_score_cap_applied"], bool)
+    assert isinstance(latest["a_gate_signoff_ready"], bool)
     assert "mapping_source" in latest
     assert "placeholder_count" in latest
     assert "non_whitelist_sector_count" in latest
@@ -134,3 +140,9 @@ def test_stage5_rejected_and_quarantine_written_for_non_execute(tmp_path):
     assert q["reject_reason_text"]
     assert q["ingest_ts"]
     assert q["decision_ts"]
+
+    score_rows = _read_jsonl(logs_dir / "trace_scorecard.jsonl")
+    latest_score = score_rows[-1]
+    assert latest_score["a_gate_blocker_present"] is True
+    assert "MARKET_DATA_DEFAULT_USED" in latest_score["a_gate_blocker_codes"]
+    assert latest_score["scores"]["total_score"] <= 54.0

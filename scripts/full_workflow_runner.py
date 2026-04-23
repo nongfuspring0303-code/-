@@ -161,6 +161,28 @@ class FullWorkflowRunner:
                 placeholders += 1
         return placeholders, total
 
+    @staticmethod
+    def _build_a_gate_blockers(
+        *,
+        has_opportunity: bool,
+        stale: bool,
+        default_used: bool,
+        fallback_used: bool,
+        final_reason: str,
+    ) -> List[str]:
+        blockers: List[str] = []
+        reason = str(final_reason or "").lower()
+        if (not has_opportunity) or ("missing_opportunity" in reason):
+            blockers.append("MISSING_OPPORTUNITY")
+        if stale or ("market_data_stale" in reason):
+            blockers.append("MARKET_DATA_STALE")
+        if default_used or ("market_data_default_used" in reason):
+            blockers.append("MARKET_DATA_DEFAULT_USED")
+        if fallback_used or ("market_data_fallback_used" in reason):
+            blockers.append("MARKET_DATA_FALLBACK_USED")
+        deduped = sorted(set(blockers))
+        return deduped
+
     def _build_b_side_scores(
         self,
         *,
@@ -363,7 +385,23 @@ class FullWorkflowRunner:
             + 0.20 * provider_freshness_score
             + 0.15 * audit_completeness_score
         )
-        total_score = round(max(0.0, min(100.0, total_score)), 2)
+        pre_cap_total_score = round(max(0.0, min(100.0, total_score)), 2)
+        a_gate_blocker_codes = self._build_a_gate_blockers(
+            has_opportunity=has_opportunity,
+            stale=stale,
+            default_used=default_used,
+            fallback_used=fallback_used,
+            final_reason=final_reason,
+        )
+        # A-side hard guard: if gate blockers exist, scorecard must not present a high score.
+        # This prevents blocker paths from being masked by non-gate scoring dimensions.
+        a_score_cap_applied = bool(a_gate_blocker_codes and pre_cap_total_score > 54.0)
+        total_score = min(pre_cap_total_score, 54.0) if a_gate_blocker_codes else pre_cap_total_score
+        a_gate_signoff_ready = bool(
+            (not a_gate_blocker_codes)
+            and gate_safety_score >= 80.0
+            and audit_completeness_score >= 80.0
+        )
         b_scores = self._build_b_side_scores(
             trace_id=trace_id,
             event_hash=event_hash,
@@ -405,15 +443,22 @@ class FullWorkflowRunner:
                 "output_quality_score": round(output_quality_score, 2),
                 "provider_freshness_score": round(provider_freshness_score, 2),
                 "audit_completeness_score": round(audit_completeness_score, 2),
+                "pre_cap_total_score": pre_cap_total_score,
                 "total_score": total_score,
                 "grade": self._grade_from_score(total_score),
             },
             "owner_dimensions": {
                 "A_gate_safety": round(gate_safety_score, 2),
+                "A_audit_completeness": round(audit_completeness_score, 2),
                 "B_output_quality": round(output_quality_score, 2),
                 "C_provider_freshness": round(provider_freshness_score, 2),
                 "C_audit_completeness": round(audit_completeness_score, 2),
             },
+            "a_gate_blocker_codes": a_gate_blocker_codes,
+            "a_gate_blocker_count": len(a_gate_blocker_codes),
+            "a_gate_blocker_present": bool(a_gate_blocker_codes),
+            "a_score_cap_applied": a_score_cap_applied,
+            "a_gate_signoff_ready": a_gate_signoff_ready,
             "mapping_source": b_scores["mapping_source"],
             "needs_manual_review": b_scores["needs_manual_review"],
             "placeholder_count": b_scores["placeholder_count"],

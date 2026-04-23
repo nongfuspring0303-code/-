@@ -4,6 +4,7 @@ This folder holds execution-level governance docs for the EDT phase-5 rollout.
 
 ## Canonical Docs
 - `EDT_阶段-负责人矩阵_v1.0_2026-04-21.md`
+- `member_a_stage5_gate_safety_signoff.md`
 
 ## Member A Immediate Scope
 - Freeze contract and gate prerequisites before implementation.

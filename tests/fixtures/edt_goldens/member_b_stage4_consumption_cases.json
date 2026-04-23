@@ -1,0 +1,79 @@
+[
+  {
+    "case_id": "S4-001",
+    "scenario": "normal_provider_hit",
+    "description": "Normal provider hit with stable consumer-facing fields.",
+    "expected": {
+      "sector_candidates": "present",
+      "ticker_candidates": "present",
+      "A1": "stable",
+      "theme_tags": "stable"
+    }
+  },
+  {
+    "case_id": "S4-002",
+    "scenario": "failover_hit",
+    "description": "Provider failover path remains consumable without degrading mapping fields.",
+    "expected": {
+      "sector_candidates": "present",
+      "ticker_candidates": "present",
+      "A1": "stable",
+      "theme_tags": "stable"
+    }
+  },
+  {
+    "case_id": "S4-003",
+    "scenario": "cache_hit",
+    "description": "Cache hit path preserves consumer-visible field stability.",
+    "expected": {
+      "sector_candidates": "present",
+      "ticker_candidates": "present",
+      "A1": "stable",
+      "theme_tags": "stable"
+    }
+  },
+  {
+    "case_id": "S4-004",
+    "scenario": "batch_hit",
+    "description": "Batch price fetch path preserves consumer-visible field stability.",
+    "expected": {
+      "sector_candidates": "present",
+      "ticker_candidates": "present",
+      "A1": "stable",
+      "theme_tags": "stable"
+    }
+  },
+  {
+    "case_id": "S4-005",
+    "scenario": "stale_or_fallback_path",
+    "description": "Stale or fallback path remains observable and reviewable.",
+    "expected": {
+      "sector_candidates": "observable",
+      "ticker_candidates": "observable",
+      "A1": "stable_or_review",
+      "theme_tags": "stable_or_review"
+    }
+  },
+  {
+    "case_id": "S4-006",
+    "scenario": "replay_idempotent_path",
+    "description": "Replay/idempotent path keeps consumer semantics stable across repeats.",
+    "expected": {
+      "sector_candidates": "stable",
+      "ticker_candidates": "stable",
+      "A1": "stable",
+      "theme_tags": "stable"
+    }
+  },
+  {
+    "case_id": "S4-007",
+    "scenario": "queue_order_path",
+    "description": "Queue order path preserves the same consumer-visible result ordering contract.",
+    "expected": {
+      "sector_candidates": "stable",
+      "ticker_candidates": "stable",
+      "A1": "stable",
+      "theme_tags": "stable"
+    }
+  }
+]

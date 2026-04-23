@@ -9,10 +9,10 @@
 
 ## 1. 统一门禁（必须同时满足）
 - [ ] G1: C 侧交付完成：adapter / batch / cache / failover / queue / idempotency
-- [ ] G2: A 侧完成兼容与契约校验（含结论与问题ID）
+- [x] G2: A 侧完成兼容与契约校验（含结论与问题ID）
 - [ ] G3: B 侧完成消费侧验证（含结论与证据路径）
 - [ ] G4: 新旧压测对比有明确改善且无语义回归
-- [ ] G5: 强制测试 7/8/9 全通过
+- [x] G5: 强制测试 7/8/9 全通过
 - [ ] G6: failover 与 cache 行为有可复核证据
 
 任一门禁未满足 => 结论只能是“需修改后再审”。
@@ -37,12 +37,21 @@
 - [ ] dual-write backward compatibility
 - [ ] queue/order/idempotency 契约边界
 - [ ] 不破坏状态机/Gate 语义
-- [ ] provider 字段与 reject_reason_code 契约稳定性
+- [ ] provider 字段与 reject_reason_code/final_reason 契约稳定性
 
 ### 3.2 交付模板
 - 审核结论：PASS / PASS WITH NOTE / FAIL
 - 问题清单：问题ID + 严重级别 + 处置状态
 - 证据路径：代码锚点 + 测试锚点 + diff 锚点
+
+### 3.3 A 侧当前签字结论（2026-04-24）
+- [x] dual-write backward compatibility
+- [x] queue/order/idempotency 契约边界
+- [x] 不破坏状态机/Gate 语义
+- [x] provider 字段与 reject_reason_code/final_reason 契约稳定性
+- 结论：**PASS WITH NOTE**
+- 问题ID：无新增 BLOCKER（延续关注项为 C 侧压测对比与三方 formal review 闭环）
+- 证据文档：`docs/stage5/member_a_stage4_contract_gate_signoff.md`
 
 ## 4. B 侧（消费验证签字）
 ### 4.1 必核项
@@ -63,9 +72,9 @@
 - [ ] 质量劣化阈值实测结论（相对基线）
 
 ## 5. 强制测试（Stage4 Gate 7/8/9）
-- [ ] 7. dual_write_backward_compat_test
-- [ ] 8. priority_queue_order_semantics_test
-- [ ] 9. idempotent_replay_write_test
+- [x] 7. dual_write_backward_compat_test
+- [x] 8. priority_queue_order_semantics_test
+- [x] 9. idempotent_replay_write_test
 
 建议附加（非替代）：
 - [ ] batch_price_fetch_consistency_test

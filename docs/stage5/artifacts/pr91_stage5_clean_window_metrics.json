@@ -1,0 +1,28 @@
+{
+  "generated_at_utc": "2026-04-24T15:43:20.960859Z",
+  "logs_dir": "logs/stage5_acceptance_window",
+  "sample_sizes": {
+    "decision_gate_rows": 4,
+    "scorecard_rows": 4,
+    "replay_join_rows": 4,
+    "raw_ingest_rows": 4
+  },
+  "metrics": {
+    "missing_opportunity_but_execute_count": 0,
+    "market_data_default_used_in_execute_count": 0,
+    "sectors_non_whitelist_rate": 0.0,
+    "placeholder_leak_rate": 0.0,
+    "financial_rate": 0.0,
+    "replay_primary_key_completeness": 1.0,
+    "trace_join_success_rate": 1.0,
+    "orphan_replay": 0,
+    "p95_decision_latency": 0.02947,
+    "same_trace_ai_duplicate_call_rate": 0.0
+  },
+  "baseline_compare": {
+    "p95_decision_latency_baseline": null,
+    "same_trace_ai_duplicate_call_rate_baseline": 0.0,
+    "p95_decision_latency_comparison": "no_baseline",
+    "same_trace_ai_duplicate_call_rate_comparison": "improved_or_equal"
+  }
+}

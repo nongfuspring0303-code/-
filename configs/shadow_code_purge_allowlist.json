@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1.0",
+  "allowed_print_calls": [
+    {
+      "path": "scripts/full_workflow_runner.py",
+      "line": 1010,
+      "reason": "CLI smoke-run output in __main__ block"
+    },
+    {
+      "path": "scripts/workflow_runner.py",
+      "line": 1579,
+      "reason": "CLI smoke-run output in __main__ block"
+    },
+    {
+      "path": "scripts/system_log_evaluator.py",
+      "line": 287,
+      "reason": "CLI report output in __main__ path"
+    }
+  ]
+}

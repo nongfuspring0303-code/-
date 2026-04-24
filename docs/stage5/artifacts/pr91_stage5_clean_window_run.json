@@ -1,0 +1,27 @@
+{
+  "generated_at_utc": "2026-04-24T15:41:47.343491Z",
+  "logs_dir": "/Users/workmac/.openclaw/workspace/事件驱动交易模块阶段二/logs/stage5_acceptance_window",
+  "scenario_count": 4,
+  "finals": [
+    {
+      "request_id": "REQ-STAGE5-CLEAN-001",
+      "action": "WATCH",
+      "reason": "Blocked by gates or no valid position."
+    },
+    {
+      "request_id": "REQ-STAGE5-CLEAN-002",
+      "action": "WATCH",
+      "reason": "Blocked by gates or no valid position."
+    },
+    {
+      "request_id": "REQ-STAGE5-CLEAN-003",
+      "action": "WATCH",
+      "reason": "Blocked by gates or no valid position."
+    },
+    {
+      "request_id": "REQ-STAGE5-CLEAN-004",
+      "action": "WATCH",
+      "reason": "Blocked by gates or no valid position."
+    }
+  ]
+}

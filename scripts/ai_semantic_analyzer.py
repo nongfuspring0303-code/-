@@ -18,18 +18,6 @@ ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 
 
 class SemanticAnalyzer:
-    DEFAULT_CHAIN_IDS = [
-        "tariff_chain",
-        "rate_cut_chain",
-        "geo_risk_chain",
-        "tech_breakthrough_chain",
-        "trade_talks_chain",
-        "inflation_shock_chain",
-        "liquidity_stress_chain",
-        "public_health_chain",
-        "macro_data_chain",
-        "market_structure_chain",
-    ]
     ALLOWED_EVENT_TYPES = {
         "tariff",
         "geo_political",
@@ -53,8 +41,6 @@ class SemanticAnalyzer:
     def __init__(self, config_path: str | None = None):
         self.config = ConfigCenter(config_path=config_path)
         self.project_root = Path(__file__).resolve().parent.parent
-        self.conduction_chain_path = self.project_root / "configs" / "conduction_chain.yaml"
-        self.config.register("conduction_chain", self.conduction_chain_path)
         self._dotenv_local = self._load_dotenv_local()
         self.model_name = self._model_name() or "glm-4.7-flash"
         self._openai_endpoint_cache = ""
@@ -314,14 +300,11 @@ class SemanticAnalyzer:
         except (TypeError, ValueError):
             parsed_latency = latency_ms
 
-        raw_recommended_chain = str(payload.get("recommended_chain", "") or "")
-        normalized_chain, chain_reject_reason = self._normalize_recommended_chain(raw_recommended_chain)
-
         output = {
             "event_type": self._normalize_event_type(payload.get("event_type", "other")),
             "sentiment": str(payload.get("sentiment", "neutral") or "neutral"),
             "confidence": confidence,
-            "recommended_chain": normalized_chain,
+            "recommended_chain": str(payload.get("recommended_chain", "") or ""),
             "recommended_stocks": payload.get("recommended_stocks", []),
             "verdict": "abstain",
             "reason": str(payload.get("reason", "") or ""),
@@ -356,58 +339,7 @@ class SemanticAnalyzer:
         if not isinstance(output["risk_flags"], list):
             output["risk_flags"] = []
         output["risk_flags"] = [str(x) for x in output["risk_flags"] if str(x).strip()]
-        if chain_reject_reason:
-            output["risk_flags"].append("recommended_chain_invalid")
-            if not output["fallback_detail"]:
-                output["fallback_detail"] = chain_reject_reason
         return output
-
-    def _allowed_chain_ids(self) -> List[str]:
-        payload = self.config.get_registered("conduction_chain", {})
-        templates = payload.get("chain_templates", []) if isinstance(payload, dict) else []
-        allowed: List[str] = []
-        for item in templates:
-            if not isinstance(item, dict):
-                continue
-            chain_id = str(item.get("id", "")).strip()
-            if chain_id and chain_id not in allowed:
-                allowed.append(chain_id)
-        return allowed or list(self.DEFAULT_CHAIN_IDS)
-
-    def _chain_aliases(self) -> Dict[str, str]:
-        payload = self.config.get_registered("conduction_chain", {})
-        aliases = payload.get("chain_aliases", {}) if isinstance(payload, dict) else {}
-        if not isinstance(aliases, dict):
-            return {}
-        allowed = set(self._allowed_chain_ids())
-        out: Dict[str, str] = {}
-        for raw_alias, canonical in aliases.items():
-            alias_name = str(raw_alias or "").strip().lower()
-            canonical_name = str(canonical or "").strip()
-            if not alias_name or canonical_name not in allowed:
-                continue
-            out[alias_name] = canonical_name
-        return out
-
-    def _normalize_recommended_chain(self, raw_chain: Any) -> Tuple[str, str]:
-        chain = str(raw_chain or "").strip()
-        if not chain:
-            return "", ""
-        allowed = self._allowed_chain_ids()
-        if chain in allowed:
-            return chain, ""
-
-        allowed_casefold = {item.lower(): item for item in allowed}
-        casefold_hit = allowed_casefold.get(chain.lower())
-        if casefold_hit:
-            return casefold_hit, ""
-
-        alias_map = self._chain_aliases()
-        alias_hit = alias_map.get(chain.lower())
-        if alias_hit:
-            return alias_hit, ""
-
-        return "", f"recommended_chain_not_in_templates:{chain}"
 
     @classmethod
     def _normalize_event_type(cls, raw_type: Any) -> str:
@@ -817,7 +749,6 @@ class SemanticAnalyzer:
         return parsed
 
     def _get_prompt(self, text: str) -> str:
-        chain_list = ", ".join(self._allowed_chain_ids())
         return f"""You are an Event Object extractor for an event-driven trading system.
 
 STRICT OUTPUT CONTRACT:
@@ -828,7 +759,7 @@ STRICT OUTPUT CONTRACT:
   - confidence: integer 0..100
   - a0_event_strength: integer 0..100
   - expectation_gap: integer -100..100
-  - recommended_chain: one of [{chain_list}], empty string if none
+  - recommended_chain: string naming the asset-pricing chain (e.g. "tariff_chain", "rate_cut_chain"), empty string if none
   - recommended_stocks: array of ticker symbols, empty array if none
   - event_state: one of [Initial, Developing, Peak, Fading, Dead]
   - narrative_vs_fact: one of [narrative, fact, mixed]
@@ -1128,14 +1059,10 @@ News text:
             evidence_grade = "B-"
 
         risk_flags: List[str] = []
-        existing_flags = semantic.get("risk_flags", [])
-        if isinstance(existing_flags, list):
-            risk_flags.extend(str(flag) for flag in existing_flags if str(flag).strip())
-        if fallback_reason and fallback_reason not in risk_flags:
+        if fallback_reason:
             risk_flags.append(fallback_reason)
         if verdict != "hit":
-            if "semantic_not_hit" not in risk_flags:
-                risk_flags.append("semantic_not_hit")
+            risk_flags.append("semantic_not_hit")
 
         return {
             "event_id": str(event_id or ""),

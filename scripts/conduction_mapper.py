@@ -172,21 +172,13 @@ class ConductionMapper(EDTModule):
         headline: str,
         summary: str,
         semantic_output: Optional[Dict[str, Any]] = None,
-    ) -> tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Optional[Dict[str, Any]]:
         chain_cfg = self._load_chain_config()
         templates = {item.get("id"): item for item in chain_cfg.get("chain_templates", []) if isinstance(item, dict)}
         mapping_rules = chain_cfg.get("event_to_chain_mapping", []) or []
-        raw_aliases = chain_cfg.get("chain_aliases", {}) if isinstance(chain_cfg, dict) else {}
-        alias_map: Dict[str, str] = {}
-        if isinstance(raw_aliases, dict):
-            for raw_key, raw_value in raw_aliases.items():
-                alias = str(raw_key or "").strip().lower()
-                canonical = str(raw_value or "").strip()
-                if alias and canonical in templates:
-                    alias_map[alias] = canonical
         text = self._normalize_text(headline, summary)
 
-        selected_chain_id = ""
+        selected_chain_id = None
         selected_strength = 0
         for rule in mapping_rules:
             keywords = rule.get("event_keywords", [])
@@ -195,47 +187,13 @@ class ConductionMapper(EDTModule):
             strength = max((self._keyword_match_strength(text, kw) for kw in keywords), default=0)
             if strength > selected_strength:
                 selected_strength = strength
-                selected_chain_id = str(rule.get("chain_id", "") or "")
-
-        audit = {
-            "rule_selected_chain": selected_chain_id,
-            "rule_selected_strength": selected_strength,
-            "semantic_chain_raw": "",
-            "semantic_chain_normalized": "",
-            "semantic_chain_resolution": "empty",
-            "final_selected_chain": "",
-            "selected_by": "none",
-        }
+                selected_chain_id = rule.get("chain_id")
 
         semantic_out = semantic_output if isinstance(semantic_output, dict) else self.semantic.analyze(headline, summary)
         chosen = self.selector.choose_chain(semantic_out, selected_chain_id)
         semantic_selected = str(chosen.get("chain_id") or "")
-        semantic_normalized = ""
-        semantic_resolution = "empty"
-        if semantic_selected:
-            audit["semantic_chain_raw"] = semantic_selected
-            if semantic_selected in templates:
-                semantic_normalized = semantic_selected
-                semantic_resolution = "template_exact"
-            else:
-                casefold_map = {name.lower(): name for name in templates.keys()}
-                casefold_hit = casefold_map.get(semantic_selected.lower())
-                if casefold_hit:
-                    semantic_normalized = casefold_hit
-                    semantic_resolution = "template_casefold"
-                else:
-                    alias_hit = alias_map.get(semantic_selected.lower())
-                    if alias_hit:
-                        semantic_normalized = alias_hit
-                        semantic_resolution = "alias_mapped"
-                    else:
-                        semantic_resolution = "rejected_unknown"
-
-        audit["semantic_chain_normalized"] = semantic_normalized
-        audit["semantic_chain_resolution"] = semantic_resolution
-        if semantic_normalized:
-            selected_chain_id = semantic_normalized
-            audit["selected_by"] = "semantic"
+        if semantic_selected in templates:
+            selected_chain_id = semantic_selected
 
         category_defaults = {
             "A": "liquidity_stress_chain",
@@ -250,21 +208,14 @@ class ConductionMapper(EDTModule):
             default_chain = category_defaults.get(str(category).upper())
             if default_chain in templates:
                 selected_chain_id = default_chain
-                audit["selected_by"] = "category_default"
 
         if not selected_chain_id:
-            audit["final_selected_chain"] = ""
-            return None, audit
+            return None
 
         template = templates.get(selected_chain_id)
         if not template:
-            audit["final_selected_chain"] = selected_chain_id
-            audit["selected_by"] = "missing_template"
-            return None, audit
-        audit["final_selected_chain"] = selected_chain_id
-        if audit["selected_by"] == "none":
-            audit["selected_by"] = "rule"
-        return template, audit
+            return None
+        return template
 
     @staticmethod
     def _level_items(levels: List[Dict[str, Any]], target_level: str) -> List[Dict[str, Any]]:
@@ -670,7 +621,7 @@ class ConductionMapper(EDTModule):
         semantic_out = self.semantic.analyze(headline, summary)
         ai_recommended_stocks = self._normalize_recommended_stocks(semantic_out)
 
-        template, chain_match_audit = self._match_chain_template(category, headline, summary, semantic_out)
+        template = self._match_chain_template(category, headline, summary, semantic_out)
         if template and template.get("id") == "tariff_chain":
             mapping = self._tariff_mapping()
             mapping["mapping_source"] = "template:tariff_chain"
@@ -758,7 +709,6 @@ class ConductionMapper(EDTModule):
                     "module": self.name,
                     "rule_version": "conduction_v1",
                     "decision_trace": mapping["conduction_path"],
-                    "chain_match": chain_match_audit,
                 },
             },
         )

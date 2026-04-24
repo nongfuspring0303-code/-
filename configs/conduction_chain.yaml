@@ -286,16 +286,6 @@ chain_templates:
             impact_score: 0.58
 
 # 事件关键词到传导链的映射
-chain_aliases:
-  geo_political_chain: "geo_risk_chain"
-  tech_chain: "tech_breakthrough_chain"
-  tech_innovation_chain: "tech_breakthrough_chain"
-  defense_chain: "geo_risk_chain"
-  regulatory_chain: "market_structure_chain"
-  merger_chain: "market_structure_chain"
-  earnings_chain: "macro_data_chain"
-  currency_chain: "rate_cut_chain"
-
 event_to_chain_mapping:
   - event_keywords: ["关税", "trade war", "进口限制", "出口管制"]
     chain_id: "tariff_chain"

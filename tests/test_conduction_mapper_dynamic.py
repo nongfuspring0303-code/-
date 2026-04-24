@@ -98,39 +98,6 @@ def test_conduction_mapper_ignores_unknown_semantic_chain_and_keeps_rule_match(m
     )
     assert out.status.value == "success"
     assert out.data["mapping_source"] == "template:trade_talks_chain"
-    assert out.data.get("audit", {}).get("chain_match", {}).get("semantic_chain_resolution") == "rejected_unknown"
-
-
-def test_conduction_mapper_normalizes_semantic_chain_alias(monkeypatch):
-    mapper = ConductionMapper()
-    monkeypatch.setattr(
-        mapper.semantic,
-        "analyze",
-        lambda headline, summary: {
-            "recommended_chain": "geo_political_chain",
-            "confidence": 95,
-            "event_type": "geo_political",
-            "sentiment": "negative",
-        },
-    )
-
-    out = mapper.run(
-        {
-            "event_id": "ME-C-TEST-ALIAS-001",
-            "category": "C",
-            "severity": "E2",
-            "headline": "Regional conflict escalates near shipping lanes",
-            "summary": "no explicit tariff/talk keywords",
-            "lifecycle_state": "Active",
-            "sector_data": [{"sector": "Energy", "industry": "Energy"}],
-        }
-    )
-
-    assert out.status.value == "success"
-    assert out.data["mapping_source"] == "template:geo_risk_chain"
-    chain_match = out.data.get("audit", {}).get("chain_match", {})
-    assert chain_match.get("semantic_chain_resolution") == "alias_mapped"
-    assert chain_match.get("semantic_chain_normalized") == "geo_risk_chain"
 
 
 def test_conduction_mapper_picks_reloaded_chain_config(tmp_path):

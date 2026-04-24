@@ -656,23 +656,72 @@ class FullWorkflowRunner:
 
         validation_input = self._build_market_validation_input(payload, event_object, conduction_out)
         validation_out = self.validation.run(validation_input).data
+        symbols_requested = sorted(
+            {
+                str(sym).strip().upper()
+                for sym in list((validation_input.get("price_changes") or {}).keys())
+                + list((validation_input.get("volume_changes") or {}).keys())
+                if str(sym).strip()
+            }
+        )
+        symbols_returned = sorted(
+            {
+                str(sym).strip().upper()
+                for source in ((validation_input.get("price_changes") or {}), (validation_input.get("volume_changes") or {}))
+                for sym, value in source.items()
+                if str(sym).strip() and value is not None
+            }
+        )
+        provenance_record = {
+            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "trace_id": trace_id,
+            "event_trace_id": trace_id,
+            "request_id": request_id,
+            "batch_id": batch_id,
+            "event_id": event_id,
+            "event_hash": event_hash,
+            "market_data_source": validation_out.get("market_data_source", "unknown"),
+            "market_data_present": bool(validation_out.get("market_data_present", False)),
+            "market_data_stale": bool(validation_out.get("market_data_stale", False)),
+            "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
+            "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
+            "validation_state": validation_out.get("validation_state"),
+            "market_data_provider": payload.get("market_data_provider"),
+            "provider_path": payload.get("provider_path"),
+            "symbols_requested": symbols_requested,
+            "symbols_returned": symbols_returned,
+            "request_mode": payload.get("request_mode"),
+            "fetch_latency_ms": payload.get("fetch_latency_ms"),
+            "market_data_ts": payload.get("market_timestamp"),
+            "market_data_delay_seconds": payload.get("market_data_delay_seconds"),
+            "rate_limited": payload.get("rate_limited"),
+            "http_status": payload.get("http_status"),
+            "error_code": payload.get("error_code"),
+            "used_by_module": "MarketValidator",
+            "provenance_field_missing": [],
+        }
+        missing_fields = []
+        for field in (
+            "market_data_provider",
+            "provider_path",
+            "request_mode",
+            "fetch_latency_ms",
+            "market_data_ts",
+            "market_data_delay_seconds",
+            "rate_limited",
+            "http_status",
+            "error_code",
+        ):
+            if provenance_record.get(field) is None:
+                missing_fields.append(field)
+        if not symbols_requested:
+            missing_fields.append("symbols_requested")
+        if not symbols_returned:
+            missing_fields.append("symbols_returned")
+        provenance_record["provenance_field_missing"] = missing_fields
         self._append_jsonl(
             self.market_data_provenance_log_path,
-            {
-                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "trace_id": trace_id,
-                "event_trace_id": trace_id,
-                "request_id": request_id,
-                "batch_id": batch_id,
-                "event_id": event_id,
-                "event_hash": event_hash,
-                "market_data_source": validation_out.get("market_data_source", "unknown"),
-                "market_data_present": bool(validation_out.get("market_data_present", False)),
-                "market_data_stale": bool(validation_out.get("market_data_stale", False)),
-                "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
-                "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
-                "validation_state": validation_out.get("validation_state"),
-            },
+            provenance_record,
         )
         self._log_pipeline_stage(
             trace_id=trace_id,

@@ -705,6 +705,8 @@ class WorkflowRunner:
             blockers.append("market_data_default_used")
         if "market_data_fallback_used" in payload and self._is_true(payload.get("market_data_fallback_used")):
             blockers.append("market_data_fallback_used")
+        if "provider_untrusted" in payload and self._is_true(payload.get("provider_untrusted")):
+            blockers.append("provider_untrusted")
 
         if not blockers:
             return {"blocked": False, "action": "ALLOW", "blockers": [], "reason": ""}
@@ -716,6 +718,37 @@ class WorkflowRunner:
             "blockers": blockers,
             "reason": ";".join(blockers),
         }
+
+    @staticmethod
+    def _derive_gate_result(final_action_after_gate: str) -> str:
+        action = str(final_action_after_gate or "").strip().upper()
+        if action == "EXECUTE":
+            return "PASS"
+        if action in {"WATCH", "BLOCK", "PENDING_CONFIRM"}:
+            return action
+        return "BLOCK"
+
+    @staticmethod
+    def _derive_reject_reason_code(triggered_rules: list[str], final_action_after_gate: str) -> str | None:
+        action = str(final_action_after_gate or "").strip().upper()
+        if action == "EXECUTE":
+            return None
+        rule_set = set(triggered_rules)
+        if any(rule.startswith("gate_contract_missing_") for rule in rule_set):
+            return "GATE_CONTRACT_MISSING"
+        if "missing_opportunity" in rule_set:
+            return "MISSING_OPPORTUNITY"
+        if "market_data_default_used" in rule_set:
+            return "MARKET_DATA_DEFAULT_USED"
+        if "market_data_fallback_used" in rule_set:
+            return "MARKET_DATA_FALLBACK_USED"
+        if "market_data_stale" in rule_set:
+            return "MARKET_DATA_STALE"
+        if "tradeable_false" in rule_set:
+            return "TRADEABLE_FALSE"
+        if "provider_untrusted" in rule_set:
+            return "PROVIDER_UNTRUSTED"
+        return "EXECUTION_GATE_REJECTED"
 
     def _log_replay_task(
         self,
@@ -859,9 +892,22 @@ class WorkflowRunner:
         payload: Dict[str, Any],
         gate_output: Dict[str, Any] | None,
         output_gate: Dict[str, Any] | None,
+        final_action_before_gate: str | None,
         final_action: str,
         reason: str,
     ) -> None:
+        action_before = str(final_action_before_gate or final_action or "EXECUTE").upper()
+        action_after = str(final_action or "UNKNOWN").upper()
+        triggered_rules: list[str] = []
+        if isinstance(output_gate, dict):
+            triggered_rules.extend(str(x) for x in self._coerce_list(output_gate.get("blockers")) if str(x))
+        if isinstance(gate_output, dict):
+            triggered_rules.extend(str(x) for x in self._coerce_list(gate_output.get("triggered_rules")) if str(x))
+        triggered_rules = list(dict.fromkeys(triggered_rules))
+        gate_result = self._derive_gate_result(action_after)
+        reject_reason_code = self._derive_reject_reason_code(triggered_rules, action_after)
+        reject_reason_text = None if action_after == "EXECUTE" else str(reason or "")
+
         record = {
             "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "trace_id": trace_id,
@@ -871,7 +917,13 @@ class WorkflowRunner:
             "event_id": payload.get("event_id"),
             "event_hash": payload.get("event_hash"),
             "contract_version": payload.get("contract_version", "v2.2"),
-            "final_action": final_action,
+            "final_action_before_gate": action_before,
+            "final_action_after_gate": action_after,
+            "gate_result": gate_result,
+            "triggered_rules": triggered_rules,
+            "reject_reason_code": reject_reason_code,
+            "reject_reason_text": reject_reason_text,
+            "final_action": action_after,
             "final_reason": reason,
             "gate_output": gate_output or {},
             "output_gate": output_gate or {},
@@ -1181,6 +1233,7 @@ class WorkflowRunner:
                     payload=payload,
                     gate_output=gate_out.data,
                     output_gate=None,
+                    final_action_before_gate=str(gate_out.data.get("final_action", "EXECUTE")),
                     final_action="BLOCK",
                     reason=result["final"]["reason"],
                 )
@@ -1224,6 +1277,7 @@ class WorkflowRunner:
                     payload=payload,
                     gate_output=gate_out.data,
                     output_gate=None,
+                    final_action_before_gate=str(gate_out.data.get("final_action", "EXECUTE")),
                     final_action="WATCH",
                     reason=result["final"]["reason"],
                 )
@@ -1269,6 +1323,7 @@ class WorkflowRunner:
                 payload=payload,
                 gate_output=gate_out.data,
                 output_gate=output_gate,
+                final_action_before_gate=str(gate_out.data.get("final_action", "EXECUTE")),
                 final_action=forced_action,
                 reason=result["final"]["reason"],
             )
@@ -1312,6 +1367,7 @@ class WorkflowRunner:
                 payload=payload,
                 gate_output=gate_out.data,
                 output_gate=output_gate,
+                final_action_before_gate=str(gate_out.data.get("final_action", "EXECUTE")),
                 final_action="PENDING_CONFIRM",
                 reason=result["final"]["reason"],
             )
@@ -1352,6 +1408,7 @@ class WorkflowRunner:
                 payload=payload,
                 gate_output=gate_out.data,
                 output_gate=output_gate,
+                final_action_before_gate=str(gate_out.data.get("final_action", "EXECUTE")),
                 final_action="WATCH",
                 reason=result["final"]["reason"],
             )
@@ -1437,6 +1494,7 @@ class WorkflowRunner:
                 payload=payload,
                 gate_output=gate_out.data,
                 output_gate=output_gate,
+                final_action_before_gate=str(gate_out.data.get("final_action", "EXECUTE")),
                 final_action="WATCH",
                 reason=result["final"]["reason"],
             )
@@ -1530,6 +1588,7 @@ class WorkflowRunner:
             payload=payload,
             gate_output=gate_out.data,
             output_gate=output_gate,
+            final_action_before_gate=str(gate_out.data.get("final_action", "EXECUTE")),
             final_action="EXECUTE",
             reason="passed_gate_and_executed",
         )

@@ -100,3 +100,15 @@ If a PR was merged before formal closure, the following are required:
 See:
 
 - `docs/review/PR86_post_merge_process_incident.md`
+
+## 7. Acceptance metrics script audit gate
+
+For any PR that introduces or updates acceptance / scorecard / metrics / gate-report scripts, the PR must pass the metrics-script credibility audit before merge.
+
+Required policy anchor:
+
+- `docs/review/acceptance_metrics_audit_rule.md`
+
+Merge gate rule:
+
+- If the 5 audit questions in the rule are not fully answered, treat the PR as not merge-ready.

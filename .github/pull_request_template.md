@@ -21,6 +21,7 @@ Mark the reviewers/sign-offs that apply to this PR:
 - [ ] Required CI checks are green
 - [ ] Tests were run locally when applicable
 - [ ] The PR body names the exact test command(s) and result(s)
+- [ ] If this PR changes acceptance/scorecard/metrics/gate-report scripts, `docs/review/acceptance_metrics_audit_rule.md` has been completed (all 5 audit questions answered)
 
 ## Gate Notes
 
@@ -28,4 +29,3 @@ Mark the reviewers/sign-offs that apply to this PR:
 - [ ] Required approvals are present before merge
 - [ ] Required status checks are present before merge
 - [ ] Code owner review has been requested when applicable
-

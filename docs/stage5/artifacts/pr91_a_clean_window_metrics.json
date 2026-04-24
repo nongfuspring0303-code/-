@@ -1,0 +1,22 @@
+{
+  "generated_at_utc": "2026-04-24T15:36:29.041072+00:00",
+  "scope": "PR91 Stage5 Final Acceptance - A-side clean-window DoD metrics",
+  "log_window": "docs/stage5/artifacts/pr91_a_clean_window_logs",
+  "sample_size": {
+    "decision_gate_rows": 6,
+    "execute_rows": 4
+  },
+  "metrics": {
+    "missing_opportunity_but_execute_count": 0,
+    "market_data_default_used_in_execute_count": 0
+  },
+  "targets": {
+    "missing_opportunity_but_execute_count": 0,
+    "market_data_default_used_in_execute_count": 0
+  },
+  "status": {
+    "missing_opportunity_but_execute_count": "PASS",
+    "market_data_default_used_in_execute_count": "PASS"
+  },
+  "command": "python3 scripts/build_pr91_a_clean_window_metrics.py --out docs/stage5/artifacts/pr91_a_clean_window_metrics.json --logs-dir docs/stage5/artifacts/pr91_a_clean_window_logs"
+}

@@ -42,7 +42,7 @@ Evidence entry template:
 ### 2.4 A-side final sign-off
 - Status: `PASS`
 - Sign-off note: Aligned with `docs/stage5/member_a_stage5_gate_safety_signoff.md` (A-side sign-off PASS, 2026-04-24).
-- Residual risk: Runtime-window DoD metrics still require final clean-window recomputation (see Section 9 gaps).
+- Residual risk: none on A-owned DoD metrics after clean-window recomputation (`docs/stage5/artifacts/pr91_a_clean_window_metrics.json`).
 
 ## 3) B-side Backfill Area
 
@@ -118,8 +118,8 @@ Evidence entry template:
 
 | Metric | Target | Current Value | Evidence Path | Current Conclusion |
 | --- | --- | --- | --- | --- |
-| `missing_opportunity_but_execute_count` | `= 0` | `4` in current local `logs/decision_gate.jsonl` snapshot (legacy/historical rows mixed) | `logs/decision_gate.jsonl` (derived from local JSONL metric extraction) | FAIL (requires clean-window recomputation before sign-off) |
-| `market_data_default_used_in_execute_count` | `= 0` | `0` in current local snapshot | `logs/decision_gate.jsonl`; `tests/test_member_a_stage2_gates.py` | PASS WITH NOTE (snapshot-based) |
+| `missing_opportunity_but_execute_count` | `= 0` | `0` (clean-window recomputed; `decision_gate_rows=6`, `execute_rows=4`) | `docs/stage5/artifacts/pr91_a_clean_window_metrics.json`; `docs/stage5/artifacts/pr91_a_clean_window_logs/decision_gate.jsonl`; command: `python3 scripts/build_pr91_a_clean_window_metrics.py` | PASS |
+| `market_data_default_used_in_execute_count` | `= 0` | `0` (clean-window recomputed; execute path has no default-data blocker) | `docs/stage5/artifacts/pr91_a_clean_window_metrics.json`; `docs/stage5/artifacts/pr91_a_clean_window_logs/decision_gate.jsonl`; command: `python3 scripts/build_pr91_a_clean_window_metrics.py` | PASS |
 | `sectors_non_whitelist_rate` | `= 0` | `0.00%` (B pass-path contract rows) | `docs/stage5/member_b_stage5_signoff_conclusion.md` (Sec.3); `docs/stage5/member_b_stage5_scoring_policy.md` (Sec.3.1); `tests/test_member_b_stage5_scorecard_contract.py::test_stage5_b_non_whitelist_sector_score_fails` | PASS |
 | `placeholder_leak_rate` | `<= 1%` | `0.00%` (B pass-path contract rows) | `docs/stage5/member_b_stage5_signoff_conclusion.md` (Sec.3); `docs/stage5/member_b_stage5_scoring_policy.md` (Sec.3.3); `tests/test_member_b_stage5_scorecard_contract.py::test_stage5_b_placeholder_leakage_threshold_enforced` | PASS |
 | `financial_rate` | `< 35%` | `0.00%` (B controlled validation window) | `docs/stage5/member_b_stage5_signoff_conclusion.md` (Sec.3); `docs/stage5/member_b_stage5_rules_test_mapping.md` (R-B-S5-004); `tests/test_member_b_stage5_scorecard_contract.py` | PASS WITH NOTE |
@@ -146,10 +146,10 @@ Evidence entry template:
 ## 9) Open Gaps and Minimum Fix Actions
 
 ### Gap-1: Historical log pollution blocks DoD runtime metrics
-- Symptom: local `logs/*.jsonl` mixes pre-acceptance/historical rows, causing false-negative metrics (`missing_opportunity_but_execute_count`, replay/join/orphan).
+- Symptom: local `logs/*.jsonl` mixes pre-acceptance/historical rows and still affects non-A runtime metrics (replay/join/orphan).
 - Minimum action:
-  1. run Stage5 acceptance in a clean log directory (`logs/stage5_acceptance_window/`)
-  2. rerun metric extractor against clean window only
+  1. keep A-side clean-window artifact as frozen source (`docs/stage5/artifacts/pr91_a_clean_window_metrics.json`)
+  2. run Stage5 acceptance in a clean log directory for remaining non-A metrics
   3. backfill Section 6 with clean-window values + sample size
 
 ### Gap-2: `shadow_code_purge_gate` not formalized

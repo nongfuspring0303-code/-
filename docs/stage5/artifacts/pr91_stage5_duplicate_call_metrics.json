@@ -1,0 +1,11 @@
+{
+  "generated_at_utc": "2026-04-24T15:43:20.989140Z",
+  "logs_dir": "logs/stage5_acceptance_window",
+  "metric": "same_trace_ai_duplicate_call_rate",
+  "total_traces": 4,
+  "duplicate_traces": 0,
+  "current_value": 0.0,
+  "baseline_path": "/Users/workmac/.openclaw/workspace/事件驱动交易模块阶段二/artifacts/baseline/metrics_snapshot_2026-04-21.json",
+  "baseline_value": 0.0,
+  "comparison": "improved_or_equal"
+}

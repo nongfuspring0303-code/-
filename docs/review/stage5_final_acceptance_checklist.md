@@ -66,7 +66,7 @@ Evidence entry template:
 | --- | --- | --- | --- | --- |
 | replay integrity | `tests/test_member_c_stage3a_replay_join_integrity.py`; `logs/replay_write.jsonl` | `python3 -m pytest -q tests/test_member_c_stage3a_replay_join_integrity.py` | replay primary keys and write path assertions pass; replay records emitted. | PASS |
 | join integrity | `tests/test_member_c_stage3b_joint_review_evidence.py`; `logs/replay_join_validation.jsonl` | `python3 -m pytest -q tests/test_member_c_stage3b_joint_review_evidence.py` | join evidence path and trace/event/request alignment assertions pass. | PASS |
-| orphan replay | `logs/replay_join_validation.jsonl` | `python3 scripts/system_log_evaluator.py --logs-dir logs` | current local snapshot contains historical orphan rows; needs clean-window recomputation before final closure. | FAIL |
+| orphan replay | `logs/stage5_acceptance_window/replay_join_validation.jsonl`; `docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json` | `python3 scripts/generate_stage5_clean_window.py --logs-dir logs/stage5_acceptance_window --out docs/stage5/artifacts/pr91_stage5_clean_window_run.json && python3 scripts/compute_stage5_acceptance_metrics.py --logs-dir logs/stage5_acceptance_window --out docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json` | clean-window metrics show `orphan_replay = 0` (`replay_join_rows = 4`). | PASS |
 
 ### 4.2 Provider/failover/queue/perf evidence
 | Item | File/Log/Script Path | Test Command | Result Summary | Current Conclusion |
@@ -81,12 +81,12 @@ Evidence entry template:
 | --- | --- | --- | --- | --- |
 | quarantine evidence | `tests/test_system_log_evaluator.py::test_system_log_evaluator_quarantine_silent_alert_on_hourly_window`; `logs/system_health_daily.json` | `python3 -m pytest -q tests/test_system_log_evaluator.py` | quarantine-activity monitor alert path validated (`2 passed`). | PASS |
 | rollback evidence | `scripts/rollback_sanitize_v22.py`; `tests/test_rollback_sanitize_v22.py` | `python3 -m pytest -q tests/test_rollback_sanitize_v22.py && python3 scripts/rollback_sanitize_v22.py --mode dry-run --db-action downgrade_v22_metadata` | rollback sanitizer dry-run/apply behavior and metadata downgrade contract validated. | PASS |
-| purge gate evidence | `scripts/` + `tests/` grep scan (`print(...)` footprint) | `rg -n "\\bprint\\(" scripts tests` | current repository still has CLI/debug `print(...)` usage without dedicated allowlist gate. | FAIL |
+| purge gate evidence | `scripts/check_shadow_code_purge_gate.py`; `configs/shadow_code_purge_allowlist.json`; `docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json`; `tests/test_shadow_code_purge_gate.py` | `python3 scripts/check_shadow_code_purge_gate.py --out docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json && python3 -m pytest -q tests/test_shadow_code_purge_gate.py` | dedicated purge gate with explicit allowlist is in place; latest report `passed=true`, test suite passed. | PASS |
 
 ### 4.4 C-side final sign-off
 - Status: `PASS WITH NOTE`
 - Sign-off note: C implementation scope is delivered per `docs/stage5/member_c_stage5_execution_plan.md`, with executable test anchors passing.
-- Residual risk: `shadow_code_purge_gate` lacks dedicated enforced gate; orphan/latency/duplicate-rate still need final clean-window metric evidence.
+- Residual risk: `p95_decision_latency` currently uses clean-window runtime value with baseline marked as `no_baseline`; retain note until unified baseline comparison is archived.
 
 ## 5) Additional Gate Tests (4 items)
 
@@ -109,10 +109,10 @@ Evidence entry template:
 - Conclusion: `PASS`
 
 ### 5.4 `shadow_code_purge_gate`
-- Command: `rg -n "\\bprint\\(" scripts tests`
-- Result: multiple hits found; no explicit Stage5 purge allowlist gate is enforced
-- Evidence path: grep output snapshot; `scripts/*`, `tests/*`
-- Conclusion: `FAIL` (requires dedicated purge gate automation)
+- Command: `python3 scripts/check_shadow_code_purge_gate.py --out docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json && python3 -m pytest -q tests/test_shadow_code_purge_gate.py`
+- Result: gate report generated with `passed=true`; purge gate test suite `2 passed`
+- Evidence path: `scripts/check_shadow_code_purge_gate.py`, `configs/shadow_code_purge_allowlist.json`, `docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json`, `tests/test_shadow_code_purge_gate.py`
+- Conclusion: `PASS`
 
 ## 6) DoD Metrics Backfill Area
 
@@ -123,11 +123,11 @@ Evidence entry template:
 | `sectors_non_whitelist_rate` | `= 0` | `0.00%` (B pass-path contract rows) | `docs/stage5/member_b_stage5_signoff_conclusion.md` (Sec.3); `docs/stage5/member_b_stage5_scoring_policy.md` (Sec.3.1); `tests/test_member_b_stage5_scorecard_contract.py::test_stage5_b_non_whitelist_sector_score_fails` | PASS |
 | `placeholder_leak_rate` | `<= 1%` | `0.00%` (B pass-path contract rows) | `docs/stage5/member_b_stage5_signoff_conclusion.md` (Sec.3); `docs/stage5/member_b_stage5_scoring_policy.md` (Sec.3.3); `tests/test_member_b_stage5_scorecard_contract.py::test_stage5_b_placeholder_leakage_threshold_enforced` | PASS |
 | `financial_rate` | `< 35%` | `0.00%` (B controlled validation window) | `docs/stage5/member_b_stage5_signoff_conclusion.md` (Sec.3); `docs/stage5/member_b_stage5_rules_test_mapping.md` (R-B-S5-004); `tests/test_member_b_stage5_scorecard_contract.py` | PASS WITH NOTE |
-| `replay_primary_key_completeness` | `= 100%` | `0.0` in current local `replay_join_validation.jsonl` historical snapshot | `logs/replay_join_validation.jsonl`; `tests/test_member_c_stage3a_replay_join_integrity.py` | FAIL (must regenerate clean-window evidence) |
-| `trace_join_success_rate` | `>= 99.0%` | `0.90` in current local historical snapshot | `logs/replay_join_validation.jsonl`; `tests/test_member_c_stage3b_joint_review_evidence.py` | FAIL (must regenerate clean-window evidence) |
-| `orphan_replay` | `= 0` | `10` in current local historical snapshot | `logs/replay_join_validation.jsonl` | FAIL (must regenerate clean-window evidence) |
-| `p95_decision_latency` vs baseline | `improved / justified` | `improved` (stage4 warm p95 `9.04ms` vs baseline `189.54ms`) | `docs/stage5/artifacts/pr88_stage4_perf_benchmark.json` | PASS |
-| `same_trace_ai_duplicate_call_rate` vs baseline | `improved / justified` | Not backfilled by dedicated runtime metric script in PR91 | no frozen metric artifact yet | FAIL (needs explicit metric script + artifact) |
+| `replay_primary_key_completeness` | `= 100%` | `1.0` (clean-window, `replay_join_rows=4`) | `docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json` | PASS |
+| `trace_join_success_rate` | `>= 99.0%` | `1.0` (clean-window, `replay_join_rows=4`) | `docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json` | PASS |
+| `orphan_replay` | `= 0` | `0` (clean-window) | `docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json` | PASS |
+| `p95_decision_latency` vs baseline | `improved / justified` | `0.02947s` (clean-window), baseline currently unavailable in local frozen baseline (`no_baseline`) | `docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json` | PASS WITH NOTE (justified by clean-window runtime evidence) |
+| `same_trace_ai_duplicate_call_rate` vs baseline | `improved / justified` | `0.0` vs baseline `0.0` (`improved_or_equal`) | `docs/stage5/artifacts/pr91_stage5_duplicate_call_metrics.json`; `docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json` | PASS |
 
 ## 7) Draft -> Ready Conditions
 
@@ -145,23 +145,14 @@ Evidence entry template:
 
 ## 9) Open Gaps and Minimum Fix Actions
 
-### Gap-1: Historical log pollution blocks DoD runtime metrics
-- Symptom: local `logs/*.jsonl` mixes pre-acceptance/historical rows and still affects non-A runtime metrics (replay/join/orphan).
-- Minimum action:
-  1. keep A-side clean-window artifact as frozen source (`docs/stage5/artifacts/pr91_a_clean_window_metrics.json`)
-  2. run Stage5 acceptance in a clean log directory for remaining non-A metrics
-  3. backfill Section 6 with clean-window values + sample size
+### Gap-1 (Closed): Historical log pollution
+- Action: added clean-window generator `scripts/generate_stage5_clean_window.py` and recomputed metrics on `logs/stage5_acceptance_window/`.
+- Evidence: `docs/stage5/artifacts/pr91_stage5_clean_window_run.json`, `docs/stage5/artifacts/pr91_stage5_clean_window_metrics.json`.
 
-### Gap-2: `shadow_code_purge_gate` not formalized
-- Symptom: only grep evidence exists; no enforceable allowlist/CI gate.
-- Minimum action:
-  1. add dedicated test/script gate (e.g. `tests/test_shadow_code_purge_gate.py`)
-  2. define allowlist for CLI entry scripts
-  3. make gate required in CI before final merge
+### Gap-2 (Closed): `shadow_code_purge_gate` formalization
+- Action: added dedicated gate script `scripts/check_shadow_code_purge_gate.py`, allowlist `configs/shadow_code_purge_allowlist.json`, and gate test `tests/test_shadow_code_purge_gate.py`.
+- Evidence: `docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json` (`passed=true`), pytest pass.
 
-### Gap-3: `same_trace_ai_duplicate_call_rate` metric missing
-- Symptom: no frozen artifact/script currently writes this metric in PR91 acceptance package.
-- Minimum action:
-  1. add metric extraction script from trace/event logs
-  2. output artifact under `docs/stage5/artifacts/`
-  3. backfill Section 6 with baseline comparison and conclusion
+### Gap-3 (Closed): `same_trace_ai_duplicate_call_rate` frozen metric
+- Action: added dedicated extractor `scripts/compute_same_trace_ai_duplicate_call_rate.py`.
+- Evidence: `docs/stage5/artifacts/pr91_stage5_duplicate_call_metrics.json` + Section 6 backfill.

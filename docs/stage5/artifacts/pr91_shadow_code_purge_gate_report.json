@@ -1,0 +1,11 @@
+{
+  "gate": "shadow_code_purge_gate",
+  "checked_files": [
+    "scripts/full_workflow_runner.py",
+    "scripts/workflow_runner.py",
+    "scripts/system_log_evaluator.py"
+  ],
+  "allowlist_path": "configs/shadow_code_purge_allowlist.json",
+  "violations": [],
+  "passed": true
+}

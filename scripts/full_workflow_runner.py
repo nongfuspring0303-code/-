@@ -307,6 +307,26 @@ class FullWorkflowRunner:
             and b_overall_score >= 80.0
         )
 
+        a_gate_blocker_codes: List[str] = []
+        reason_lower = final_reason.lower()
+        if (not has_opportunity) or ("missing_opportunity" in reason_lower):
+            a_gate_blocker_codes.append("MISSING_OPPORTUNITY")
+        if stale or ("market_data_stale" in reason_lower):
+            a_gate_blocker_codes.append("MARKET_DATA_STALE")
+        if default_used or ("market_data_default_used" in reason_lower):
+            a_gate_blocker_codes.append("MARKET_DATA_DEFAULT_USED")
+        if fallback_used or ("market_data_fallback_used" in reason_lower):
+            a_gate_blocker_codes.append("MARKET_DATA_FALLBACK_USED")
+        a_gate_blocker_codes = sorted(set(a_gate_blocker_codes))
+        a_gate_blocker_count = len(a_gate_blocker_codes)
+        a_gate_blocker_present = a_gate_blocker_count > 0
+        a_score_cap_applied = bool(a_gate_blocker_present and gate_safety_score > 79.0)
+        a_gate_signoff_ready = bool(
+            (not a_gate_blocker_present)
+            and gate_safety_score >= 80.0
+            and audit_completeness_score >= 80.0
+        )
+
         total_score = (
             0.35 * gate_safety_score
             + 0.30 * output_quality_score
@@ -346,6 +366,11 @@ class FullWorkflowRunner:
             "mapping_acceptance_score": round(mapping_acceptance_score, 2),
             "b_overall_score": round(b_overall_score, 2),
             "b_signoff_ready": b_signoff_ready,
+            "a_gate_blocker_codes": a_gate_blocker_codes,
+            "a_gate_blocker_count": a_gate_blocker_count,
+            "a_gate_blocker_present": a_gate_blocker_present,
+            "a_score_cap_applied": a_score_cap_applied,
+            "a_gate_signoff_ready": a_gate_signoff_ready,
             "scores": {
                 "gate_safety_score": round(gate_safety_score, 2),
                 "output_quality_score": round(output_quality_score, 2),
@@ -356,6 +381,8 @@ class FullWorkflowRunner:
             },
             "owner_dimensions": {
                 "A_gate_safety": round(gate_safety_score, 2),
+                # Backward-compatible alias retained for existing Stage5 checks.
+                "A_audit_completeness": round(audit_completeness_score, 2),
                 "B_output_quality": round(output_quality_score, 2),
                 "B_sector_quality": round(sector_quality_score, 2),
                 "B_ticker_quality": round(ticker_quality_score, 2),

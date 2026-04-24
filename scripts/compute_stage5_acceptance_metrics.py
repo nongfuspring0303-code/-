@@ -65,13 +65,86 @@ def _load_baseline(path: Path) -> Dict[str, Any]:
     return payload.get("metrics", {})
 
 
-def _contains_token(row: Dict[str, Any], token: str) -> bool:
-    token = token.lower()
-    for key in ("final_reason", "reason", "reject_reason_text"):
-        txt = str(row.get(key, "")).lower()
-        if token in txt:
-            return True
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value or "").strip().lower()
+    if text in {"true", "1", "yes", "y"}:
+        return True
+    if text in {"false", "0", "no", "n", ""}:
+        return False
+    return bool(value)
+
+
+def _to_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
+
+
+def _output_gate_blockers(row: Dict[str, Any]) -> List[str]:
+    output_gate = row.get("output_gate") if isinstance(row.get("output_gate"), dict) else {}
+    blockers = output_gate.get("blockers") if isinstance(output_gate.get("blockers"), list) else []
+    normalized = [str(x).strip().lower() for x in blockers if str(x).strip()]
+    # Backward compatibility: some rows may store blocker codes at top-level.
+    if not normalized:
+        for key in ("a_gate_blocker_codes", "gate_blocker_codes"):
+            vals = row.get(key)
+            if isinstance(vals, list):
+                normalized.extend(str(x).strip().lower() for x in vals if str(x).strip())
+    return normalized
+
+
+def _metric_missing_opportunity_but_execute(row: Dict[str, Any]) -> bool:
+    if str(row.get("final_action", "")).upper() != "EXECUTE":
+        return False
+
+    has_opp_raw = row.get("has_opportunity")
+    has_opp: bool | None = None if has_opp_raw is None else _as_bool(has_opp_raw)
+    opp_count = _to_int(row.get("opportunity_count"))
+
+    if has_opp is False:
+        return True
+    if opp_count is not None and opp_count <= 0:
+        return True
+    if has_opp is None and opp_count is None:
+        # Compatibility-only fallback for legacy rows missing contract fields.
+        reason = " ".join(
+            str(row.get(k, "")) for k in ("final_reason", "reason", "reject_reason_text")
+        ).lower()
+        return "missing_opportunity" in reason
     return False
+
+
+def _metric_market_data_default_used_in_execute(row: Dict[str, Any]) -> bool:
+    if str(row.get("final_action", "")).upper() != "EXECUTE":
+        return False
+
+    default_used_raw = row.get("market_data_default_used")
+    if default_used_raw is not None:
+        return _as_bool(default_used_raw)
+
+    blockers = _output_gate_blockers(row)
+    if "market_data_default_used" in blockers:
+        return True
+
+    # Compatibility-only fallback for legacy rows missing contract fields.
+    reason = " ".join(str(row.get(k, "")) for k in ("final_reason", "reason", "reject_reason_text")).lower()
+    return "market_data_default_used" in reason
 
 
 def compute_metrics(logs_dir: Path, baseline_path: Path) -> Dict[str, Any]:
@@ -81,8 +154,8 @@ def compute_metrics(logs_dir: Path, baseline_path: Path) -> Dict[str, Any]:
     raw_ingest = _read_jsonl(logs_dir / "raw_news_ingest.jsonl")
 
     execute_rows = [r for r in decision if str(r.get("final_action", "")).upper() == "EXECUTE"]
-    missing_opp_execute = sum(1 for r in execute_rows if _contains_token(r, "missing_opportunity"))
-    default_execute = sum(1 for r in execute_rows if _contains_token(r, "market_data_default_used"))
+    missing_opp_execute = sum(1 for r in execute_rows if _metric_missing_opportunity_but_execute(r))
+    default_execute = sum(1 for r in execute_rows if _metric_market_data_default_used_in_execute(r))
 
     non_whitelist_hits = sum(1 for r in scorecard if int(r.get("non_whitelist_sector_count", 0) or 0) > 0)
     placeholder_hits = sum(1 for r in scorecard if int(r.get("placeholder_count", 0) or 0) > 0)

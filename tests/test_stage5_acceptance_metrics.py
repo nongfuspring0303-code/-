@@ -81,6 +81,60 @@ def test_compute_stage5_acceptance_metrics_on_clean_window(tmp_path):
     assert report["baseline_compare"]["same_trace_ai_duplicate_call_rate_comparison"] == "improved_or_equal"
 
 
+def test_compute_stage5_acceptance_metrics_prefers_structured_fields_over_reason_text(tmp_path):
+    logs_dir = tmp_path / "logs"
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps({"metrics": {}}, ensure_ascii=False), encoding="utf-8")
+
+    _write_jsonl(
+        logs_dir / "decision_gate.jsonl",
+        [
+            # False-positive bait: reason mentions token, but structured fields are healthy.
+            {
+                "trace_id": "S1",
+                "final_action": "EXECUTE",
+                "final_reason": "note: missing_opportunity text in historical message",
+                "has_opportunity": True,
+                "opportunity_count": 2,
+                "market_data_default_used": False,
+            },
+            # False-positive bait: reason mentions default-used token, but structured field says not used.
+            {
+                "trace_id": "S2",
+                "final_action": "EXECUTE",
+                "final_reason": "legacy marker market_data_default_used in copied comment",
+                "has_opportunity": True,
+                "opportunity_count": 1,
+                "market_data_default_used": False,
+            },
+            # True positive: structured opportunity violation.
+            {
+                "trace_id": "S3",
+                "final_action": "EXECUTE",
+                "has_opportunity": False,
+                "opportunity_count": 0,
+                "market_data_default_used": False,
+            },
+            # True positive: structured default-used violation.
+            {
+                "trace_id": "S4",
+                "final_action": "EXECUTE",
+                "has_opportunity": True,
+                "opportunity_count": 1,
+                "market_data_default_used": True,
+            },
+        ],
+    )
+    _write_jsonl(logs_dir / "replay_join_validation.jsonl", [])
+    _write_jsonl(logs_dir / "trace_scorecard.jsonl", [])
+    _write_jsonl(logs_dir / "raw_news_ingest.jsonl", [])
+
+    report = compute_metrics(logs_dir=logs_dir, baseline_path=baseline_path)
+    metrics = report["metrics"]
+    assert metrics["missing_opportunity_but_execute_count"] == 1
+    assert metrics["market_data_default_used_in_execute_count"] == 1
+
+
 def test_compute_duplicate_rate(tmp_path):
     logs_dir = tmp_path / "logs"
     baseline_path = tmp_path / "baseline.json"

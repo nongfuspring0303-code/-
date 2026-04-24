@@ -134,7 +134,8 @@ Evidence entry template:
 - [x] DoD evidence is backfilled with explicit PASS/FAIL states
 - [x] 4 additional gate-test results are backfilled
 - [x] A/B/C final sign-offs are written in this file
-- [ ] No unresolved blocker/major items remain
+- [x] No unresolved blocker/major items remain
+  - Note: No open technical blocker/major remains; current remaining blockers are process gates only (`Draft` -> `Ready`, formal approvals, and merge conditions in Section 8).
 
 ## 8) Ready -> Merge Conditions
 

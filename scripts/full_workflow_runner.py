@@ -170,6 +170,8 @@ class FullWorkflowRunner:
         event_hash: str,
         execution_in: Dict[str, Any],
         execution_out: Dict[str, Any],
+        conduction_out: Dict[str, Any] | None = None,
+        sectors: List[Dict[str, Any]] | None = None,
     ) -> Dict[str, Any]:
         final = execution_out.get("final", {}) if isinstance(execution_out, dict) else {}
         final_action = str(final.get("action", "UNKNOWN")).upper()
@@ -180,20 +182,37 @@ class FullWorkflowRunner:
         semantic_event_type = str(execution_in.get("semantic_event_type", "unknown"))
         sector_candidates = execution_in.get("sector_candidates", [])
         ticker_candidates = execution_in.get("ticker_candidates", [])
-        sectors = execution_in.get("sectors", [])
-        sector_impacts = execution_in.get("sector_impacts", [])
-        stock_candidates = execution_in.get("stock_candidates", [])
-        mapping_source = str(execution_in.get("mapping_source", "unknown"))
-        needs_manual_review = bool(execution_in.get("needs_manual_review", False))
-        tradeable = bool(execution_in.get("tradeable", False))
-        opportunity_count = int(execution_in.get("opportunity_count", 0) or 0)
+        conduction_data = conduction_out if isinstance(conduction_out, dict) else {}
+        sector_impacts = conduction_data.get("sector_impacts")
+        if not isinstance(sector_impacts, list):
+            sector_impacts = execution_in.get("sector_impacts", [])
+        stock_candidates = conduction_data.get("stock_candidates")
+        if not isinstance(stock_candidates, list):
+            stock_candidates = execution_in.get("stock_candidates", [])
+        mapping_source = str(
+            conduction_data.get("mapping_source", execution_in.get("mapping_source", "unknown"))
+        ).strip()
+        needs_manual_review = bool(
+            conduction_data.get("needs_manual_review", execution_in.get("needs_manual_review", False))
+        )
+        tradeable = execution_in.get("tradeable")
+        opportunity_count = execution_in.get("opportunity_count")
         final_reason = str(final.get("reason", ""))
         theme_tags = execution_in.get("theme_tags", [])
 
         sector_whitelist = self._load_sector_whitelist()
         ticker_truth_pool = self._load_ticker_truth_pool()
 
-        sectors_list = list(sectors) if isinstance(sectors, list) else []
+        sectors_payload = sectors if isinstance(sectors, list) else execution_in.get("sectors", [])
+        sectors_list: List[str] = []
+        if isinstance(sectors_payload, list):
+            for row in sectors_payload:
+                if isinstance(row, dict):
+                    name = str(row.get("name", "")).strip()
+                else:
+                    name = str(row).strip()
+                if name:
+                    sectors_list.append(name)
         non_whitelist_sector_count = sum(
             1
             for name in sectors_list
@@ -320,20 +339,21 @@ class FullWorkflowRunner:
         a_gate_blocker_codes = sorted(set(a_gate_blocker_codes))
         a_gate_blocker_count = len(a_gate_blocker_codes)
         a_gate_blocker_present = a_gate_blocker_count > 0
-        a_score_cap_applied = bool(a_gate_blocker_present and gate_safety_score > 79.0)
+        pre_cap_total_score = (
+            0.35 * gate_safety_score
+            + 0.30 * output_quality_score
+            + 0.20 * provider_freshness_score
+            + 0.15 * audit_completeness_score
+        )
+        pre_cap_total_score = round(max(0.0, min(100.0, pre_cap_total_score)), 2)
+        a_score_cap_applied = bool(a_gate_blocker_present and pre_cap_total_score > 54.0)
         a_gate_signoff_ready = bool(
             (not a_gate_blocker_present)
             and gate_safety_score >= 80.0
             and audit_completeness_score >= 80.0
         )
 
-        total_score = (
-            0.35 * gate_safety_score
-            + 0.30 * output_quality_score
-            + 0.20 * provider_freshness_score
-            + 0.15 * audit_completeness_score
-        )
-        total_score = round(max(0.0, min(100.0, total_score)), 2)
+        total_score = min(pre_cap_total_score, 54.0) if a_gate_blocker_present else pre_cap_total_score
 
         return {
             "logged_at": self._utc_now(),
@@ -376,6 +396,7 @@ class FullWorkflowRunner:
                 "output_quality_score": round(output_quality_score, 2),
                 "provider_freshness_score": round(provider_freshness_score, 2),
                 "audit_completeness_score": round(audit_completeness_score, 2),
+                "pre_cap_total_score": pre_cap_total_score,
                 "total_score": total_score,
                 "grade": self._grade_from_score(total_score),
             },
@@ -393,101 +414,32 @@ class FullWorkflowRunner:
             },
         }
 
+    def _refresh_stage5_daily_outputs(self) -> None:
+        """Best-effort generation of Stage5 daily health artifacts."""
+        try:
+            from system_log_evaluator import evaluate_logs
+
+            evaluated = evaluate_logs(logs_dir=self.logs_dir, gate_enabled=True)
+            (self.logs_dir / "provider_health_hourly.json").write_text(
+                json.dumps(evaluated["provider_health_hourly"], ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (self.logs_dir / "system_health_daily.json").write_text(
+                json.dumps(evaluated["system_health_daily"], ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (self.logs_dir / "system_health_daily_report.md").write_text(
+                str(evaluated["daily_report_markdown"]),
+                encoding="utf-8",
+            )
+        except Exception:
+            # Do not block the main trading path on observability export errors.
+            return
+
     @staticmethod
     def _event_hash(headline: str, ts: str) -> str:
         raw = f"{headline}|{ts}"
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16].upper()
-
-    @staticmethod
-    def _to_float(value: Any) -> float | None:
-        try:
-            if value is None:
-                return None
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
-    def _build_market_validation_input(self, payload: Dict[str, Any], event_object: Dict[str, Any], conduction_out: Dict[str, Any]) -> Dict[str, Any]:
-        raw_price = payload.get("price_changes")
-        raw_volume = payload.get("volume_changes")
-
-        price_changes = dict(raw_price) if isinstance(raw_price, dict) else {}
-        volume_changes = dict(raw_volume) if isinstance(raw_volume, dict) else {}
-
-        derived_from_payload = False
-        if not price_changes:
-            spx_move = self._to_float(payload.get("spx_move_pct"))
-            vix_move = self._to_float(payload.get("vix_change_pct"))
-            sector_move = self._to_float(payload.get("sector_move_pct"))
-            if spx_move is not None:
-                price_changes["SPY"] = spx_move
-            if vix_move is not None:
-                price_changes["VIX_PROXY"] = vix_move
-            if sector_move is not None:
-                price_changes["SECTOR_PROXY"] = sector_move
-            derived_from_payload = bool(price_changes)
-
-        if not volume_changes:
-            spx_vol = self._to_float(payload.get("spx_volume_ratio"))
-            sector_vol = self._to_float(payload.get("sector_volume_ratio"))
-            if spx_vol is not None:
-                volume_changes["SPY"] = spx_vol
-            if sector_vol is not None:
-                volume_changes["SECTOR_PROXY"] = sector_vol
-
-        market_data_source = str(payload.get("market_data_source", "")).strip().lower()
-        if not market_data_source:
-            if isinstance(raw_price, dict) or isinstance(raw_volume, dict):
-                market_data_source = "payload_direct"
-            elif derived_from_payload:
-                market_data_source = "payload_derived"
-            else:
-                market_data_source = "missing"
-
-        market_data_stale = bool(payload.get("market_data_stale", False))
-        market_data_default_used = bool(payload.get("market_data_default_used", False))
-        market_data_fallback_used = bool(payload.get("market_data_fallback_used", False))
-
-        if market_data_source in {"default", "synthetic_default"}:
-            market_data_default_used = True
-        if market_data_source in {"fallback", "failed"}:
-            market_data_fallback_used = True
-
-        market_data_present = bool(price_changes or volume_changes)
-        if market_data_source in {"missing", "failed"} and not market_data_present:
-            market_data_present = False
-
-        cross_asset_linkage = payload.get("cross_asset_linkage")
-        if not isinstance(cross_asset_linkage, dict):
-            cross_asset_linkage = {"confirmed": False}
-        else:
-            cross_asset_linkage = {"confirmed": bool(cross_asset_linkage.get("confirmed", False))}
-
-        winner_loser_dispersion = payload.get("winner_loser_dispersion")
-        if not isinstance(winner_loser_dispersion, dict):
-            winner_loser_dispersion = {"confirmed": False}
-        else:
-            winner_loser_dispersion = {"confirmed": bool(winner_loser_dispersion.get("confirmed", False))}
-
-        persistence_minutes = self._to_float(payload.get("persistence_minutes"))
-        if persistence_minutes is None:
-            persistence_minutes = 0.0
-
-        return {
-            "event_id": event_object["event_id"],
-            "conduction_output": {"conduction_path": conduction_out.get("conduction_path", [])},
-            "price_changes": price_changes,
-            "volume_changes": volume_changes,
-            "cross_asset_linkage": cross_asset_linkage,
-            "persistence_minutes": persistence_minutes,
-            "winner_loser_dispersion": winner_loser_dispersion,
-            "market_timestamp": payload.get("market_timestamp", event_object["updated_at"]),
-            "market_data_source": market_data_source,
-            "market_data_present": market_data_present,
-            "market_data_stale": market_data_stale,
-            "market_data_default_used": market_data_default_used,
-            "market_data_fallback_used": market_data_fallback_used,
-        }
 
     @staticmethod
     def _to_float(value: Any) -> float | None:
@@ -1004,9 +956,12 @@ class FullWorkflowRunner:
                 "batch_id": batch_id,
                 "event_id": event_id,
                 "event_hash": event_hash,
+                "stage": "execution",
+                "reject_reason_code": reject_reason_code,
+                "reject_reason_text": final_reason,
+                "ingest_ts": event_object.get("detected_at"),
+                "decision_ts": self._utc_now(),
                 "final_action": final_action,
-                "quarantine_reason_code": reject_reason_code,
-                "quarantine_reason_text": final_reason,
                 "contract_version": execution_in.get("contract_version", "v2.2"),
             }
             self._append_jsonl(self.quarantine_replay_log_path, quarantine_record)
@@ -1031,6 +986,7 @@ class FullWorkflowRunner:
                 "category": event_object["category"],
             },
         })
+        self._refresh_stage5_daily_outputs()
 
         return {"intel": intel_out, "analysis": analysis_out, "execution": execution_out}
 

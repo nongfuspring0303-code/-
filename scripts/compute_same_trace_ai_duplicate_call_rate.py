@@ -46,10 +46,8 @@ def compute_duplicate_rate(logs_dir: Path, baseline_path: Path) -> Dict[str, Any
     counts: Counter[str] = Counter()
     for row in raw_rows:
         trace_id = str(row.get("trace_id") or row.get("event_trace_id") or "").strip()
-        event_hash = str(row.get("event_hash") or "").strip()
         if trace_id:
-            key = f"{trace_id}::{event_hash}" if event_hash else trace_id
-            counts[key] += 1
+            counts[trace_id] += 1
 
     total_traces = len(counts)
     duplicate_traces = sum(1 for _, n in counts.items() if n > 1)

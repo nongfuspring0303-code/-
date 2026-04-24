@@ -159,6 +159,28 @@ def test_compute_duplicate_rate(tmp_path):
     assert report["comparison"] == "improved_or_equal"
 
 
+def test_compute_duplicate_rate_groups_by_trace_id_not_event_hash(tmp_path):
+    logs_dir = tmp_path / "logs"
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps({"metrics": {"same_trace_ai_duplicate_call_rate": 0.5}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _write_jsonl(
+        logs_dir / "raw_news_ingest.jsonl",
+        [
+            {"trace_id": "A", "event_hash": "H1"},
+            {"trace_id": "A", "event_hash": "H2"},
+            {"trace_id": "B", "event_hash": "H3"},
+        ],
+    )
+
+    report = compute_duplicate_rate(logs_dir=logs_dir, baseline_path=baseline_path)
+    assert report["duplicate_traces"] == 1
+    assert report["total_traces"] == 2
+    assert report["current_value"] == 0.5
+
+
 def test_compute_stage5_acceptance_metrics_empty_window_is_insufficient_with_nonzero_exit(tmp_path):
     logs_dir = tmp_path / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)

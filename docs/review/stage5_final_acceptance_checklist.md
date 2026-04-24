@@ -81,7 +81,7 @@ Evidence entry template:
 | --- | --- | --- | --- | --- |
 | quarantine evidence | `tests/test_system_log_evaluator.py::test_system_log_evaluator_quarantine_silent_alert_on_hourly_window`; `logs/system_health_daily.json` | `python3 -m pytest -q tests/test_system_log_evaluator.py` | quarantine-activity monitor alert path validated (`2 passed`). | PASS |
 | rollback evidence | `scripts/rollback_sanitize_v22.py`; `tests/test_rollback_sanitize_v22.py` | `python3 -m pytest -q tests/test_rollback_sanitize_v22.py && python3 scripts/rollback_sanitize_v22.py --mode dry-run --db-action downgrade_v22_metadata` | rollback sanitizer dry-run/apply behavior and metadata downgrade contract validated. | PASS |
-| purge gate evidence | `scripts/check_shadow_code_purge_gate.py`; `configs/shadow_code_purge_allowlist.json`; `docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json`; `tests/test_shadow_code_purge_gate.py` | `python3 scripts/check_shadow_code_purge_gate.py --out docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json && python3 -m pytest -q tests/test_shadow_code_purge_gate.py` | dedicated purge gate with explicit allowlist is in place; latest report `passed=true`, test suite passed. | PASS |
+| purge gate evidence | `scripts/check_shadow_code_purge_gate.py`; `configs/shadow_code_purge_allowlist.json`; `docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json`; `tests/test_shadow_code_purge_gate.py` | `python3 scripts/check_shadow_code_purge_gate.py --target scripts/full_workflow_runner.py --target scripts/workflow_runner.py --target scripts/system_log_evaluator.py --out docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json && python3 -m pytest -q tests/test_shadow_code_purge_gate.py` | dedicated purge gate with explicit allowlist is in place; latest report `passed=true`, test suite passed. | PASS |
 
 ### 4.4 C-side final sign-off
 - Status: `PASS WITH NOTE`
@@ -109,7 +109,7 @@ Evidence entry template:
 - Conclusion: `PASS`
 
 ### 5.4 `shadow_code_purge_gate`
-- Command: `python3 scripts/check_shadow_code_purge_gate.py --out docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json && python3 -m pytest -q tests/test_shadow_code_purge_gate.py`
+- Command: `python3 scripts/check_shadow_code_purge_gate.py --target scripts/full_workflow_runner.py --target scripts/workflow_runner.py --target scripts/system_log_evaluator.py --out docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json && python3 -m pytest -q tests/test_shadow_code_purge_gate.py`
 - Result: gate report generated with `passed=true`; purge gate test suite `2 passed`
 - Evidence path: `scripts/check_shadow_code_purge_gate.py`, `configs/shadow_code_purge_allowlist.json`, `docs/stage5/artifacts/pr91_shadow_code_purge_gate_report.json`, `tests/test_shadow_code_purge_gate.py`
 - Conclusion: `PASS`

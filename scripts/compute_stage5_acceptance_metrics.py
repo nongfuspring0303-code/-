@@ -201,11 +201,9 @@ def compute_metrics(logs_dir: Path, baseline_path: Path) -> Dict[str, Any]:
     trace_counts: Dict[str, int] = {}
     for row in raw_ingest:
         trace_id = str(row.get("trace_id") or row.get("event_trace_id") or "").strip()
-        event_hash = str(row.get("event_hash") or "").strip()
         if not trace_id:
             continue
-        key = f"{trace_id}::{event_hash}" if event_hash else trace_id
-        trace_counts[key] = trace_counts.get(key, 0) + 1
+        trace_counts[trace_id] = trace_counts.get(trace_id, 0) + 1
     duplicate_trace_count = sum(1 for _, n in trace_counts.items() if n > 1)
     duplicate_rate = _safe_rate(duplicate_trace_count, len(trace_counts))
 

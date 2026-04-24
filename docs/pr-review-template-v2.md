@@ -13,6 +13,7 @@
 10. Ghost Logic（幽灵逻辑）零容忍：字段若仅被赋值但不参与下游控制流/最终输出，按缺陷处理。
 11. 枚举/状态映射必须全集覆盖：禁止用未授权的静默兜底吞掉新增状态。
 12. 测试必须可追踪到规则：新增测试需 Test ID 与规则 ID 绑定，历史测试需完成规则映射。
+13. 涉及 acceptance/scorecard/metrics/gate report 脚本时，必须执行 `docs/review/acceptance_metrics_audit_rule.md`（5 问题未答清不得通过）。
 
 ## 0. 审查元信息（含版本核验）
 - PR：`#【编号】`

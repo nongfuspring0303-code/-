@@ -215,6 +215,16 @@ def test_stage5_market_provenance_includes_provider_failure_metadata(tmp_path, m
     _ = runner.run(_base_payload())
     records = _read_jsonl(logs_dir / "market_data_provenance.jsonl")
     assert records
+    uniqueness_keys = {
+        (
+            str(row.get("trace_id", "")),
+            str(row.get("request_id", "")),
+            str(row.get("batch_id", "")),
+            str(row.get("event_hash", "")),
+        )
+        for row in records
+    }
+    assert len(uniqueness_keys) == len(records), "market_data_provenance should not duplicate the same trace tuple"
     enriched = [
         row
         for row in records

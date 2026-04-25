@@ -722,24 +722,6 @@ class FullWorkflowRunner:
 
         validation_input = self._build_market_validation_input(payload, event_object, conduction_out)
         validation_out = self.validation.run(validation_input).data
-        self._append_jsonl(
-            self.market_data_provenance_log_path,
-            {
-                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "trace_id": trace_id,
-                "event_trace_id": trace_id,
-                "request_id": request_id,
-                "batch_id": batch_id,
-                "event_id": event_id,
-                "event_hash": event_hash,
-                "market_data_source": validation_out.get("market_data_source", "unknown"),
-                "market_data_present": bool(validation_out.get("market_data_present", False)),
-                "market_data_stale": bool(validation_out.get("market_data_stale", False)),
-                "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
-                "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
-                "validation_state": validation_out.get("validation_state"),
-            },
-        )
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,

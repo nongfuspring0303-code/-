@@ -72,9 +72,29 @@ def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[D
         default_count = sum(1 for r in rows if bool(r.get("market_data_default_used", False)))
         fallback_count = sum(1 for r in rows if bool(r.get("market_data_fallback_used", False)))
         source_count: Dict[str, int] = defaultdict(int)
+        provider_failed_count = 0
+        unresolved_symbol_count = 0
+        fallback_reason_counts: Dict[str, int] = defaultdict(int)
+        provider_failure_reason_counts: Dict[str, int] = defaultdict(int)
         for row in rows:
             source = str(row.get("market_data_source", "unknown"))
             source_count[source] += 1
+            providers_failed = row.get("providers_failed", [])
+            if isinstance(providers_failed, list):
+                provider_failed_count += len([x for x in providers_failed if str(x).strip()])
+            unresolved_raw = row.get("unresolved_symbols", [])
+            if isinstance(unresolved_raw, list):
+                unresolved_symbol_count += len([x for x in unresolved_raw if str(x).strip()])
+            reason = str(row.get("fallback_reason", "") or "").strip()
+            if reason:
+                fallback_reason_counts[reason] += 1
+            failure_reasons_raw = row.get("provider_failure_reasons", {})
+            if isinstance(failure_reasons_raw, dict):
+                for provider, reason_value in failure_reasons_raw.items():
+                    provider_name = str(provider or "").strip()
+                    reason_name = str(reason_value or "").strip()
+                    if provider_name and reason_name:
+                        provider_failure_reason_counts[f"{provider_name}:{reason_name}"] += 1
 
         present_rate = present_count / total if total else 0.0
         stale_rate = stale_count / total if total else 0.0
@@ -96,6 +116,10 @@ def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[D
                 "default_used_rate": round(default_rate, 4),
                 "fallback_used_rate": round(fallback_rate, 4),
                 "provider_sources": dict(sorted(source_count.items())),
+                "provider_failed_count": provider_failed_count,
+                "unresolved_symbol_count": unresolved_symbol_count,
+                "fallback_reason_counts": dict(sorted(fallback_reason_counts.items())),
+                "provider_failure_reason_counts": dict(sorted(provider_failure_reason_counts.items())),
                 "health_status": status,
             }
         )

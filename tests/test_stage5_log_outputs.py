@@ -100,6 +100,147 @@ def test_stage5_pipeline_stage_and_scorecard_written(tmp_path):
     assert report_daily.exists()
 
 
+def test_stage5_scorecard_persists_semantic_contract_fields(tmp_path, monkeypatch):
+    logs_dir = tmp_path / "logs"
+    runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
+
+    monkeypatch.setattr(
+        runner.semantic,
+        "analyze",
+        lambda _headline, _summary: {
+            "event_type": "other",
+            "sentiment": "negative",
+            "confidence": 80,
+            "recommended_chain": "trade_chain",
+            "recommended_stocks": ["XLE", "CVX"],
+            "a0_event_strength": 75,
+            "expectation_gap": 15,
+            "transmission_candidates": ["XLE", "USO", "CVX"],
+            "fallback_reason": "",
+        },
+    )
+
+    monkeypatch.setattr(
+        runner.semantic,
+        "analyze_event",
+        lambda _headline, _summary, **_kwargs: {
+            "event_type": "other",
+            "event_time": "2026-04-25T00:00:00Z",
+            "evidence_grade": "B",
+        },
+    )
+
+    out = runner.run(_base_payload())
+    execution_in = out["execution"]["input"]
+    assert execution_in["recommended_chain"] == "trade_chain"
+    assert execution_in["recommended_stocks"] == ["XLE", "CVX"]
+    assert execution_in["transmission_candidates"] == ["XLE", "USO", "CVX"]
+
+    score_rows = _read_jsonl(logs_dir / "trace_scorecard.jsonl")
+    assert score_rows
+    latest = score_rows[-1]
+    assert latest["ai_sentiment"] == "negative"
+    assert latest["ai_confidence"] == 80
+    assert latest["ai_recommended_chain"] == "trade_chain"
+    assert latest["ai_recommended_stocks"] == ["XLE", "CVX"]
+    assert latest["ai_a0_event_strength"] == 75
+    assert latest["ai_expectation_gap"] == 15
+    assert latest["ai_transmission_candidates"] == ["XLE", "USO", "CVX"]
+    assert latest["semantic_fallback_reason"] == ""
+    assert latest["ai_missing_fields"] == []
+    assert latest["semantic_defaults_applied"] is False
+
+
+def test_stage5_scorecard_marks_semantic_missing_fields_from_raw_output(tmp_path, monkeypatch):
+    logs_dir = tmp_path / "logs"
+    runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
+
+    monkeypatch.setattr(
+        runner.semantic,
+        "analyze",
+        lambda _headline, _summary: {
+            "event_type": "other",
+            "sentiment": "neutral",
+            "confidence": 82,
+            # intentionally missing:
+            # - recommended_chain
+            # - recommended_stocks
+            # - expectation_gap
+            # - transmission_candidates
+        },
+    )
+    monkeypatch.setattr(
+        runner.semantic,
+        "analyze_event",
+        lambda _headline, _summary, **_kwargs: {
+            "event_type": "other",
+            "event_time": "2026-04-25T00:00:00Z",
+            "evidence_grade": "B",
+        },
+    )
+
+    out = runner.run(_base_payload())
+    execution_in = out["execution"]["input"]
+    assert execution_in["recommended_chain"] == ""
+    assert execution_in["recommended_stocks"] == []
+    assert execution_in["expectation_gap"] == 0
+    assert execution_in["transmission_candidates"] == []
+    assert execution_in["semantic_defaults_applied"] is True
+    assert set(execution_in["semantic_missing_fields"]) >= {
+        "recommended_chain",
+        "recommended_stocks",
+        "expectation_gap",
+        "transmission_candidates",
+    }
+
+    score_rows = _read_jsonl(logs_dir / "trace_scorecard.jsonl")
+    latest = score_rows[-1]
+    assert latest["semantic_defaults_applied"] is True
+    assert set(latest["ai_missing_fields"]) >= {
+        "recommended_chain",
+        "recommended_stocks",
+        "expectation_gap",
+        "transmission_candidates",
+    }
+
+
+def test_stage5_market_provenance_includes_provider_failure_metadata(tmp_path, monkeypatch):
+    logs_dir = tmp_path / "logs"
+    runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
+
+    # Force adapter to produce provider failure metadata deterministically.
+    monkeypatch.setattr(runner.opportunity._market_data_adapter, "_fetch_yahoo", lambda _symbols: {})
+    monkeypatch.setattr(runner.opportunity._market_data_adapter, "_fetch_stooq", lambda _symbols: {})
+
+    _ = runner.run(_base_payload())
+    records = _read_jsonl(logs_dir / "market_data_provenance.jsonl")
+    assert records
+    uniqueness_keys = {
+        (
+            str(row.get("trace_id", "")),
+            str(row.get("request_id", "")),
+            str(row.get("batch_id", "")),
+            str(row.get("event_hash", "")),
+        )
+        for row in records
+    }
+    assert len(uniqueness_keys) == len(records), "market_data_provenance should not duplicate the same trace tuple"
+    enriched = [
+        row
+        for row in records
+        if "providers_attempted" in row or "provider_failure_reasons" in row
+    ]
+    assert enriched, "expected at least one enriched provider provenance row"
+    latest = enriched[-1]
+    assert isinstance(latest.get("provider_chain", []), list)
+    assert isinstance(latest.get("providers_attempted", []), list)
+    assert isinstance(latest.get("providers_succeeded", []), list)
+    assert isinstance(latest.get("providers_failed", []), list)
+    assert isinstance(latest.get("provider_failure_reasons", {}), dict)
+    assert isinstance(latest.get("fallback_reason", ""), str)
+    assert isinstance(latest.get("unresolved_symbols", []), list)
+
+
 def test_stage5_rejected_and_quarantine_written_for_non_execute(tmp_path):
     logs_dir = tmp_path / "logs"
     runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))

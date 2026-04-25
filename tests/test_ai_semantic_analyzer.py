@@ -364,3 +364,14 @@ def test_call_provider_has_explicit_fallback_for_unknown_provider(tmp_path):
     assert payload.get("fallback_reason") == "provider_unsupported"
     assert payload.get("event_type") == "other"
     assert payload.get("confidence") == 0
+
+
+def test_semantic_prompt_requires_chain_and_stocks_fields(tmp_path):
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text("modules: {}\nruntime:\n  semantic:\n    enabled: true\n", encoding="utf-8")
+    analyzer = SemanticAnalyzer(config_path=str(cfg))
+
+    prompt = analyzer._get_prompt("Sample headline text")
+    assert "recommended_chain" in prompt
+    assert "recommended_stocks" in prompt
+    assert "Do NOT invent or hallucinate ticker symbols." in prompt

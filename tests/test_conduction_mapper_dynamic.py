@@ -211,6 +211,44 @@ def test_conduction_mapper_injects_semantic_candidates_into_stock_candidates(mon
     assert "NVDA" in symbols
     assert "AAPL" in symbols
 
+
+def test_conduction_mapper_keeps_semantic_chain_when_event_type_other(monkeypatch):
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic,
+        "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "rate_cut_chain",
+            "recommended_stocks": ["NVDA", "AAPL"],
+            "confidence": 90,
+            "event_type": "other",
+            "sentiment": "neutral",
+        },
+    )
+
+    out = mapper.run(
+        {
+            "event_id": "ME-E-TEST-009",
+            "category": "E",
+            "severity": "E2",
+            "headline": "Generic macro update without explicit event keyword",
+            "summary": "market volatility update",
+            "lifecycle_state": "Active",
+            "sector_data": [
+                {"symbol": "XLK", "sector": "Technology", "industry": "Technology", "change_pct": 1.2},
+                {"symbol": "XLF", "sector": "Financial Services", "industry": "Financial Services", "change_pct": 0.8},
+            ],
+        }
+    )
+
+    assert out.status.value == "success"
+    assert out.data["mapping_source"] == "template:rate_cut_chain"
+    assert out.data["ai_recommendation_chain"] == "rate_cut_chain"
+    symbols = [str(x.get("symbol", "")).upper() for x in out.data.get("stock_candidates", [])]
+    assert "NVDA" in symbols
+    assert "AAPL" in symbols
+
+
 def test_conduction_mapper_filters_invalid_semantic_values(monkeypatch):
     mapper = ConductionMapper()
     monkeypatch.setattr(

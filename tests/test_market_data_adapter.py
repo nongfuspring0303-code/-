@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import market_data_adapter as mdamod
 from market_data_adapter import MarketDataAdapter
 
 
@@ -127,3 +128,47 @@ def test_market_data_adapter_does_not_implicitly_fallback_when_deprecated_clears
     assert adapter.last_meta.unresolved_symbols == ["AAPL"]
     assert calls["yahoo"] == 0
     assert calls["stooq"] == 0
+
+
+def test_market_data_adapter_yahoo_prefers_yfinance_before_http(monkeypatch):
+    class _FakeTicker:
+        def __init__(self, _symbol):
+            self.fast_info = {"lastPrice": 209.09}
+
+    class _FakeYF:
+        @staticmethod
+        def Ticker(symbol):
+            return _FakeTicker(symbol)
+
+    monkeypatch.setattr(mdamod, "yf", _FakeYF())
+
+    def _unexpected_urlopen(*_args, **_kwargs):
+        raise AssertionError("HTTP fallback should not be called when yfinance returns prices")
+
+    monkeypatch.setattr(mdamod.urllib.request, "urlopen", _unexpected_urlopen)
+    adapter = MarketDataAdapter()
+    out = adapter._fetch_yahoo(["NVDA"])
+    assert out == {"NVDA": 209.09}
+
+
+def test_market_data_adapter_records_failed_providers_and_fallback_reason():
+    cfg = {
+        "runtime.price_fetch.providers.active": ["primary"],
+        "runtime.price_fetch.providers.fallback": ["fallback"],
+        "runtime.price_fetch.providers.deprecated": [],
+    }
+    adapter = MarketDataAdapter(
+        config_getter=lambda k, d=None: cfg.get(k, d),
+        providers={
+            "primary": lambda _symbols: {},
+            "fallback": lambda _symbols: {},
+        },
+    )
+
+    out = adapter.quote_many(["NVDA"])
+    assert out == {}
+    assert adapter.last_meta.attempted == ["primary", "fallback"]
+    assert adapter.last_meta.failed == ["primary", "fallback"]
+    assert adapter.last_meta.succeeded == []
+    assert adapter.last_meta.fallback_used is False
+    assert adapter.last_meta.fallback_reason == "NO_PRICE_RESOLVED"

@@ -33,6 +33,10 @@ def test_system_log_evaluator_generates_provider_and_daily_health(tmp_path):
                 "market_data_stale": False,
                 "market_data_default_used": False,
                 "market_data_fallback_used": False,
+                "providers_failed": ["yahoo"],
+                "provider_failure_reasons": {"yahoo": "empty_response"},
+                "fallback_reason": "NO_PRICE_RESOLVED",
+                "unresolved_symbols": ["NVDA"],
             },
             {
                 "logged_at": "2026-04-24T01:11:00Z",
@@ -41,6 +45,10 @@ def test_system_log_evaluator_generates_provider_and_daily_health(tmp_path):
                 "market_data_stale": False,
                 "market_data_default_used": False,
                 "market_data_fallback_used": True,
+                "providers_failed": [],
+                "provider_failure_reasons": {},
+                "fallback_reason": "",
+                "unresolved_symbols": [],
             },
         ],
     )
@@ -94,6 +102,10 @@ def test_system_log_evaluator_generates_provider_and_daily_health(tmp_path):
     provider = out["provider_health_hourly"][0]
     assert provider["hour_bucket_utc"].startswith("2026-04-24T01:")
     assert provider["fallback_used_rate"] > 0
+    assert provider["provider_failed_count"] >= 1
+    assert provider["unresolved_symbol_count"] >= 1
+    assert provider["fallback_reason_counts"]["NO_PRICE_RESOLVED"] >= 1
+    assert provider["provider_failure_reason_counts"]["yahoo:empty_response"] >= 1
 
     daily = out["system_health_daily"][0]
     assert daily["date_utc"] == "2026-04-24"

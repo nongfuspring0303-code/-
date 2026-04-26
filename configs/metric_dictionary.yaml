@@ -1,7 +1,7 @@
 version: 1.0.0
 owner: project-stage4
 status: approved-template
-updated_at: '2026-04-11'
+updated_at: '2026-04-26'
 description: Single source of truth for metric names, ranges, semantics, and rounding
   rules used by the Phase 4 causal-conduction system.
 standards:
@@ -187,6 +187,31 @@ metrics:
       description: Dominance score of the top transmission path after clarity, asset
         confirmation, cross-asset consistency, template match, noise, and conflict
         adjustments.
+  ai_confidence:
+    label: ai_confidence_score
+    category: semantic
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_trustworthy
+    description: Confidence produced by semantic analyzer and persisted into trace
+      scorecard (`ai_confidence`).
+  ai_a0_event_strength:
+    label: ai_a0_event_strength
+    category: semantic
+    range:
+    - 0
+    - 100
+    polarity: higher_is_stronger
+    description: Semantic event-strength proxy persisted into trace scorecard (`ai_a0_event_strength`).
+  ai_expectation_gap:
+    label: ai_expectation_gap
+    category: semantic
+    range:
+    - -100
+    - 100
+    polarity: signed_directional
+    description: Semantic expectation-gap proxy persisted into trace scorecard (`ai_expectation_gap`).
 required_output_fields:
   always_include:
   - schema_version
@@ -241,3 +266,20 @@ enumerations:
     - leveraged_proxy
     - contaminated
   gate_reason_code: *id001
+  market_data_provenance:
+    fallback_reason:
+    - ""
+    - NO_PRICE_RESOLVED
+    - FALLBACK_PARTIAL
+    - PARTIAL_PRICE_RESOLVED
+  semantic:
+    fallback_reason:
+    - ""
+    - semantic_disabled
+    - emergency_disabled
+    - full_enable_disabled
+    - timeout
+    - provider_error
+    - api_key_missing
+    - confidence_below_threshold
+    - chain_missing

@@ -131,6 +131,8 @@ def test_market_data_adapter_does_not_implicitly_fallback_when_deprecated_clears
 
 
 def test_market_data_adapter_yahoo_prefers_yfinance_before_http(monkeypatch):
+    # Rule/Test mapping: R93-CFG-001 / T-R93-CFG-001
+    # When feature flag is explicitly enabled, yfinance path is allowed and preferred.
     class _FakeTicker:
         def __init__(self, _symbol):
             self.fast_info = {"lastPrice": 209.09}
@@ -153,6 +155,8 @@ def test_market_data_adapter_yahoo_prefers_yfinance_before_http(monkeypatch):
 
 
 def test_market_data_adapter_yahoo_does_not_use_yfinance_by_default(monkeypatch):
+    # Rule/Test mapping: R93-CFG-002 / T-R93-CFG-002
+    # Default config must keep yfinance disabled to preserve existing missing-price semantics.
     class _FakeYF:
         @staticmethod
         def Ticker(_symbol):

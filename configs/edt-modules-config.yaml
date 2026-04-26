@@ -705,6 +705,7 @@ runtime:
   strict_fallback: true
   price_fetch:
     enabled: true
+    yahoo_use_yfinance: false
     cache_ttl_seconds: 120
     max_batch_size: 40
     timeout_seconds: 5

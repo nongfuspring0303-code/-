@@ -152,6 +152,8 @@ def test_stage5_scorecard_persists_semantic_contract_fields(tmp_path, monkeypatc
 
 
 def test_stage5_scorecard_marks_semantic_missing_fields_from_raw_output(tmp_path, monkeypatch):
+    # Rule/Test mapping: R93-SEM-001 / T-R93-SEM-001
+    # Raw semantic missing fields must be surfaced in scorecard instead of being hidden by defaults.
     logs_dir = tmp_path / "logs"
     runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
 
@@ -205,6 +207,8 @@ def test_stage5_scorecard_marks_semantic_missing_fields_from_raw_output(tmp_path
 
 
 def test_stage5_market_provenance_includes_provider_failure_metadata(tmp_path, monkeypatch):
+    # Rule/Test mapping: R93-PROV-001 / T-R93-PROV-001
+    # Provider failure/fallback context must enter market_data_provenance for evaluator consumption.
     logs_dir = tmp_path / "logs"
     runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
 
@@ -242,6 +246,8 @@ def test_stage5_market_provenance_includes_provider_failure_metadata(tmp_path, m
 
 
 def test_stage5_market_provenance_does_not_leak_provider_meta_across_traces(tmp_path, monkeypatch):
+    # Rule/Test mapping: R93-PROV-002 / T-R93-PROV-002
+    # Provider meta must be per-trace and must not leak when later traces skip price fetch.
     logs_dir = tmp_path / "logs"
     runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
 

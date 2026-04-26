@@ -1,7 +1,7 @@
 # PR93 Rules-Test Mapping (Governance Patch)
 
 **PR**: #93
-**Reviewed Head Baseline**: `13655953d48b66b25f789d79e6c0ed32b3578038`
+**Reviewed Head Baseline**: `d19b0d9ac7c8118d2a2f2d947a8114bdf9828fa4`
 **Purpose**: close Rule ID ↔ Test ID traceability gap required by PR review template v2.1.
 
 | Rule ID | Rule Statement | Test ID | Test Anchor |
@@ -11,6 +11,7 @@
 | `R93-PROV-002` | Provider metadata must be isolated per trace and must not leak across no-fetch traces. | `T-R93-PROV-002` | `tests/test_stage5_log_outputs.py::test_stage5_market_provenance_does_not_leak_provider_meta_across_traces` |
 | `R93-CFG-001` | yfinance path can be used only when explicit feature flag is enabled. | `T-R93-CFG-001` | `tests/test_market_data_adapter.py::test_market_data_adapter_yahoo_prefers_yfinance_before_http` |
 | `R93-CFG-002` | Default behavior must keep yfinance disabled to preserve historical `missing-price -> WATCH` semantics. | `T-R93-CFG-002` | `tests/test_market_data_adapter.py::test_market_data_adapter_yahoo_does_not_use_yfinance_by_default` |
+| `R93-CFG-003` | Under default config, missing realtime price must remain non-EXECUTE (WATCH path preserved). | `T-R93-CFG-003` | `tests/test_opportunity_score.py::test_missing_realtime_price_forces_watch_with_risk_flag` |
 
 ## Related Source-of-Truth Updates
 

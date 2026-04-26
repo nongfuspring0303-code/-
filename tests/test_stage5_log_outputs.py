@@ -2,11 +2,13 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from full_workflow_runner import FullWorkflowRunner
+from system_log_evaluator import evaluate_logs
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -212,9 +214,24 @@ def test_stage5_market_provenance_includes_provider_failure_metadata(tmp_path, m
     logs_dir = tmp_path / "logs"
     runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
 
-    # Force adapter to produce provider failure metadata deterministically.
-    monkeypatch.setattr(runner.opportunity._market_data_adapter, "_fetch_yahoo", lambda _symbols: {})
-    monkeypatch.setattr(runner.opportunity._market_data_adapter, "_fetch_stooq", lambda _symbols: {})
+    # Force deterministic conduction output to guarantee at least one symbol reaches price fetch.
+    monkeypatch.setattr(
+        runner.conduction,
+        "run",
+        lambda _payload: SimpleNamespace(
+            data={
+                "confidence": 85,
+                "conduction_path": [],
+                "sector_impacts": [{"sector": "科技", "direction": "benefit"}],
+                "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG"}],
+            }
+        ),
+    )
+
+    # Force provider registry to fail deterministically.
+    adapter = runner.opportunity._market_data_adapter
+    adapter.providers["yahoo"] = lambda _symbols: {}
+    adapter.providers["stooq"] = lambda _symbols: {}
 
     _ = runner.run(_base_payload())
     records = _read_jsonl(logs_dir / "market_data_provenance.jsonl")
@@ -236,13 +253,25 @@ def test_stage5_market_provenance_includes_provider_failure_metadata(tmp_path, m
     ]
     assert enriched, "expected at least one enriched provider provenance row"
     latest = enriched[-1]
-    assert isinstance(latest.get("provider_chain", []), list)
-    assert isinstance(latest.get("providers_attempted", []), list)
-    assert isinstance(latest.get("providers_succeeded", []), list)
-    assert isinstance(latest.get("providers_failed", []), list)
-    assert isinstance(latest.get("provider_failure_reasons", {}), dict)
-    assert isinstance(latest.get("fallback_reason", ""), str)
+    assert latest.get("providers_attempted", []) == ["yahoo", "stooq"]
+    assert latest.get("providers_failed", []) == ["yahoo", "stooq"]
+    assert latest.get("providers_succeeded", []) == []
+    assert latest.get("provider_failure_reasons", {}).get("yahoo") == "empty_response"
+    assert latest.get("provider_failure_reasons", {}).get("stooq") == "empty_response"
+    assert latest.get("fallback_used", False) is False
+    assert latest.get("fallback_reason", "") == "NO_PRICE_RESOLVED"
     assert isinstance(latest.get("unresolved_symbols", []), list)
+    assert latest.get("unresolved_symbol_count", 0) == len(latest.get("unresolved_symbols", []))
+    assert latest.get("unresolved_symbol_count", 0) > 0
+
+    evaluated = evaluate_logs(logs_dir=logs_dir, gate_enabled=True)
+    assert evaluated.get("provider_health_hourly"), "provider_health_hourly should not be empty"
+    provider = evaluated["provider_health_hourly"][-1]
+    assert provider.get("provider_failed_count", 0) >= 2
+    assert provider.get("unresolved_symbol_count", 0) >= 1
+    assert provider.get("fallback_reason_counts", {}).get("NO_PRICE_RESOLVED", 0) >= 1
+    assert provider.get("provider_failure_reason_counts", {}).get("yahoo:empty_response", 0) >= 1
+    assert provider.get("provider_failure_reason_counts", {}).get("stooq:empty_response", 0) >= 1
 
 
 def test_stage5_market_provenance_does_not_leak_provider_meta_across_traces(tmp_path, monkeypatch):

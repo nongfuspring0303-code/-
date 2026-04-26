@@ -1,7 +1,7 @@
 # PR93 Rules-Test Mapping (Governance Patch)
 
-**PR**: #93  
-**Head**: `e0255cd`+  
+**PR**: #93
+**Head**: `0d2395c`
 **Purpose**: close Rule ID ↔ Test ID traceability gap required by PR review template v2.1.
 
 | Rule ID | Rule Statement | Test ID | Test Anchor |
@@ -17,4 +17,3 @@
 - semantic contract boundary update: `docs/semantic-baseline-contract-v1.md`
 - metric registration update: `configs/metric_dictionary.yaml`
 - runtime config explicit flag: `configs/edt-modules-config.yaml`
-

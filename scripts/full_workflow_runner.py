@@ -656,7 +656,7 @@ class FullWorkflowRunner:
 
         validation_input = self._build_market_validation_input(payload, event_object, conduction_out)
         validation_out = self.validation.run(validation_input).data
-        symbols_requested = sorted(
+        derived_symbols_requested = sorted(
             {
                 str(sym).strip().upper()
                 for sym in list((validation_input.get("price_changes") or {}).keys())
@@ -664,7 +664,7 @@ class FullWorkflowRunner:
                 if str(sym).strip()
             }
         )
-        symbols_returned = sorted(
+        derived_symbols_returned = sorted(
             {
                 str(sym).strip().upper()
                 for source in ((validation_input.get("price_changes") or {}), (validation_input.get("volume_changes") or {}))
@@ -672,6 +672,21 @@ class FullWorkflowRunner:
                 if str(sym).strip() and value is not None
             }
         )
+        def _normalize_symbols(value: Any) -> list[str]:
+            if value is None:
+                return []
+            if isinstance(value, str):
+                raw_items = [value]
+            elif isinstance(value, (list, tuple, set)):
+                raw_items = list(value)
+            else:
+                raw_items = [value]
+            return sorted({str(sym).strip().upper() for sym in raw_items if str(sym).strip()})
+
+        payload_symbols_requested = _normalize_symbols(payload.get("symbols_requested")) if "symbols_requested" in payload else None
+        payload_symbols_returned = _normalize_symbols(payload.get("symbols_returned")) if "symbols_returned" in payload else None
+        symbols_requested = payload_symbols_requested if payload_symbols_requested is not None else derived_symbols_requested
+        symbols_returned = payload_symbols_returned if payload_symbols_returned is not None else derived_symbols_returned
         provenance_record = {
             "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "trace_id": trace_id,

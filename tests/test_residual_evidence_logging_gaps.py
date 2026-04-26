@@ -101,6 +101,40 @@ def test_residual_market_data_provenance_fields_are_extended_and_missing_tracked
     assert "provider_path" in rec["provenance_field_missing"]
 
 
+def test_residual_market_data_provenance_prefers_payload_symbols_and_metadata(tmp_path):
+    logs_dir = tmp_path / "logs"
+    runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
+    payload = {
+        "request_id": "REQ-RESIDUAL-PROV-PASS-001",
+        "batch_id": "BATCH-RESIDUAL-PROV-PASS-001",
+        "headline": "Residual provenance positive-path check",
+        "source": "https://example.com/news",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "market_data_source": "payload_direct",
+        "market_data_provider": "yahoo_finance",
+        "provider_path": "yahoo_http",
+        "symbols_requested": ["spy", "xle", "SPY"],
+        "symbols_returned": ["spy", "xle"],
+        "request_mode": "realtime",
+        "fetch_latency_ms": 84,
+        "http_status": 200,
+    }
+
+    runner.run(payload)
+    rows = _read_jsonl(logs_dir / "market_data_provenance.jsonl")
+    assert rows
+    rec = rows[-1]
+    assert rec["market_data_provider"] == "yahoo_finance"
+    assert rec["provider_path"] == "yahoo_http"
+    assert rec["symbols_requested"] == ["SPY", "XLE"]
+    assert rec["symbols_returned"] == ["SPY", "XLE"]
+    assert rec["request_mode"] == "realtime"
+    assert rec["fetch_latency_ms"] == 84
+    assert rec["http_status"] == 200
+    assert "symbols_requested" not in rec["provenance_field_missing"]
+    assert "symbols_returned" not in rec["provenance_field_missing"]
+
+
 def test_residual_decision_gate_prepost_and_hard_rules_are_structured(tmp_path):
     logs_dir = tmp_path / "logs"
     runner = WorkflowRunner(
@@ -146,6 +180,30 @@ def test_residual_decision_gate_prepost_and_hard_rules_are_structured(tmp_path):
         assert isinstance(rec["triggered_rules"], list)
         assert rec["reject_reason_code"] == expected_code
         assert isinstance(rec["reject_reason_text"], str) and rec["reject_reason_text"]
+
+
+def test_residual_decision_gate_execute_path_is_pass_with_null_reject_fields(tmp_path):
+    logs_dir = tmp_path / "logs"
+    runner = WorkflowRunner(
+        request_store_path=str(tmp_path / "seen_ids_residual_execute.txt"),
+        audit_dir=str(logs_dir),
+    )
+    payload = _base_execution_payload(
+        request_id="REQ-RESIDUAL-GATE-PASS-001",
+        batch_id="BATCH-RESIDUAL-GATE-PASS-001",
+        event_hash="EVHASH-RESIDUAL-GATE-PASS-001",
+    )
+
+    out = runner.run(payload)
+    assert out["final"]["action"] == "EXECUTE"
+
+    gate_rows = _read_jsonl(logs_dir / "decision_gate.jsonl")
+    assert gate_rows
+    rec = gate_rows[-1]
+    assert rec["final_action_after_gate"] == "EXECUTE"
+    assert rec["gate_result"] == "PASS"
+    assert rec["reject_reason_code"] is None
+    assert rec["reject_reason_text"] is None
 
 
 def test_residual_evaluator_replay_execution_health_detects_missing_links(tmp_path):

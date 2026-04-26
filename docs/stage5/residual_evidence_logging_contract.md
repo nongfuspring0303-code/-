@@ -1,6 +1,6 @@
 # Residual Evidence Logging Contract (PR94)
 
-Date: 2026-04-26  
+Date: 2026-04-26
 Scope: residual evidence logging only (no execution-strategy changes).
 
 ## 1. `market_data_provenance.jsonl`
@@ -24,6 +24,9 @@ Rules:
 - Unavailable provider-call fields must be written as `null` or `[]`.
 - Every unavailable field must be listed in `provenance_field_missing`.
 - Provider-call fields must not be fabricated.
+- `symbols_requested` / `symbols_returned` semantics:
+  - Prefer `payload.symbols_requested` / `payload.symbols_returned` when present.
+  - Fallback to `MarketValidator` consumed-symbol inference when payload fields are absent.
 
 ## 2. `decision_gate.jsonl`
 
@@ -53,4 +56,3 @@ Required nested fields:
 Rules:
 - Evaluator must consume `replay_write.jsonl` and `execution_emit.jsonl`.
 - `replay_execution_health` must be emitted daily even when anomaly counts are zero.
-

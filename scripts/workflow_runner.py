@@ -705,6 +705,8 @@ class WorkflowRunner:
             blockers.append("market_data_default_used")
         if "market_data_fallback_used" in payload and self._is_true(payload.get("market_data_fallback_used")):
             blockers.append("market_data_fallback_used")
+        if "provider_untrusted" in payload and self._is_true(payload.get("provider_untrusted")):
+            blockers.append("provider_untrusted")
 
         if not blockers:
             return {"blocked": False, "action": "ALLOW", "blockers": [], "reason": ""}

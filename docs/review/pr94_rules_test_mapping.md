@@ -1,6 +1,7 @@
 # PR94 Rule-Test Mapping
 
-Head: 4e3a6e9 (updated in follow-up commits for mapping and pass-path coverage)
+Head reviewed: ffc137165bb2858fa5b8da2f43c1702a9713f20a (2026-04-27)
+Review basis: latest diff at review time; SHA refers to review commit, not head
 
 ## R-C-S5-PR94-001 Market Provenance Fields
 - Rule statement: `market_data_provenance.jsonl` must include extended provider-call fields and track missing fields without fabrication.

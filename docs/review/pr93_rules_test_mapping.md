@@ -12,6 +12,8 @@
 | `R93-CFG-001` | yfinance path can be used only when explicit feature flag is enabled. | `T-R93-CFG-001` | `tests/test_market_data_adapter.py::test_market_data_adapter_yahoo_prefers_yfinance_before_http` |
 | `R93-CFG-002` | Default behavior must keep yfinance disabled to preserve historical `missing-price -> WATCH` semantics. | `T-R93-CFG-002` | `tests/test_market_data_adapter.py::test_market_data_adapter_yahoo_does_not_use_yfinance_by_default` |
 | `R93-CFG-003` | Under default config, missing realtime price must remain non-EXECUTE (WATCH path preserved). | `T-R93-CFG-003` | `tests/test_opportunity_score.py::test_missing_realtime_price_forces_watch_with_risk_flag` |
+| `R93-SEM-002` | Regression-only: for `event_type=other`, valid semantic `recommended_chain` should still be consumed for template mapping. | `T-R93-SEM-002` | `tests/test_conduction_mapper_dynamic.py::test_conduction_mapper_keeps_semantic_chain_when_event_type_other` |
+| `R93-SEM-003` | Regression-only: invalid semantic stock/entity values must be filtered out before `stock_candidates` emission. | `T-R93-SEM-003` | `tests/test_conduction_mapper_dynamic.py::test_conduction_mapper_filters_invalid_semantic_values` |
 
 ## Related Source-of-Truth Updates
 

@@ -213,6 +213,8 @@ def test_conduction_mapper_injects_semantic_candidates_into_stock_candidates(mon
 
 
 def test_conduction_mapper_keeps_semantic_chain_when_event_type_other(monkeypatch):
+    # Rule/Test mapping: R93-SEM-002 / T-R93-SEM-002 (regression-only)
+    # Regression guard: for event_type=other, a valid semantic recommended_chain should still drive template mapping.
     mapper = ConductionMapper()
     monkeypatch.setattr(
         mapper.semantic,
@@ -250,6 +252,8 @@ def test_conduction_mapper_keeps_semantic_chain_when_event_type_other(monkeypatc
 
 
 def test_conduction_mapper_filters_invalid_semantic_values(monkeypatch):
+    # Rule/Test mapping: R93-SEM-003 / T-R93-SEM-003 (regression-only)
+    # Regression guard: invalid semantic stock/entity values must be filtered before stock_candidates output.
     mapper = ConductionMapper()
     monkeypatch.setattr(
         mapper.semantic,

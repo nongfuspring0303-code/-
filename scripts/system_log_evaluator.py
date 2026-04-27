@@ -57,6 +57,16 @@ def _hourly_counts(rows: List[Dict[str, Any]]) -> Dict[str, int]:
     return out
 
 
+def _evidence_key(row: Dict[str, Any]) -> tuple[str, str, str, str] | None:
+    trace_id = str(row.get("trace_id") or row.get("event_trace_id") or "").strip()
+    request_id = str(row.get("request_id") or "").strip()
+    batch_id = str(row.get("batch_id") or "").strip()
+    event_hash = str(row.get("event_hash") or "").strip()
+    if not any((trace_id, request_id, batch_id, event_hash)):
+        return None
+    return (trace_id, request_id, batch_id, event_hash)
+
+
 def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for row in market_records:
@@ -156,11 +166,22 @@ def build_system_health_daily(
     decision_rows: List[Dict[str, Any]],
     rejected_rows: List[Dict[str, Any]],
     quarantine_rows: List[Dict[str, Any]],
+    replay_write_rows: List[Dict[str, Any]],
+    execution_emit_rows: List[Dict[str, Any]],
     trace_scorecard_rows: List[Dict[str, Any]],
     gate_enabled: bool,
 ) -> List[Dict[str, Any]]:
     grouped_days: set[str] = set()
-    for rows in (raw_ingest_rows, pipeline_rows, decision_rows, rejected_rows, quarantine_rows, trace_scorecard_rows):
+    for rows in (
+        raw_ingest_rows,
+        pipeline_rows,
+        decision_rows,
+        rejected_rows,
+        quarantine_rows,
+        replay_write_rows,
+        execution_emit_rows,
+        trace_scorecard_rows,
+    ):
         for row in rows:
             if row.get("logged_at"):
                 grouped_days.add(_day_bucket(row))
@@ -172,6 +193,8 @@ def build_system_health_daily(
         day_decision = [r for r in decision_rows if r.get("logged_at", "").startswith(day)]
         day_rejected = [r for r in rejected_rows if r.get("logged_at", "").startswith(day)]
         day_quarantine = [r for r in quarantine_rows if r.get("logged_at", "").startswith(day)]
+        day_replay_write = [r for r in replay_write_rows if r.get("logged_at", "").startswith(day)]
+        day_execution_emit = [r for r in execution_emit_rows if r.get("logged_at", "").startswith(day)]
         day_score = [r for r in trace_scorecard_rows if r.get("logged_at", "").startswith(day)]
         day_rejected_hourly = _hourly_counts(day_rejected)
         day_quarantine_hourly = _hourly_counts(day_quarantine)
@@ -194,6 +217,28 @@ def build_system_health_daily(
                 if ingest_hour_count > 0 and day_rejected_hourly.get(hour_bucket, 0) == 0 and day_quarantine_hourly.get(hour_bucket, 0) == 0:
                     alert_hours.append(hour_bucket)
         quarantine_silent_alert = bool(alert_hours)
+        decision_keys = {k for k in (_evidence_key(row) for row in day_decision) if k is not None}
+        replay_keys = [_evidence_key(row) for row in day_replay_write]
+        execution_keys = [_evidence_key(row) for row in day_execution_emit]
+        execution_key_set = {k for k in execution_keys if k is not None}
+
+        execute_without_gate_count = sum(1 for key in execution_keys if key is None or key not in decision_keys)
+        execute_without_replay_count = sum(1 for key in execution_keys if key is None or key not in {k for k in replay_keys if k is not None})
+        orphan_replay_count = sum(
+            1
+            for key in replay_keys
+            if key is None or (key not in decision_keys and key not in execution_key_set)
+        )
+        replay_write_count = len(day_replay_write)
+        execution_emit_count = len(day_execution_emit)
+        replay_execution_total = replay_write_count + execution_emit_count
+        replay_execution_anomaly = execute_without_gate_count + execute_without_replay_count + orphan_replay_count
+        replay_execution_separation_rate = 1.0
+        if replay_execution_total > 0:
+            replay_execution_separation_rate = max(
+                0.0,
+                min(1.0, 1.0 - (float(replay_execution_anomaly) / float(replay_execution_total))),
+            )
 
         status = "healthy"
         if stage_coverage_rate < 1.0 or avg_trace_score < 70:
@@ -217,6 +262,14 @@ def build_system_health_daily(
                     "hours_checked": len(day_ingest_hourly),
                     "alert_hours_utc": alert_hours,
                     "alert": "QUARANTINE_SILENT_ALERT" if quarantine_silent_alert else "",
+                },
+                "replay_execution_health": {
+                    "replay_write_count": replay_write_count,
+                    "execution_emit_count": execution_emit_count,
+                    "orphan_replay_count": orphan_replay_count,
+                    "execute_without_replay_count": execute_without_replay_count,
+                    "execute_without_gate_count": execute_without_gate_count,
+                    "replay_execution_separation_rate": round(replay_execution_separation_rate, 4),
                 },
                 "health_status": status,
             }
@@ -269,6 +322,8 @@ def evaluate_logs(logs_dir: Path, gate_enabled: bool = True) -> Dict[str, Any]:
     decision = _read_jsonl(logs_dir / "decision_gate.jsonl")
     rejected = _read_jsonl(logs_dir / "rejected_events.jsonl")
     quarantine = _read_jsonl(logs_dir / "quarantine_replay.jsonl")
+    replay_write = _read_jsonl(logs_dir / "replay_write.jsonl")
+    execution_emit = _read_jsonl(logs_dir / "execution_emit.jsonl")
     trace_scorecard = _read_jsonl(logs_dir / "trace_scorecard.jsonl")
 
     provider_health = build_provider_health_hourly(market)
@@ -278,6 +333,8 @@ def evaluate_logs(logs_dir: Path, gate_enabled: bool = True) -> Dict[str, Any]:
         decision_rows=decision,
         rejected_rows=rejected,
         quarantine_rows=quarantine,
+        replay_write_rows=replay_write,
+        execution_emit_rows=execution_emit,
         trace_scorecard_rows=trace_scorecard,
         gate_enabled=gate_enabled,
     )

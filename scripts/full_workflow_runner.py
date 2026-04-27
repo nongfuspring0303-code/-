@@ -125,6 +125,14 @@ class FullWorkflowRunner:
         txt = FullWorkflowRunner._norm_text(value)
         return any(token in txt for token in ("placeholder", "template collapse", "template", "unknown_placeholder"))
 
+    @staticmethod
+    def _is_missing_provenance_value(value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str) and not value.strip():
+            return True
+        return False
+
     def _load_sector_whitelist(self) -> set[str]:
         cfg_path = ROOT / "configs" / "sector_impact_mapping.yaml"
         if not cfg_path.exists():
@@ -722,6 +730,88 @@ class FullWorkflowRunner:
 
         validation_input = self._build_market_validation_input(payload, event_object, conduction_out)
         validation_out = self.validation.run(validation_input).data
+        derived_symbols_requested = sorted(
+            {
+                str(sym).strip().upper()
+                for sym in list((validation_input.get("price_changes") or {}).keys())
+                + list((validation_input.get("volume_changes") or {}).keys())
+                if str(sym).strip()
+            }
+        )
+        derived_symbols_returned = sorted(
+            {
+                str(sym).strip().upper()
+                for source in ((validation_input.get("price_changes") or {}), (validation_input.get("volume_changes") or {}))
+                for sym, value in source.items()
+                if str(sym).strip() and value is not None
+            }
+        )
+        def _normalize_symbols(value: Any) -> list[str]:
+            if value is None:
+                return []
+            if isinstance(value, str):
+                raw_items = [value]
+            elif isinstance(value, (list, tuple, set)):
+                raw_items = list(value)
+            else:
+                raw_items = [value]
+            return sorted({str(sym).strip().upper() for sym in raw_items if str(sym).strip()})
+
+        payload_symbols_requested = _normalize_symbols(payload.get("symbols_requested")) if "symbols_requested" in payload else None
+        payload_symbols_returned = _normalize_symbols(payload.get("symbols_returned")) if "symbols_returned" in payload else None
+        symbols_requested = payload_symbols_requested if payload_symbols_requested is not None else derived_symbols_requested
+        symbols_returned = payload_symbols_returned if payload_symbols_returned is not None else derived_symbols_returned
+        provenance_record = {
+            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "trace_id": trace_id,
+            "event_trace_id": trace_id,
+            "request_id": request_id,
+            "batch_id": batch_id,
+            "event_id": event_id,
+            "event_hash": event_hash,
+            "market_data_source": validation_out.get("market_data_source", "unknown"),
+            "market_data_present": bool(validation_out.get("market_data_present", False)),
+            "market_data_stale": bool(validation_out.get("market_data_stale", False)),
+            "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
+            "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
+            "validation_state": validation_out.get("validation_state"),
+            "market_data_provider": payload.get("market_data_provider"),
+            "provider_path": payload.get("provider_path"),
+            "symbols_requested": symbols_requested,
+            "symbols_returned": symbols_returned,
+            "request_mode": payload.get("request_mode"),
+            "fetch_latency_ms": payload.get("fetch_latency_ms"),
+            "market_data_ts": payload.get("market_timestamp"),
+            "market_data_delay_seconds": payload.get("market_data_delay_seconds"),
+            "rate_limited": payload.get("rate_limited"),
+            "http_status": payload.get("http_status"),
+            "error_code": payload.get("error_code"),
+            "used_by_module": "MarketValidator",
+            "provenance_field_missing": [],
+        }
+        missing_fields = []
+        for field in (
+            "market_data_provider",
+            "provider_path",
+            "request_mode",
+            "fetch_latency_ms",
+            "market_data_ts",
+            "market_data_delay_seconds",
+            "rate_limited",
+            "http_status",
+            "error_code",
+        ):
+            if self._is_missing_provenance_value(provenance_record.get(field)):
+                missing_fields.append(field)
+        if not symbols_requested:
+            missing_fields.append("symbols_requested")
+        if not symbols_returned:
+            missing_fields.append("symbols_returned")
+        provenance_record["provenance_field_missing"] = missing_fields
+        self._append_jsonl(
+            self.market_data_provenance_log_path,
+            provenance_record,
+        )
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,

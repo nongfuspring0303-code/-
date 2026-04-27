@@ -315,6 +315,48 @@ def test_stage5_market_provenance_does_not_leak_provider_meta_across_traces(tmp_
     assert latest.get("unresolved_symbols", []) == []
 
 
+def test_stage5_market_provenance_tracks_provider_fallback_success(tmp_path, monkeypatch):
+    # Rule/Test mapping: R93-PROV-003 / T-R93-PROV-003
+    # Provider fallback success must be visible in health summary even when unresolved_symbols is empty.
+    logs_dir = tmp_path / "logs"
+    runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))
+
+    monkeypatch.setattr(
+        runner.conduction,
+        "run",
+        lambda _payload: SimpleNamespace(
+            data={
+                "confidence": 85,
+                "conduction_path": [],
+                "sector_impacts": [{"sector": "科技", "direction": "benefit"}],
+                "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG"}],
+            }
+        ),
+    )
+
+    adapter = runner.opportunity._market_data_adapter
+    adapter.providers["yahoo"] = lambda _symbols: {}
+    adapter.providers["stooq"] = lambda _symbols: {"NVDA": 100.0}
+
+    _ = runner.run(_base_payload())
+    records = _read_jsonl(logs_dir / "market_data_provenance.jsonl")
+    assert records
+    latest = records[-1]
+    assert latest.get("providers_attempted", []) == ["yahoo", "stooq"]
+    assert latest.get("providers_failed", []) == ["yahoo"]
+    assert latest.get("providers_succeeded", []) == ["stooq"]
+    assert latest.get("fallback_used", False) is True
+    assert latest.get("fallback_reason", "") == ""
+    assert latest.get("unresolved_symbols", []) == []
+    assert latest.get("unresolved_symbol_count", 0) == 0
+
+    evaluated = evaluate_logs(logs_dir=logs_dir, gate_enabled=True)
+    provider = evaluated["provider_health_hourly"][-1]
+    assert provider.get("provider_fallback_used_count", 0) >= 1
+    assert provider.get("provider_fallback_used_rate", 0.0) > 0.0
+    assert provider.get("market_fallback_used_count", 0) == 0
+
+
 def test_stage5_rejected_and_quarantine_written_for_non_execute(tmp_path):
     logs_dir = tmp_path / "logs"
     runner = FullWorkflowRunner(audit_dir=str(logs_dir), state_db_path=str(tmp_path / "state.db"))

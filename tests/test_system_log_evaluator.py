@@ -33,6 +33,7 @@ def test_system_log_evaluator_generates_provider_and_daily_health(tmp_path):
                 "market_data_stale": False,
                 "market_data_default_used": False,
                 "market_data_fallback_used": False,
+                "fallback_used": False,
                 "providers_failed": ["yahoo"],
                 "provider_failure_reasons": {"yahoo": "empty_response"},
                 "fallback_reason": "NO_PRICE_RESOLVED",
@@ -45,6 +46,7 @@ def test_system_log_evaluator_generates_provider_and_daily_health(tmp_path):
                 "market_data_stale": False,
                 "market_data_default_used": False,
                 "market_data_fallback_used": True,
+                "fallback_used": True,
                 "providers_failed": [],
                 "provider_failure_reasons": {},
                 "fallback_reason": "",
@@ -102,6 +104,10 @@ def test_system_log_evaluator_generates_provider_and_daily_health(tmp_path):
     provider = out["provider_health_hourly"][0]
     assert provider["hour_bucket_utc"].startswith("2026-04-24T01:")
     assert provider["fallback_used_rate"] > 0
+    assert provider["market_fallback_used_count"] == 1
+    assert provider["provider_fallback_used_count"] == 1
+    assert provider["market_fallback_used_rate"] > 0
+    assert provider["provider_fallback_used_rate"] > 0
     assert provider["provider_failed_count"] >= 1
     assert provider["unresolved_symbol_count"] >= 1
     assert provider["fallback_reason_counts"]["NO_PRICE_RESOLVED"] >= 1
@@ -136,6 +142,7 @@ def test_system_log_evaluator_quarantine_silent_alert_on_hourly_window(tmp_path)
                 "market_data_stale": False,
                 "market_data_default_used": False,
                 "market_data_fallback_used": False,
+                "fallback_used": False,
             }
         ],
     )
@@ -155,3 +162,36 @@ def test_system_log_evaluator_quarantine_silent_alert_on_hourly_window(tmp_path)
     daily = out["system_health_daily"][0]
     assert daily["quarantine_activity_monitor"]["alert"] == "QUARANTINE_SILENT_ALERT"
     assert "2026-04-24T01:00:00Z" in daily["quarantine_activity_monitor"]["alert_hours_utc"]
+
+
+def test_system_log_evaluator_tracks_provider_fallback_separately_from_market_fallback(tmp_path):
+    # Rule/Test mapping: R93-PROV-003 / T-R93-PROV-003 (evaluator-side)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_jsonl(
+        logs_dir / "market_data_provenance.jsonl",
+        [
+            {
+                "logged_at": "2026-04-24T03:00:00Z",
+                "market_data_source": "payload_direct",
+                "market_data_present": True,
+                "market_data_stale": False,
+                "market_data_default_used": False,
+                "market_data_fallback_used": False,
+                # provider-level fallback happened (active failed, fallback provider succeeded)
+                "fallback_used": True,
+                "providers_failed": ["yahoo"],
+                "provider_failure_reasons": {"yahoo": "empty_response"},
+                "fallback_reason": "",
+                "unresolved_symbols": [],
+            }
+        ],
+    )
+
+    out = evaluate_logs(logs_dir=logs_dir, gate_enabled=True)
+    provider = out["provider_health_hourly"][0]
+    assert provider["market_fallback_used_count"] == 0
+    assert provider["market_fallback_used_rate"] == 0.0
+    assert provider["provider_fallback_used_count"] == 1
+    assert provider["provider_fallback_used_rate"] == 1.0

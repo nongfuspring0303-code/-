@@ -183,6 +183,74 @@ def test_market_data_adapter_yahoo_does_not_use_yfinance_by_default(monkeypatch)
     assert out == {}
 
 
+def test_market_data_adapter_yahoo_merges_yfinance_partial_with_http_fallback(monkeypatch):
+    # Rule/Test mapping: R93-CFG-004 / T-R93-CFG-004
+    class _FakeTicker:
+        def __init__(self, symbol):
+            self._symbol = symbol
+
+        @property
+        def fast_info(self):
+            if self._symbol == "NVDA":
+                return {"lastPrice": 920.5}
+            return {}
+
+    class _FakeYF:
+        @staticmethod
+        def Ticker(symbol):
+            return _FakeTicker(symbol)
+
+    monkeypatch.setattr(mdamod, "yf", _FakeYF())
+
+    def _fake_urlopen(*_args, **_kwargs):
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+
+            def read(self):
+                return b'{"quoteResponse":{"result":[{"symbol":"AAPL","regularMarketPrice":188.1}]}}'
+
+        return _Resp()
+
+    monkeypatch.setattr(mdamod.urllib.request, "urlopen", _fake_urlopen)
+    cfg = {"runtime.price_fetch.yahoo_use_yfinance": True}
+    adapter = MarketDataAdapter(config_getter=lambda k, d=None: cfg.get(k, d))
+    out = adapter._fetch_yahoo(["NVDA", "AAPL"])
+    assert out == {"NVDA": 920.5, "AAPL": 188.1}
+
+
+def test_market_data_adapter_yahoo_yfinance_exception_still_allows_http_fallback(monkeypatch):
+    # Rule/Test mapping: R93-CFG-005 / T-R93-CFG-005
+    class _FakeYF:
+        @staticmethod
+        def Ticker(_symbol):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(mdamod, "yf", _FakeYF())
+
+    def _fake_urlopen(*_args, **_kwargs):
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+
+            def read(self):
+                return b'{"quoteResponse":{"result":[{"symbol":"NVDA","regularMarketPrice":901.2}]}}'
+
+        return _Resp()
+
+    monkeypatch.setattr(mdamod.urllib.request, "urlopen", _fake_urlopen)
+    cfg = {"runtime.price_fetch.yahoo_use_yfinance": True}
+    adapter = MarketDataAdapter(config_getter=lambda k, d=None: cfg.get(k, d))
+    out = adapter._fetch_yahoo(["NVDA"])
+    assert out == {"NVDA": 901.2}
+
+
 def test_market_data_adapter_records_failed_providers_and_fallback_reason():
     cfg = {
         "runtime.price_fetch.providers.active": ["primary"],

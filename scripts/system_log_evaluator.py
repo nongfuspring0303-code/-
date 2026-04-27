@@ -70,7 +70,8 @@ def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[D
         present_count = sum(1 for r in rows if bool(r.get("market_data_present", False)))
         stale_count = sum(1 for r in rows if bool(r.get("market_data_stale", False)))
         default_count = sum(1 for r in rows if bool(r.get("market_data_default_used", False)))
-        fallback_count = sum(1 for r in rows if bool(r.get("market_data_fallback_used", False)))
+        market_fallback_count = sum(1 for r in rows if bool(r.get("market_data_fallback_used", False)))
+        provider_fallback_count = sum(1 for r in rows if bool(r.get("fallback_used", False)))
         source_count: Dict[str, int] = defaultdict(int)
         provider_failed_count = 0
         unresolved_symbol_count = 0
@@ -99,7 +100,8 @@ def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[D
         present_rate = present_count / total if total else 0.0
         stale_rate = stale_count / total if total else 0.0
         default_rate = default_count / total if total else 0.0
-        fallback_rate = fallback_count / total if total else 0.0
+        market_fallback_rate = market_fallback_count / total if total else 0.0
+        provider_fallback_rate = provider_fallback_count / total if total else 0.0
 
         status = "healthy"
         if stale_rate > 0.20 or default_rate > 0.10:
@@ -114,7 +116,12 @@ def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[D
                 "present_rate": round(present_rate, 4),
                 "stale_rate": round(stale_rate, 4),
                 "default_used_rate": round(default_rate, 4),
-                "fallback_used_rate": round(fallback_rate, 4),
+                # Backward-compatible alias: fallback_used_rate keeps market-level fallback semantics.
+                "fallback_used_rate": round(market_fallback_rate, 4),
+                "market_fallback_used_count": market_fallback_count,
+                "market_fallback_used_rate": round(market_fallback_rate, 4),
+                "provider_fallback_used_count": provider_fallback_count,
+                "provider_fallback_used_rate": round(provider_fallback_rate, 4),
                 "provider_sources": dict(sorted(source_count.items())),
                 "provider_failed_count": provider_failed_count,
                 "unresolved_symbol_count": unresolved_symbol_count,
@@ -248,7 +255,8 @@ def build_daily_report_md(
             lines.append(
                 f"- {row['hour_bucket_utc']}: status={row['health_status']}, present_rate={row['present_rate']:.2f}, "
                 f"stale_rate={row['stale_rate']:.2f}, default_rate={row['default_used_rate']:.2f}, "
-                f"fallback_rate={row['fallback_used_rate']:.2f}"
+                f"market_fallback_rate={row['market_fallback_used_rate']:.2f}, "
+                f"provider_fallback_rate={row['provider_fallback_used_rate']:.2f}"
             )
     lines.append("")
     return "\n".join(lines)

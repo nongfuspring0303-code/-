@@ -32,9 +32,17 @@ def test_stage6_action_after_gate_is_hard_enum() -> None:
     schema = _load_json(REPO_ROOT / "schemas" / "opportunity_outcome.schema.json")
     enum_values = set(schema["properties"]["action_after_gate"]["enum"])
 
-    assert enum_values == {"EXECUTE", "WATCH", "BLOCK"}
-    assert "PENDING_CONFIRM" not in enum_values
-    assert "UNKNOWN" not in enum_values
+    assert enum_values == {
+        "EXECUTE",
+        "WATCH",
+        "BLOCK",
+        "PENDING_CONFIRM",
+        "UNKNOWN",
+    }
+    assert "PENDING_CONFIRM" in enum_values
+    assert "UNKNOWN" in enum_values
+    # Audit-only values are allowed for contract completeness, but Stage6 primary stats
+    # must keep their existing resolved outcome semantics.
 
 
 def test_stage6_failure_reason_enum_closed() -> None:

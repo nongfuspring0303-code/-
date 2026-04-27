@@ -15,3 +15,4 @@
 | S6-R011 | non-trading day rolls to next valid day | S6-022 | tests/test_outcome_attribution_engine.py |
 | S6-R012 | score bucket detail file must be produced | S6-012/S6-013 | tests/test_outcome_attribution_engine.py |
 | S6-R013 | WATCH low-evidence must map neutral_watch | S6-005N | tests/test_outcome_attribution_engine.py |
+| S6-R014 | PENDING_CONFIRM / UNKNOWN allowed for audit only and excluded from primary stats | S6-023 | tests/test_opportunity_outcome_schema.py |

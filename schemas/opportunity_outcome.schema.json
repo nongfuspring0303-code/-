@@ -97,7 +97,9 @@
       "enum": [
         "EXECUTE",
         "WATCH",
-        "BLOCK"
+        "BLOCK",
+        "PENDING_CONFIRM",
+        "UNKNOWN"
       ]
     },
     "gate_result": {

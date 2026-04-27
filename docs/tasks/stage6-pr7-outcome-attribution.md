@@ -18,6 +18,9 @@ Implement Stage6 outcome attribution as a read-only evaluation layer with contra
     - `module-registry.yaml` Stage6 module declaration
     - `docs/stage6/STAGE6_SCOPE_CANONICAL.md`
     - `docs/review/pr7_rules_test_mapping.md`
+  - audit-only action states:
+    - `action_after_gate` supports `PENDING_CONFIRM` and `UNKNOWN` for auditability only.
+    - These values are not tradable decision states in Stage6 statistics and must be excluded from primary stats, hit/miss labeling, alpha primary stats, and score monotonicity primary stats.
 - PR-7b (Outcome Engine / Summary / Report)
   - engine + tests + fixtures
   - no runtime output artifact commit

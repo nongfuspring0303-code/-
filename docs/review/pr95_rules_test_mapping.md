@@ -1,6 +1,7 @@
 # PR95 Rule-Test Mapping
 
-Head: 5b767cbfec22a9cb53341782aea6e5829c2c64e8
+Review Scope: Latest PR head at review time
+Reviewed At (UTC): 2026-04-27
 
 ## R-A-S2-ProviderTrustGate
 - Rule statement: when `provider_untrusted=true`, output gate must block `EXECUTE`.

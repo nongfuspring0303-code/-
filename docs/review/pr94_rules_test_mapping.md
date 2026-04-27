@@ -1,7 +1,8 @@
 # PR94 Rule-Test Mapping
 
-Head reviewed: ffc137165bb2858fa5b8da2f43c1702a9713f20a (2026-04-27)
-Review basis: latest diff at review time; SHA refers to review commit, not head
+Review Scope: PR #94 latest diff at review time
+Reviewed At (UTC): 2026-04-27
+Note: This mapping is intentionally not pinned to a commit SHA to avoid drift after force-pushes. The authoritative head SHA is GitHub PR metadata.
 
 ## R-C-S5-PR94-001 Market Provenance Fields
 - Rule statement: `market_data_provenance.jsonl` must include extended provider-call fields and track missing fields without fabrication.

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stage6.mapping_attribution.v1",
+  "title": "Stage6 Mapping Attribution",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "opportunity_id",
+    "mapping_status",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "stage6.mapping_attribution.v1"
+    },
+    "opportunity_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mapping_status": {
+      "type": "string",
+      "enum": [
+        "mapping_success",
+        "mapping_wrong",
+        "mapping_missing",
+        "mapping_ambiguous",
+        "ai_over_trigger",
+        "not_tradeable",
+        "join_key_missing"
+      ]
+    },
+    "mapping_failure_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "mapping_wrong",
+        "timing_wrong",
+        "market_rejected",
+        "source_bad",
+        "risk_too_strict",
+        "risk_too_loose",
+        "provider_bad",
+        "market_data_bad",
+        "score_not_predictive",
+        "gate_rule_wrong",
+        "execution_missing",
+        "join_key_missing",
+        "benchmark_missing",
+        "insufficient_sample",
+        null
+      ]
+    },
+    "mapped_sector": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mapped_industry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence_score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "provenance_field_missing": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -275,6 +275,38 @@ class OpportunityScorer:
         self._price_cache_ttl = self._get_price_cache_ttl()
         self._price_fetch_base = self._get_price_fetch_base()
         self._market_data_adapter = MarketDataAdapter(config_getter=self.config.get)
+        self._last_provider_meta: Dict[str, Any] = self._empty_provider_meta()
+
+    @staticmethod
+    def _empty_provider_meta() -> Dict[str, Any]:
+        return {
+            "provider_chain": [],
+            "providers_attempted": [],
+            "providers_succeeded": [],
+            "providers_failed": [],
+            "provider_failure_reasons": {},
+            "fallback_used": False,
+            "fallback_reason": "",
+            "unresolved_symbols": [],
+        }
+
+    def _snapshot_provider_meta(self) -> Dict[str, Any]:
+        adapter = self._market_data_adapter
+        if adapter is None:
+            return self._empty_provider_meta()
+        meta = getattr(adapter, "last_meta", None)
+        if meta is None:
+            return self._empty_provider_meta()
+        return {
+            "provider_chain": list(getattr(meta, "provider_chain", []) or []),
+            "providers_attempted": list(getattr(meta, "attempted", []) or []),
+            "providers_succeeded": list(getattr(meta, "succeeded", []) or []),
+            "providers_failed": list(getattr(meta, "failed", []) or []),
+            "provider_failure_reasons": dict(getattr(meta, "failure_reasons", {}) or {}),
+            "fallback_used": bool(getattr(meta, "fallback_used", False)),
+            "fallback_reason": str(getattr(meta, "fallback_reason", "") or ""),
+            "unresolved_symbols": list(getattr(meta, "unresolved_symbols", []) or []),
+        }
 
     def _gp(self, dotted_path: str, default: Any) -> Any:
         current: Any = self._gate_policy
@@ -524,6 +556,10 @@ class OpportunityScorer:
         trace_id = str(payload.get("trace_id", "evt_unknown"))
         schema_version = str(payload.get("schema_version", "v1.0"))
         timestamp = str(payload.get("timestamp", _utc_now_iso()))
+        # Clear adapter meta at the beginning of each trace to avoid cross-trace provenance leakage.
+        if self._market_data_adapter is not None and hasattr(self._market_data_adapter, "reset_meta"):
+            self._market_data_adapter.reset_meta()
+        self._last_provider_meta = self._empty_provider_meta()
 
         sectors = payload.get("sectors", [])
         stock_candidates = payload.get("stock_candidates", [])
@@ -607,6 +643,8 @@ class OpportunityScorer:
             opp["state_machine_step"] = state_out["state_machine_step"]
             opp["gate_reason_code"] = state_out["gate_reason_code"]
 
+        self._last_provider_meta = self._snapshot_provider_meta()
+
         return {
             "type": "opportunity_update",
             "trace_id": trace_id,
@@ -626,6 +664,7 @@ class OpportunityScorer:
                     "C": grade_c,
                 },
             },
+            "provider_meta": dict(self._last_provider_meta),
         }
 
 

@@ -1,6 +1,7 @@
 # Semantic Baseline Contract v1
 
-This contract is aligned to the current analyzer/test surface in PR #51.
+This contract is aligned to the current analyzer/test surface in PR #51 and the
+runtime handoff contract used by PR #93.
 Items that are not part of the current closed loop are intentionally omitted from the contract instead of being pre-declared as required.
 
 ## 1. Responsibilities
@@ -11,8 +12,31 @@ The semantic layer is only responsible for producing the following fields:
 - `sentiment`
 - `confidence`
 - `recommended_chain`
+- `recommended_stocks`
+- `a0_event_strength`
+- `expectation_gap`
+- `transmission_candidates`
+- `fallback_reason`
 
 These outputs may be used by downstream modules as semantic signals, but the semantic layer itself does not own downstream policy or execution decisions.
+
+## 1.1 Runtime Handoff Required Set (v2.2)
+
+For runtime handoff to execution/scorecard, the semantic baseline required set is:
+
+- `sentiment`
+- `confidence`
+- `recommended_chain`
+- `recommended_stocks`
+- `a0_event_strength`
+- `expectation_gap`
+- `transmission_candidates`
+
+If any field from this set is missing in raw semantic output:
+
+- runtime may apply backward-compatible defaults for execution continuity
+- but must set `semantic_missing_fields` and `semantic_defaults_applied=true`
+- scorecard must expose `ai_missing_fields` from raw-output missing set (not from post-default payload)
 
 ## 2. Non-Responsibilities
 
@@ -21,6 +45,9 @@ The semantic layer must not directly modify:
 - `score_tier`
 - `position_pct`
 - `execution_action`
+- `final_action`
+- `gate_reason_code`
+- `state_machine_step`
 
 Any downstream effect on these fields must come from non-semantic modules or explicit downstream policy logic.
 

@@ -80,16 +80,38 @@ def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[D
         present_count = sum(1 for r in rows if bool(r.get("market_data_present", False)))
         stale_count = sum(1 for r in rows if bool(r.get("market_data_stale", False)))
         default_count = sum(1 for r in rows if bool(r.get("market_data_default_used", False)))
-        fallback_count = sum(1 for r in rows if bool(r.get("market_data_fallback_used", False)))
+        market_fallback_count = sum(1 for r in rows if bool(r.get("market_data_fallback_used", False)))
+        provider_fallback_count = sum(1 for r in rows if bool(r.get("fallback_used", False)))
         source_count: Dict[str, int] = defaultdict(int)
+        provider_failed_count = 0
+        unresolved_symbol_count = 0
+        fallback_reason_counts: Dict[str, int] = defaultdict(int)
+        provider_failure_reason_counts: Dict[str, int] = defaultdict(int)
         for row in rows:
             source = str(row.get("market_data_source", "unknown"))
             source_count[source] += 1
+            providers_failed = row.get("providers_failed", [])
+            if isinstance(providers_failed, list):
+                provider_failed_count += len([x for x in providers_failed if str(x).strip()])
+            unresolved_raw = row.get("unresolved_symbols", [])
+            if isinstance(unresolved_raw, list):
+                unresolved_symbol_count += len([x for x in unresolved_raw if str(x).strip()])
+            reason = str(row.get("fallback_reason", "") or "").strip()
+            if reason:
+                fallback_reason_counts[reason] += 1
+            failure_reasons_raw = row.get("provider_failure_reasons", {})
+            if isinstance(failure_reasons_raw, dict):
+                for provider, reason_value in failure_reasons_raw.items():
+                    provider_name = str(provider or "").strip()
+                    reason_name = str(reason_value or "").strip()
+                    if provider_name and reason_name:
+                        provider_failure_reason_counts[f"{provider_name}:{reason_name}"] += 1
 
         present_rate = present_count / total if total else 0.0
         stale_rate = stale_count / total if total else 0.0
         default_rate = default_count / total if total else 0.0
-        fallback_rate = fallback_count / total if total else 0.0
+        market_fallback_rate = market_fallback_count / total if total else 0.0
+        provider_fallback_rate = provider_fallback_count / total if total else 0.0
 
         status = "healthy"
         if stale_rate > 0.20 or default_rate > 0.10:
@@ -104,8 +126,17 @@ def build_provider_health_hourly(market_records: List[Dict[str, Any]]) -> List[D
                 "present_rate": round(present_rate, 4),
                 "stale_rate": round(stale_rate, 4),
                 "default_used_rate": round(default_rate, 4),
-                "fallback_used_rate": round(fallback_rate, 4),
+                # Backward-compatible alias: fallback_used_rate keeps market-level fallback semantics.
+                "fallback_used_rate": round(market_fallback_rate, 4),
+                "market_fallback_used_count": market_fallback_count,
+                "market_fallback_used_rate": round(market_fallback_rate, 4),
+                "provider_fallback_used_count": provider_fallback_count,
+                "provider_fallback_used_rate": round(provider_fallback_rate, 4),
                 "provider_sources": dict(sorted(source_count.items())),
+                "provider_failed_count": provider_failed_count,
+                "unresolved_symbol_count": unresolved_symbol_count,
+                "fallback_reason_counts": dict(sorted(fallback_reason_counts.items())),
+                "provider_failure_reason_counts": dict(sorted(provider_failure_reason_counts.items())),
                 "health_status": status,
             }
         )
@@ -277,7 +308,8 @@ def build_daily_report_md(
             lines.append(
                 f"- {row['hour_bucket_utc']}: status={row['health_status']}, present_rate={row['present_rate']:.2f}, "
                 f"stale_rate={row['stale_rate']:.2f}, default_rate={row['default_used_rate']:.2f}, "
-                f"fallback_rate={row['fallback_used_rate']:.2f}"
+                f"market_fallback_rate={row['market_fallback_used_rate']:.2f}, "
+                f"provider_fallback_rate={row['provider_fallback_used_rate']:.2f}"
             )
     lines.append("")
     return "\n".join(lines)

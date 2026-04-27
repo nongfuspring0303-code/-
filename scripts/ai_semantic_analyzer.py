@@ -759,6 +759,8 @@ STRICT OUTPUT CONTRACT:
   - confidence: integer 0..100
   - a0_event_strength: integer 0..100
   - expectation_gap: integer -100..100
+  - recommended_chain: string naming the asset-pricing chain (e.g. "tariff_chain", "rate_cut_chain"), empty string if none
+  - recommended_stocks: array of ticker symbols, empty array if none
   - event_state: one of [Initial, Developing, Peak, Fading, Dead]
   - narrative_vs_fact: one of [narrative, fact, mixed]
   - event_scope: one of [Macro, Sector, Theme]
@@ -769,6 +771,8 @@ STRICT OUTPUT CONTRACT:
   - evidence_spans: array of short source snippets, 1..3 items
   - risk_flags: array of strings
   - reason: short sentence
+- If no clear listed ticker appears in the news, return recommended_stocks as [].
+- Do NOT invent or hallucinate ticker symbols.
 
 News text:
 {text}

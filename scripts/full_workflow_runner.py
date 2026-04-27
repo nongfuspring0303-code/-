@@ -207,6 +207,36 @@ class FullWorkflowRunner:
         opportunity_count = execution_in.get("opportunity_count")
         final_reason = str(final.get("reason", ""))
         theme_tags = execution_in.get("theme_tags", [])
+        def _safe_int(value: Any, default: int = 0) -> int:
+            try:
+                return int(float(value))
+            except (TypeError, ValueError):
+                return default
+
+        ai_sentiment = str(execution_in.get("sentiment", "neutral") or "neutral")
+        ai_confidence = _safe_int(execution_in.get("confidence", 0), 0)
+        ai_recommended_chain = str(execution_in.get("recommended_chain", "") or "")
+        ai_recommended_stocks_raw = execution_in.get("recommended_stocks", [])
+        ai_a0_event_strength = _safe_int(execution_in.get("a0_event_strength", 0), 0)
+        ai_expectation_gap = _safe_int(execution_in.get("expectation_gap", 0), 0)
+        ai_transmission_candidates_raw = execution_in.get("transmission_candidates", [])
+        semantic_fallback_reason = str(execution_in.get("semantic_fallback_reason", "") or "")
+
+        ai_recommended_stocks = (
+            [str(x).strip() for x in ai_recommended_stocks_raw if str(x).strip()]
+            if isinstance(ai_recommended_stocks_raw, list)
+            else []
+        )
+        ai_transmission_candidates = (
+            [str(x).strip() for x in ai_transmission_candidates_raw if str(x).strip()]
+            if isinstance(ai_transmission_candidates_raw, list)
+            else []
+        )
+        semantic_missing_fields = execution_in.get("semantic_missing_fields", [])
+        if not isinstance(semantic_missing_fields, list):
+            semantic_missing_fields = []
+        ai_missing_fields = [str(x) for x in semantic_missing_fields if str(x).strip()]
+        semantic_defaults_applied = bool(execution_in.get("semantic_defaults_applied", False))
 
         sector_whitelist = self._load_sector_whitelist()
         ticker_truth_pool = self._load_ticker_truth_pool()
@@ -394,6 +424,16 @@ class FullWorkflowRunner:
             "mapping_acceptance_score": round(mapping_acceptance_score, 2),
             "b_overall_score": round(b_overall_score, 2),
             "b_signoff_ready": b_signoff_ready,
+            "ai_sentiment": ai_sentiment,
+            "ai_confidence": ai_confidence,
+            "ai_recommended_chain": ai_recommended_chain,
+            "ai_recommended_stocks": ai_recommended_stocks,
+            "ai_a0_event_strength": ai_a0_event_strength,
+            "ai_expectation_gap": ai_expectation_gap,
+            "ai_transmission_candidates": ai_transmission_candidates,
+            "semantic_fallback_reason": semantic_fallback_reason,
+            "ai_missing_fields": ai_missing_fields,
+            "semantic_defaults_applied": semantic_defaults_applied,
             "a_gate_blocker_codes": a_gate_blocker_codes,
             "a_gate_blocker_count": a_gate_blocker_count,
             "a_gate_blocker_present": a_gate_blocker_present,
@@ -538,6 +578,32 @@ class FullWorkflowRunner:
             "market_data_stale": market_data_stale,
             "market_data_default_used": market_data_default_used,
             "market_data_fallback_used": market_data_fallback_used,
+        }
+
+    @staticmethod
+    def _provider_meta_from_opportunity(scorer: OpportunityScorer) -> Dict[str, Any]:
+        adapter = getattr(scorer, "_market_data_adapter", None)
+        meta = getattr(adapter, "last_meta", None)
+        if meta is None:
+            return {
+                "provider_chain": [],
+                "providers_attempted": [],
+                "providers_succeeded": [],
+                "providers_failed": [],
+                "provider_failure_reasons": {},
+                "fallback_used": False,
+                "fallback_reason": "",
+                "unresolved_symbols": [],
+            }
+        return {
+            "provider_chain": list(getattr(meta, "provider_chain", []) or []),
+            "providers_attempted": list(getattr(meta, "attempted", []) or []),
+            "providers_succeeded": list(getattr(meta, "succeeded", []) or []),
+            "providers_failed": list(getattr(meta, "failed", []) or []),
+            "provider_failure_reasons": dict(getattr(meta, "failure_reasons", {}) or {}),
+            "fallback_used": bool(getattr(meta, "fallback_used", False)),
+            "fallback_reason": str(getattr(meta, "fallback_reason", "") or ""),
+            "unresolved_symbols": list(getattr(meta, "unresolved_symbols", []) or []),
         }
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -764,6 +830,17 @@ class FullWorkflowRunner:
         )
 
         semantic_out = self.semantic.analyze(event_object["headline"], payload.get("summary", event_object["headline"]))
+        semantic_required_fields = (
+            "sentiment",
+            "confidence",
+            "recommended_chain",
+            "recommended_stocks",
+            "a0_event_strength",
+            "expectation_gap",
+            "transmission_candidates",
+        )
+        semantic_missing_fields = [key for key in semantic_required_fields if key not in semantic_out]
+        semantic_defaults_applied = bool(semantic_missing_fields)
         event_contract = self.semantic.analyze_event(
             event_object["headline"],
             payload.get("summary", event_object["headline"]),
@@ -886,6 +963,49 @@ class FullWorkflowRunner:
         analysis_out["opportunity_update"] = opportunity_update
         opportunities = opportunity_update.get("opportunities", []) if isinstance(opportunity_update, dict) else []
         has_opportunity = bool(opportunities)
+        provider_meta = {}
+        if isinstance(opportunity_update, dict):
+            raw_provider_meta = opportunity_update.get("provider_meta")
+            if isinstance(raw_provider_meta, dict):
+                provider_meta = {
+                    "provider_chain": list(raw_provider_meta.get("provider_chain", []) or []),
+                    "providers_attempted": list(raw_provider_meta.get("providers_attempted", []) or []),
+                    "providers_succeeded": list(raw_provider_meta.get("providers_succeeded", []) or []),
+                    "providers_failed": list(raw_provider_meta.get("providers_failed", []) or []),
+                    "provider_failure_reasons": dict(raw_provider_meta.get("provider_failure_reasons", {}) or {}),
+                    "fallback_used": bool(raw_provider_meta.get("fallback_used", False)),
+                    "fallback_reason": str(raw_provider_meta.get("fallback_reason", "") or ""),
+                    "unresolved_symbols": list(raw_provider_meta.get("unresolved_symbols", []) or []),
+                }
+        if not provider_meta:
+            provider_meta = self._provider_meta_from_opportunity(self.opportunity)
+        self._append_jsonl(
+            self.market_data_provenance_log_path,
+            {
+                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "trace_id": trace_id,
+                "event_trace_id": trace_id,
+                "request_id": request_id,
+                "batch_id": batch_id,
+                "event_id": event_id,
+                "event_hash": event_hash,
+                "provider_chain": provider_meta["provider_chain"],
+                "providers_attempted": provider_meta["providers_attempted"],
+                "providers_succeeded": provider_meta["providers_succeeded"],
+                "providers_failed": provider_meta["providers_failed"],
+                "provider_failure_reasons": provider_meta["provider_failure_reasons"],
+                "fallback_used": provider_meta["fallback_used"],
+                "fallback_reason": provider_meta["fallback_reason"],
+                "unresolved_symbols": provider_meta["unresolved_symbols"],
+                "unresolved_symbol_count": len(provider_meta["unresolved_symbols"]),
+                "market_data_source": validation_out.get("market_data_source", "unknown"),
+                "market_data_present": bool(validation_out.get("market_data_present", False)),
+                "market_data_stale": bool(validation_out.get("market_data_stale", False)),
+                "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
+                "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
+                "validation_state": validation_out.get("validation_state"),
+            },
+        )
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -954,6 +1074,16 @@ class FullWorkflowRunner:
             "human_confirmed": payload.get("human_confirmed", False),
             "has_opportunity": has_opportunity,
             "opportunity_count": len(opportunities),
+            "sentiment": semantic_out.get("sentiment", "neutral"),
+            "confidence": semantic_out.get("confidence", 0),
+            "recommended_chain": semantic_out.get("recommended_chain", ""),
+            "recommended_stocks": semantic_out.get("recommended_stocks", []),
+            "a0_event_strength": semantic_out.get("a0_event_strength", 0),
+            "expectation_gap": semantic_out.get("expectation_gap", 0),
+            "transmission_candidates": semantic_out.get("transmission_candidates", []),
+            "semantic_fallback_reason": semantic_out.get("fallback_reason", ""),
+            "semantic_missing_fields": semantic_missing_fields,
+            "semantic_defaults_applied": semantic_defaults_applied,
             "semantic_event_type": semantic_out.get("event_type", "other"),
             "sector_candidates": [item.get("sector") for item in conduction_out.get("sector_impacts", []) if item.get("sector")],
             "ticker_candidates": [item.get("symbol") for item in conduction_out.get("stock_candidates", []) if item.get("symbol")],

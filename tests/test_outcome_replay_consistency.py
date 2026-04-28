@@ -1,20 +1,15 @@
-"""Stage6 PR-7b: Outcome Engine Replay Consistency Tests.
+"""Stage6 PR-7b: Outcome Engine replay consistency coverage.
 
-Member-C implementation.
-Verifies:
-  - Same fixture input run twice produces consistent summary
-  - Opportunity outcome record set is identical
-  - Score bucket results are consistent
-  - Failure distribution is consistent
-  - idempotency key is stable
+Rule ID: S6-R006
+Test ID: S6-018
+
+This file verifies replay consistency for same-input reruns.
 """
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -43,7 +38,7 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def test_replay_consistency_summary_identical(tmp_path):
-    """Same fixture input twice -> summary.json should be identical (except timestamps)."""
+    """Test ID S6-018: same fixture input twice must keep summary metrics stable."""
     logs_dir = FIXTURES_DIR / "outcome_logs"
 
     out1 = tmp_path / "replay1"
@@ -93,7 +88,7 @@ def test_replay_consistency_summary_identical(tmp_path):
 
 
 def test_replay_consistency_outcome_records_identical(tmp_path):
-    """Same fixture input twice -> opportunity_outcome records must be identical."""
+    """Test ID S6-018: same fixture input twice must keep outcome rows stable."""
     logs_dir = FIXTURES_DIR / "outcome_logs"
 
     out1 = tmp_path / "replay1"
@@ -128,7 +123,7 @@ def test_replay_consistency_outcome_records_identical(tmp_path):
 
 
 def test_replay_consistency_score_buckets_identical(tmp_path):
-    """Score bucket results must be identical across replays."""
+    """Test ID S6-018: score bucket results must be identical across replays."""
     logs_dir = FIXTURES_DIR / "outcome_logs"
 
     out1 = tmp_path / "replay1"

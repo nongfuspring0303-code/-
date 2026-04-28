@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+from jsonschema import ValidationError, validate
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -73,35 +76,33 @@ def test_mapping_status_rejects_legacy_success_token() -> None:
     assert "mapping_success" in mapping_status_enum
     assert "SUCCESS" not in mapping_status_enum
 
-import pytest
-from jsonschema import validate, ValidationError
 
 def test_stage6_audit_only_combinations_rejected() -> None:
     schema = _load_json(REPO_ROOT / "schemas" / "opportunity_outcome.schema.json")
-    
+
     base_record = {
         "schema_version": "stage6.outcome.v1",
         "opportunity_id": "test-opp-123",
         "action_after_gate": "PENDING_CONFIRM",
         "outcome_status": "pending_t1",
         "data_quality": "pending",
-        "created_at": "2026-04-28T00:00:00Z"
+        "created_at": "2026-04-28T00:00:00Z",
     }
-    
+
     validate(instance=base_record, schema=schema)
-    
+
     with pytest.raises(ValidationError):
         bad_hit = dict(base_record, outcome_label="hit")
         validate(instance=bad_hit, schema=schema)
-        
+
     with pytest.raises(ValidationError):
         bad_valid = dict(base_record, data_quality="valid")
         validate(instance=bad_valid, schema=schema)
-        
+
     with pytest.raises(ValidationError):
         bad_pending_hit = dict(base_record, action_after_gate="EXECUTE", outcome_status="pending_t5", outcome_label="miss")
         validate(instance=bad_pending_hit, schema=schema)
-        
+
     with pytest.raises(ValidationError):
         bad_pending_valid = dict(base_record, action_after_gate="EXECUTE", outcome_status="pending_t20", data_quality="valid")
         validate(instance=bad_pending_valid, schema=schema)

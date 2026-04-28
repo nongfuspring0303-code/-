@@ -1,5 +1,7 @@
 # PR-7 Rule ↔ Test Mapping
 
+This mapping is complete for PR-7a contract-freeze scope. Rules marked "planned in PR-7b" are intentionally deferred engine/runtime validation items and are not PR-7a acceptance blockers.
+
 | Rule ID | Rule | Test ID | File |
 |---|---|---|---|
 | S6-R001 | pending must not be labeled hit/miss | S6-011 | *(planned in PR-7b, not covered in PR-7a)* |

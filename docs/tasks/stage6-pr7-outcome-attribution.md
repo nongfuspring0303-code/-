@@ -29,7 +29,7 @@ Implement Stage6 outcome attribution as a read-only evaluation layer with contra
 
 1. Stage6 schemas load successfully.
 2. Policy is the single threshold source.
-3. Rule↔Test mapping exists and is complete.
+3. PR-7a contract-level Rule↔Test mapping exists and is complete for the contract-freeze scope. Engine, idempotency, replay consistency, calendar, and outcome calculation tests are explicitly marked as planned in PR-7b.
 4. Metric dictionary and output fields are mutually traceable.
 5. Canonical scope exists and is cited in PR.
 

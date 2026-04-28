@@ -106,6 +106,11 @@ def expected_outcomes_contract() -> dict:
     return _load_yaml(FIXTURES_DIR / "expected_outcomes.yaml")
 
 
+@pytest.fixture(scope="module")
+def mapping_attributions(engine_result) -> list[dict]:
+    return _read_jsonl(Path(engine_result["mapping_path"]))
+
+
 # ---------------------------------------------------------------------------
 # Schema validation tests
 # ---------------------------------------------------------------------------
@@ -358,6 +363,26 @@ def test_expected_outcomes_yaml_contract(
         assert abs(float(outcome["score"]) - float(case["score"])) < 1e-9
 
 
+def test_expected_mapping_attribution_yaml_contract(
+    mapping_attributions, expected_outcomes_contract
+):
+    """YAML-driven contract: mapping attribution must match expected cases."""
+    expected_cases = expected_outcomes_contract.get("expected_cases", [])
+    mapping_cases = [
+        case for case in expected_cases if "expected_mapping_status" in case
+    ]
+    assert mapping_cases, "expected_outcomes.yaml must include mapping attribution expected cases"
+
+    for case in mapping_cases:
+        trace_id = case["trace_id"]
+        mapping = _find_mapping_by_trace(mapping_attributions, trace_id)
+        assert mapping is not None, (
+            f"Missing mapping attribution for {case['fixture_id']} ({trace_id})"
+        )
+        assert mapping["mapping_status"] == case["expected_mapping_status"]
+        assert mapping.get("mapping_failure_reason") == case["expected_mapping_failure_reason"]
+
+
 # ---------------------------------------------------------------------------
 # Primary stats: PENDING_CONFIRM / UNKNOWN must not enter primary stats
 # ---------------------------------------------------------------------------
@@ -454,6 +479,14 @@ def _find_by_opp_id(outcomes: list[dict], opp_id: str) -> dict | None:
     for o in outcomes:
         if o.get("opportunity_id") == opp_id:
             return o
+    return None
+
+
+def _find_mapping_by_trace(mappings: list[dict], trace_id: str) -> dict | None:
+    """Find a mapping attribution record by trace_id."""
+    for m in mappings:
+        if m.get("trace_id") == trace_id:
+            return m
     return None
 
 

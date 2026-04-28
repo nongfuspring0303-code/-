@@ -181,6 +181,8 @@ expected_cases:
     expected_primary_failure_reason: "join_key_missing"
     expected_failure_reasons:
       - "join_key_missing"
+    expected_mapping_status: "join_key_missing"
+    expected_mapping_failure_reason: "join_key_missing"
 
   - fixture_id: "SYMBOL-MISSING"
     trace_id: "SYMBOL-MISSING-001"

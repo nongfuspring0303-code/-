@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stage6.log_trust.v1",
+  "title": "Stage6 Log Trust",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "opportunity_id",
+    "log_source",
+    "join_key_valid",
+    "timestamp_valid",
+    "data_quality",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "stage6.log_trust.v1"
+    },
+    "opportunity_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "log_source": {
+      "type": "string",
+      "enum": [
+        "live",
+        "replay",
+        "fixture",
+        "mock",
+        "test",
+        "unknown"
+      ]
+    },
+    "join_key_valid": {
+      "type": "boolean"
+    },
+    "timestamp_valid": {
+      "type": "boolean"
+    },
+    "join_key_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "missing_join_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": [
+        "valid",
+        "degraded",
+        "invalid",
+        "pending"
+      ]
+    },
+    "data_quality_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

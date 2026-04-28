@@ -1,9 +1,17 @@
-version: 1.0.0
-owner: project-stage4
-status: approved-template
-updated_at: '2026-04-26'
+version: 1.1.0
+owner: stage6-contract-freeze-candidate
+status: final-candidate
+updated_at: '2026-04-28'
 description: Single source of truth for metric names, ranges, semantics, and rounding
-  rules used by the Phase 4 causal-conduction system.
+  rules. This file intentionally contains both legacy Stage4 metrics and Stage6
+  outcome-attribution metrics to preserve backward compatibility during PR-7a
+  contract freeze.
+layout:
+  legacy_stage4_metrics_key: metrics
+  stage6_metrics_key: stage6_metrics
+  review_rule:
+  - Stage6 reviews must validate stage6_metrics and stage6_enumerations.
+  - Legacy Stage4 metrics remain under metrics for backward compatibility only.
 standards:
   default_rounding_decimals: 2
   default_score_type: float
@@ -14,7 +22,7 @@ standards:
   output_rules:
   - All score/confidence fields round to 2 decimals at the output boundary.
   - Internal intermediate precision may be higher but must not leak into final payloads.
-metrics:
+metrics: &legacy_stage4_metrics
   A0:
     label: event_base_severity_score
     category: event
@@ -56,6 +64,32 @@ metrics:
     - 100
     polarity: higher_is_more_trustworthy
     description: Confidence that the event has tradable market impact.
+  ai_confidence:
+    label: ai_confidence_score
+    category: semantic
+    range:
+    - 0
+    - 100
+    polarity: higher_is_more_trustworthy
+    description: Confidence produced by semantic analyzer and persisted into trace
+      scorecard (`ai_confidence`).
+  ai_a0_event_strength:
+    label: ai_a0_event_strength
+    category: semantic
+    range:
+    - 0
+    - 100
+    polarity: higher_is_stronger
+    description: Semantic event-strength proxy persisted into trace scorecard (`ai_a0_event_strength`).
+  ai_expectation_gap:
+    label: ai_expectation_gap
+    category: semantic
+    range:
+    - -100
+    - 100
+    polarity: signed_directional
+    description: Semantic expectation-gap proxy persisted into trace scorecard
+      (`ai_expectation_gap`).
   final_sector_score:
     label: final_sector_score
     category: sector
@@ -187,31 +221,7 @@ metrics:
       description: Dominance score of the top transmission path after clarity, asset
         confirmation, cross-asset consistency, template match, noise, and conflict
         adjustments.
-  ai_confidence:
-    label: ai_confidence_score
-    category: semantic
-    range:
-    - 0
-    - 100
-    polarity: higher_is_more_trustworthy
-    description: Confidence produced by semantic analyzer and persisted into trace
-      scorecard (`ai_confidence`).
-  ai_a0_event_strength:
-    label: ai_a0_event_strength
-    category: semantic
-    range:
-    - 0
-    - 100
-    polarity: higher_is_stronger
-    description: Semantic event-strength proxy persisted into trace scorecard (`ai_a0_event_strength`).
-  ai_expectation_gap:
-    label: ai_expectation_gap
-    category: semantic
-    range:
-    - -100
-    - 100
-    polarity: signed_directional
-    description: Semantic expectation-gap proxy persisted into trace scorecard (`ai_expectation_gap`).
+legacy_stage4_metrics: *legacy_stage4_metrics
 required_output_fields:
   always_include:
   - schema_version
@@ -265,16 +275,15 @@ enumerations:
     - first_order_carrier
     - leveraged_proxy
     - contaminated
-  gate_reason_code: *id001
   market_data_provenance:
     fallback_reason:
-    - ""
+    - ''
     - NO_PRICE_RESOLVED
     - FALLBACK_PARTIAL
     - PARTIAL_PRICE_RESOLVED
   semantic:
     fallback_reason:
-    - ""
+    - ''
     - semantic_disabled
     - emergency_disabled
     - full_enable_disabled
@@ -283,3 +292,221 @@ enumerations:
     - api_key_missing
     - confidence_below_threshold
     - chain_missing
+  gate_reason_code: *id001
+
+stage6_metrics:
+  hit_rate_t5:
+    definition: valid resolved_t5 outcomes with label=hit divided by valid resolved_t5 outcomes
+    formula: hit_count_t5 / valid_resolved_t5_count
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    - reports/outcome/outcome_report.md
+    owner: B
+    quality_rule: valid only; exclude degraded/invalid/pending
+  avg_alpha_t5:
+    definition: average alpha at T+5 for valid resolved_t5 outcomes
+    formula: sum(alpha_t5) / valid_resolved_t5_count
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: B
+    quality_rule: valid only
+  avg_return_t5:
+    definition: average raw return at T+5 for valid resolved_t5 outcomes
+    formula: sum(return_t5) / valid_resolved_t5_count
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: B
+    quality_rule: valid only
+  score_monotonicity:
+    definition: monotonic order check across score buckets by primary metric avg_alpha_t5
+    formula: bucket_order_check(avg_alpha_t5, hit_rate_t5)
+    data_source:
+    - reports/outcome/outcome_by_score_bucket.json
+    output_file:
+    - reports/outcome/score_monotonicity_report.json
+    owner: B
+    quality_rule: requires min_bucket_sample_size
+  mapping_failure_rate:
+    definition: mapping failures divided by total opportunities
+    formula: mapping_failure_count / total_opportunities
+    data_source:
+    - reports/outcome/mapping_attribution.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: B
+    quality_rule: all records
+  overblock_rate:
+    definition: overblocked outcomes divided by BLOCK decisions
+    formula: overblocked_count / block_decision_count
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: B
+    quality_rule: block decisions only
+  missed_opportunity_rate:
+    definition: missed opportunities divided by WATCH decisions
+    formula: missed_opportunity_count / watch_decision_count
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: B
+    quality_rule: watch decisions only
+  correct_block_rate:
+    definition: correct blocks divided by BLOCK decisions
+    formula: correct_block_count / block_decision_count
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: B
+    quality_rule: block decisions only
+  outcome_record_coverage_rate:
+    definition: all recorded outcomes (valid/degraded/invalid/pending) over total opportunities
+    formula: (valid + degraded + invalid + pending) / total_opportunities
+    data_source:
+    - reports/outcome/outcome_summary.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: denominator must be > 0 else null
+  resolved_outcome_coverage_rate:
+    definition: resolved outcomes (valid/degraded/invalid) over eligible matured opportunities
+    formula: (valid + degraded + invalid) / eligible_matured_opportunities
+    data_source:
+    - reports/outcome/outcome_summary.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: denominator must be > 0 else null
+  pending_outcome_rate:
+    definition: pending outcomes over total opportunities
+    formula: pending_outcome_count / total_opportunities
+    data_source:
+    - reports/outcome/outcome_summary.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: denominator must be > 0 else null
+  execute_outcome_coverage_rate:
+    definition: EXECUTE decisions with outcome over total EXECUTE decisions
+    formula: execute_with_outcome_count / total_execute_decisions
+    data_source:
+    - reports/outcome/outcome_summary.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: must be 100%
+  join_key_link_rate:
+    definition: outcomes successfully linked by join key over total opportunities
+    formula: linked_outcome_count / total_opportunities
+    data_source:
+    - reports/outcome/log_trust_report.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: C
+    quality_rule: denominator must be > 0 else null
+  failure_reason_coverage_rate:
+    definition: records requiring failure reason that have primary_failure_reason set
+    formula: records_with_primary_failure_reason / records_requiring_failure_reason
+    data_source:
+    - reports/outcome/outcome_summary.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: B
+    quality_rule: denominator must be > 0 else null
+  valid_outcome_count:
+    definition: number of valid outcome records
+    formula: count(data_quality == "valid")
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: integer count
+  degraded_outcome_count:
+    definition: number of degraded outcome records
+    formula: count(data_quality == "degraded")
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: integer count
+  invalid_outcome_count:
+    definition: number of invalid outcome records
+    formula: count(data_quality == "invalid")
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: integer count
+  pending_outcome_count:
+    definition: number of pending outcome records
+    formula: count(data_quality == "pending")
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: integer count
+  fallback_rate:
+    definition: fallback-used market data records over total opportunities
+    formula: market_data_fallback_used_count / total_opportunities
+    data_source:
+    - reports/outcome/outcome_summary.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: C
+    quality_rule: denominator must be > 0 else null
+  provider_failed_count:
+    definition: number of provider calls with failed/timeout/auth_error
+    formula: count(provider_call_status in ["failed","timeout","auth_error"])
+    data_source:
+    - reports/outcome/log_trust_report.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: C
+    quality_rule: integer count
+  orphan_replay:
+    definition: replay rows without decision match
+    formula: replay_rows_without_decision_match
+    data_source:
+    - reports/outcome/log_trust_report.json
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: C
+    quality_rule: integer count
+  missing_opportunity_but_execute_count:
+    definition: execute decisions whose opportunity_id is missing
+    formula: count(action_after_gate == "EXECUTE" and opportunity_id is null)
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: integer count
+  market_data_default_used_in_execute_count:
+    definition: execute decisions using default market data
+    formula: count(action_after_gate == "EXECUTE" and market_data_default_used == true)
+    data_source:
+    - reports/outcome/opportunity_outcome.jsonl
+    output_file:
+    - reports/outcome/outcome_summary.json
+    owner: A
+    quality_rule: integer count
+
+stage6_enumerations:
+  score_monotonicity_status:
+  - passed
+  - passed_with_warning
+  - failed
+  - insufficient_sample

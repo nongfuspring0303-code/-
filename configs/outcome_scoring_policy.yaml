@@ -1,0 +1,81 @@
+schema_version: "stage6.outcome_policy.v1"
+
+windows:
+  t1_trading_days: 1
+  t5_trading_days: 5
+  t20_trading_days: 20
+
+thresholds:
+  long_hit_return_t5: 0.02
+  long_hit_alpha_t5: 0.01
+  long_miss_return_t5: -0.02
+  long_miss_alpha_t5: -0.01
+  short_hit_return_t5: -0.02
+  short_hit_alpha_t5: -0.01
+  short_miss_return_t5: 0.02
+  short_miss_alpha_t5: 0.01
+
+score_buckets:
+  - name: "80_PLUS"
+    min: 80
+    max: null
+  - name: "60_79"
+    min: 60
+    max: 80
+  - name: "40_59"
+    min: 40
+    max: 60
+  - name: "LT_40"
+    min: null
+    max: 40
+
+benchmarks:
+  default_market: "SPY"
+  growth: "QQQ"
+  small_cap: "IWM"
+  sector_map:
+    Technology: "XLK"
+    Energy: "XLE"
+    Financials: "XLF"
+    Healthcare: "XLV"
+    Industrials: "XLI"
+    Consumer_Discretionary: "XLY"
+    Consumer_Staples: "XLP"
+    Utilities: "XLU"
+    Materials: "XLB"
+    Real_Estate: "XLRE"
+    Communication_Services: "XLC"
+
+data_quality:
+  invalid_if:
+    - join_key_missing
+    - symbol_missing
+    - direction_missing
+    - decision_price_missing
+    - exit_price_missing_after_due
+    - market_data_default_used
+    - invalid_price_series
+  degraded_if:
+    - market_data_stale
+    - market_data_fallback_used
+    - provider_untrusted
+    - provenance_field_missing
+    - benchmark_missing
+
+stats:
+  include_degraded_in_primary_stats: false
+  min_bucket_sample_size: 10
+  min_total_sample_size: 30
+
+outputs:
+  base_dir: "reports/outcome"
+  opportunity_outcome_jsonl: "opportunity_outcome.jsonl"
+  outcome_summary_json: "outcome_summary.json"
+  outcome_report_md: "outcome_report.md"
+  outcome_by_score_bucket_json: "outcome_by_score_bucket.json"
+  score_monotonicity_report_json: "score_monotonicity_report.json"
+  failure_reason_distribution_json: "failure_reason_distribution.json"
+  alpha_report_json: "alpha_report.json"
+  log_trust_report_json: "log_trust_report.json"
+  mapping_attribution_jsonl: "mapping_attribution.jsonl"
+  decision_suggestions_json: "decision_suggestions.json"

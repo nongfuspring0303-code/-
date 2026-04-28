@@ -229,6 +229,31 @@ registry:
     test_case: tests/test_ai_event_intel.py
     acceptance_case: tests/test_ai_event_intel.py
 
+  # ========== Stage6 Outcome Attribution ==========
+
+  - name: OutcomeAttributionEngine
+    version: 1.0.0
+    category: stage6-eval
+    description: "Stage6 结果归因与信号质量统计（只读消费上游证据）"
+    input_schema: log_trust.schema.json
+    output_schema: opportunity_outcome.schema.json
+    dependencies: [Logger]
+    config: outcome_scoring_policy.yaml
+    implementation_status: contract_only
+    runtime_enabled: false
+    test_case: tests/test_opportunity_outcome_schema.py
+    acceptance_case: tests/test_stage6_metric_dictionary.py
+    contract_artifacts:
+      - docs/stage6/STAGE6_SCOPE_CANONICAL.md
+      - schemas/opportunity_outcome.schema.json
+      - schemas/log_trust.schema.json
+      - schemas/mapping_attribution.schema.json
+      - schemas/outcome_by_score_bucket.schema.json
+      - configs/outcome_scoring_policy.yaml
+      - configs/metric_dictionary.yaml
+      - docs/tasks/stage6-pr7-outcome-attribution.md
+      - docs/review/pr7_rules_test_mapping.md
+
 # 模块调用关系图
 dependencies_graph:
   - "EventCapture -> SourceRanker -> SeverityEstimator -> EventObjectifier"

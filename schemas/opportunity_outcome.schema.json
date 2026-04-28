@@ -1,0 +1,433 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stage6.outcome.v1",
+  "title": "Stage6 Opportunity Outcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "opportunity_id",
+    "action_after_gate",
+    "outcome_status",
+    "data_quality",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "stage6.outcome.v1"
+    },
+    "opportunity_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_trace_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "request_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "batch_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "execution_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "symbol": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "direction": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "LONG",
+        "SHORT",
+        null
+      ]
+    },
+    "action_before_gate": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "EXECUTE",
+        "WATCH",
+        "BLOCK",
+        null
+      ]
+    },
+    "action_after_gate": {
+      "type": "string",
+      "enum": [
+        "EXECUTE",
+        "WATCH",
+        "BLOCK",
+        "PENDING_CONFIRM",
+        "UNKNOWN"
+      ]
+    },
+    "gate_result": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "PASS",
+        "BLOCK",
+        "DEGRADED",
+        null
+      ]
+    },
+    "triggered_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reject_reason_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "score_bucket": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "80_PLUS",
+        "60_79",
+        "40_59",
+        "LT_40",
+        null
+      ]
+    },
+    "grade": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sector": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "market_regime": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_ts": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "decision_price": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "actual_entry_ts": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "actual_entry_price": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "entry_price_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "decision_price",
+        "paper_fill",
+        "next_bar_open",
+        "unknown",
+        null
+      ]
+    },
+    "benchmark_symbol": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sector_benchmark_symbol": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "t1_return": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "t5_return": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "t20_return": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "benchmark_return_t5": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "sector_relative_alpha_t5": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "max_drawdown_t5": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "max_upside_t5": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "outcome_status": {
+      "type": "string",
+      "enum": [
+        "pending_t1",
+        "resolved_t1",
+        "pending_t5",
+        "resolved_t5",
+        "pending_t20",
+        "resolved_t20",
+        "invalid_join_key",
+        "insufficient_market_data",
+        "symbol_untradeable",
+        "invalid_price_series",
+        "excluded_from_stats"
+      ]
+    },
+    "outcome_label": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "hit",
+        "miss",
+        "neutral",
+        "missed_opportunity",
+        "correct_watch",
+        "neutral_watch",
+        "correct_block",
+        "overblocked",
+        "neutral_block",
+        null
+      ]
+    },
+    "primary_failure_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "mapping_wrong",
+        "timing_wrong",
+        "market_rejected",
+        "source_bad",
+        "risk_too_strict",
+        "risk_too_loose",
+        "provider_bad",
+        "market_data_bad",
+        "score_not_predictive",
+        "gate_rule_wrong",
+        "execution_missing",
+        "join_key_missing",
+        "benchmark_missing",
+        "insufficient_sample",
+        null
+      ]
+    },
+    "failure_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "mapping_wrong",
+          "timing_wrong",
+          "market_rejected",
+          "source_bad",
+          "risk_too_strict",
+          "risk_too_loose",
+          "provider_bad",
+          "market_data_bad",
+          "score_not_predictive",
+          "gate_rule_wrong",
+          "execution_missing",
+          "join_key_missing",
+          "benchmark_missing",
+          "insufficient_sample"
+        ]
+      }
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": [
+        "valid",
+        "degraded",
+        "invalid",
+        "pending"
+      ]
+    },
+    "data_quality_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provenance_field_missing": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "score_monotonicity": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "passed_with_warning",
+            "failed",
+            "insufficient_sample"
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action_after_gate": {
+            "enum": ["PENDING_CONFIRM", "UNKNOWN"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "outcome_label": {
+            "not": {
+              "enum": ["hit", "miss"]
+            }
+          },
+          "data_quality": {
+            "not": {
+              "const": "valid"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome_status": {
+            "enum": ["pending_t1", "pending_t5", "pending_t20"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data_quality": {
+            "not": {
+              "const": "valid"
+            }
+          },
+          "outcome_label": {
+            "not": {
+              "enum": ["hit", "miss"]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

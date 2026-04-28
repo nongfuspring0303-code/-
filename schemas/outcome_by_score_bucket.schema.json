@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stage6.outcome_by_score_bucket.v1",
+  "title": "Stage6 Outcome By Score Bucket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "buckets"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "stage6.outcome_by_score_bucket.v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "buckets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "sample_size"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "80_PLUS",
+              "60_79",
+              "40_59",
+              "LT_40"
+            ]
+          },
+          "sample_size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hit_rate_t5": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "avg_alpha_t5": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

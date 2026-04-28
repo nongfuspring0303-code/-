@@ -4,185 +4,299 @@
 
 schema_version: "stage6.expected_outcomes.v1"
 
-expected:
+expected_cases:
   # ===== EXECUTE LONG =====
   - fixture_id: "EXEC-LONG-HIT"
+    trace_id: "EXEC-LONG-HIT-001"
     description: "EXECUTE LONG with t5_return +3%, alpha +2% -> hit"
+    action_after_gate: "EXECUTE"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "hit"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: 0.03
     sector_relative_alpha_t5: 0.02
 
   - fixture_id: "EXEC-LONG-MISS"
+    trace_id: "EXEC-LONG-MISS-001"
     description: "EXECUTE LONG with t5_return -3%, alpha -2% -> miss"
+    action_after_gate: "EXECUTE"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "miss"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: -0.03
     sector_relative_alpha_t5: -0.02
 
   - fixture_id: "EXEC-LONG-NEUTRAL"
+    trace_id: "EXEC-LONG-NEUT-001"
     description: "EXECUTE LONG with t5_return +1%, alpha 0% -> neutral"
+    action_after_gate: "EXECUTE"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "neutral"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: 0.01
     sector_relative_alpha_t5: 0.0
 
   # ===== EXECUTE SHORT =====
   - fixture_id: "EXEC-SHORT-HIT"
+    trace_id: "EXEC-SHORT-HIT-001"
     description: "EXECUTE SHORT with t5_return -3%, alpha -2% -> hit"
+    action_after_gate: "EXECUTE"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "hit"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "SHORT"
     t5_return: -0.03
     sector_relative_alpha_t5: -0.02
 
   - fixture_id: "EXEC-SHORT-MISS"
+    trace_id: "EXEC-SHORT-MISS-001"
     description: "EXECUTE SHORT with t5_return +3%, alpha +2% -> miss"
+    action_after_gate: "EXECUTE"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "miss"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "SHORT"
     t5_return: 0.03
     sector_relative_alpha_t5: 0.02
 
   # ===== WATCH =====
   - fixture_id: "WATCH-MISSED-OPPORTUNITY"
+    trace_id: "WATCH-MISSEDOPP-001"
     description: "WATCH LONG with subsequent t5_return +3% -> missed_opportunity"
+    action_after_gate: "WATCH"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "missed_opportunity"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: 0.03
 
   - fixture_id: "WATCH-CORRECT"
+    trace_id: "WATCH-CORRECT-001"
     description: "WATCH LONG with subsequent t5_return -3% -> correct_watch"
+    action_after_gate: "WATCH"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "correct_watch"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: -0.03
 
   - fixture_id: "WATCH-NEUTRAL"
+    trace_id: "WATCH-NEUTRAL-001"
     description: "WATCH LONG with t5_return +1% -> neutral_watch"
+    action_after_gate: "WATCH"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "neutral_watch"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: 0.01
 
   # ===== BLOCK =====
   - fixture_id: "BLOCK-CORRECT"
+    trace_id: "BLOCK-CORRECT-001"
     description: "BLOCK LONG with subsequent t5_return -3% -> correct_block"
+    action_after_gate: "BLOCK"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "correct_block"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: -0.03
 
   - fixture_id: "BLOCK-OVERBLOCKED"
+    trace_id: "BLOCK-OVERBLOCK-001"
     description: "BLOCK LONG with subsequent t5_return +3% -> overblocked"
+    action_after_gate: "BLOCK"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "overblocked"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: 0.03
 
   - fixture_id: "BLOCK-NEUTRAL"
+    trace_id: "BLOCK-NEUTRAL-001"
     description: "BLOCK LONG with t5_return +1% -> neutral_block"
+    action_after_gate: "BLOCK"
     expected_outcome_status: "resolved_t5"
     expected_outcome_label: "neutral_block"
     expected_data_quality: "valid"
     expected_primary_stats_inclusion: true
+    expected_alpha_primary_inclusion: true
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
     direction: "LONG"
     t5_return: 0.01
 
   # ===== DATA QUALITY EDGE CASES =====
-  - fixture_id: "JOIN-KEY-MISSING"
+  - fixture_id: "JOINKEY-MISSING"
+    trace_id: "JOINKEY-MISSING-001"
     description: "Missing join key -> invalid, excluded from primary stats"
+    action_after_gate: "EXECUTE"
     expected_outcome_status: "invalid_join_key"
     expected_outcome_label: null
     expected_data_quality: "invalid"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
     expected_primary_failure_reason: "join_key_missing"
+    expected_failure_reasons:
+      - "join_key_missing"
 
   - fixture_id: "SYMBOL-MISSING"
+    trace_id: "SYMBOL-MISSING-001"
     description: "Missing symbol -> invalid"
+    action_after_gate: "EXECUTE"
     expected_outcome_status: "symbol_untradeable"
     expected_outcome_label: null
     expected_data_quality: "invalid"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
 
-  - fixture_id: "BENCHMARK-MISSING"
+  - fixture_id: "BENCHMARK-MISS"
+    trace_id: "BENCHMARK-MISS-001"
     description: "Benchmark missing -> degraded, excluded from alpha primary stats"
+    action_after_gate: "EXECUTE"
+    expected_outcome_status: "resolved_t5"
+    expected_outcome_label: null
     expected_data_quality: "degraded"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: "benchmark_missing"
+    expected_failure_reasons:
+      - "benchmark_missing"
 
   - fixture_id: "PENDING-T5"
+    trace_id: "PENDING-T5-001"
     description: "Pending T+5 -> pending, no hit/miss"
+    action_after_gate: "EXECUTE"
+    expected_outcome_status: "pending_t5"
     expected_outcome_label: null
     expected_data_quality: "pending"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
 
   - fixture_id: "PENDING-CONFIRM-AUDIT"
+    trace_id: "AUDIT-PENDING-001"
     description: "PENDING_CONFIRM -> degraded, audit-only"
-    expected_data_quality: "degraded"
+    action_after_gate: "PENDING_CONFIRM"
+    expected_outcome_status: "resolved_t5"
     expected_outcome_label: null
+    expected_data_quality: "degraded"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
 
   - fixture_id: "UNKNOWN-AUDIT"
+    trace_id: "AUDIT-UNKNOWN-001"
     description: "UNKNOWN -> degraded, audit-only"
-    expected_data_quality: "degraded"
+    action_after_gate: "UNKNOWN"
+    expected_outcome_status: "resolved_t5"
     expected_outcome_label: null
+    expected_data_quality: "degraded"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
 
   - fixture_id: "MOCK-TEST"
+    trace_id: "MOCK-TEST-001"
     description: "Mock/test log_source -> invalid, excluded from primary stats"
+    action_after_gate: "EXECUTE"
+    expected_outcome_status: "insufficient_market_data"
+    expected_outcome_label: null
     expected_data_quality: "invalid"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
 
   - fixture_id: "MKT-DATA-STALE"
+    trace_id: "MKT-DATA-STALE-001"
     description: "Stale market data -> degraded"
+    action_after_gate: "EXECUTE"
+    expected_outcome_status: "resolved_t5"
+    expected_outcome_label: null
     expected_data_quality: "degraded"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
 
   - fixture_id: "MKT-DATA-DEFAULT"
+    trace_id: "MKT-DATA-DEFAULT-001"
     description: "Default market data used -> invalid"
+    action_after_gate: "EXECUTE"
+    expected_outcome_status: "insufficient_market_data"
+    expected_outcome_label: null
     expected_data_quality: "invalid"
     expected_primary_stats_inclusion: false
+    expected_alpha_primary_inclusion: false
+    expected_primary_failure_reason: null
+    expected_failure_reasons: []
 
-# ===== SCORE BUCKET / MONOTONICITY =====
 score_bucket_tests:
   - fixture_id: "SCORE-80PLUS"
+    trace_id: "SCORE-80PLUS-001"
     score: 88.0
     expected_bucket: "80_PLUS"
   - fixture_id: "SCORE-60-79"
+    trace_id: "SCORE-60-79-001"
     score: 68.0
     expected_bucket: "60_79"
   - fixture_id: "SCORE-40-59"
+    trace_id: "SCORE-40-59-001"
     score: 52.0
     expected_bucket: "40_59"
   - fixture_id: "SCORE-LT40"
+    trace_id: "SCORE-LT40-001"
     score: 32.0
     expected_bucket: "LT_40"
 
-# ===== FAILURE REASON ENUM =====
 failure_reason_enum:
   - mapping_wrong
   - timing_wrong
@@ -199,7 +313,6 @@ failure_reason_enum:
   - benchmark_missing
   - insufficient_sample
 
-# ===== STATS INCLUSION RULES =====
 primary_stats_rules:
   valid: "included"
   degraded: "excluded"

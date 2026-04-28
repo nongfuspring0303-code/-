@@ -96,6 +96,11 @@ def log_trust_schema() -> dict:
     return _load_json(REPO_ROOT / "schemas" / "log_trust.schema.json")
 
 
+@pytest.fixture(scope="module")
+def expected_outcomes_contract() -> dict:
+    return _load_yaml(FIXTURES_DIR / "expected_outcomes.yaml")
+
+
 # ---------------------------------------------------------------------------
 # Schema validation tests
 # ---------------------------------------------------------------------------
@@ -308,6 +313,38 @@ def test_market_data_default_is_invalid(opportunity_outcomes):
     assert outcome["data_quality"] in ("degraded", "invalid")
 
 
+def test_expected_outcomes_yaml_contract(
+    opportunity_outcomes, expected_outcomes_contract
+):
+    """YAML-driven contract: outcomes must match Member B expected cases."""
+    expected_cases = expected_outcomes_contract.get("expected_cases", [])
+    assert expected_cases, "expected_cases must not be empty"
+    trace_ids = [case["trace_id"] for case in expected_cases]
+    assert len(trace_ids) == len(set(trace_ids)), "trace_id values must be unique"
+
+    for case in expected_cases:
+        trace_id = case["trace_id"]
+        outcome = _find_by_trace(opportunity_outcomes, trace_id)
+        assert outcome is not None, f"Missing generated outcome for {case['fixture_id']} ({trace_id})"
+        assert outcome["action_after_gate"] == case["action_after_gate"]
+        assert outcome["outcome_status"] == case["expected_outcome_status"]
+        assert outcome["outcome_label"] == case["expected_outcome_label"]
+        assert outcome["data_quality"] == case["expected_data_quality"]
+        assert _is_primary_stats_included(outcome) == case["expected_primary_stats_inclusion"]
+        assert _is_alpha_primary_included(outcome) == case["expected_alpha_primary_inclusion"]
+        assert outcome.get("primary_failure_reason") == case["expected_primary_failure_reason"]
+        assert outcome.get("failure_reasons", []) == case["expected_failure_reasons"]
+
+    bucket_cases = expected_outcomes_contract.get("score_bucket_tests", [])
+    assert bucket_cases, "score_bucket_tests must not be empty"
+    for case in bucket_cases:
+        trace_id = case["trace_id"]
+        outcome = _find_by_trace(opportunity_outcomes, trace_id)
+        assert outcome is not None, f"Missing score bucket outcome for {case['fixture_id']} ({trace_id})"
+        assert outcome["score_bucket"] == case["expected_bucket"]
+        assert abs(float(outcome["score"]) - float(case["score"])) < 1e-9
+
+
 # ---------------------------------------------------------------------------
 # Primary stats: PENDING_CONFIRM / UNKNOWN must not enter primary stats
 # ---------------------------------------------------------------------------
@@ -405,3 +442,15 @@ def _find_by_opp_id(outcomes: list[dict], opp_id: str) -> dict | None:
         if o.get("opportunity_id") == opp_id:
             return o
     return None
+
+
+def _is_primary_stats_included(outcome: dict) -> bool:
+    """Primary stats are valid-only in the PR-7b contract."""
+    return outcome.get("data_quality") == "valid"
+
+
+def _is_alpha_primary_included(outcome: dict) -> bool:
+    """Alpha primary excludes benchmark_missing and any non-valid rows."""
+    return outcome.get("data_quality") == "valid" and "benchmark_missing" not in outcome.get(
+        "failure_reasons", []
+    )

@@ -2,10 +2,12 @@
 
 > 基于设计文档 v0.1、执行方案 v1.1 与深度评审建议整合  
 > 版本：v2.1  
-> 状态：Draft（待 canonical 文件落地）/ 满足硬门禁后可进入 PR-7a / PR-7b 施工  
+> 状态：Aligned with PR97 Contract Freeze / Ready for PR-7b planning  
 > 适用范围：Stage6 PR-7 Outcome Attribution 实施  
 > 前置依赖：Stage5 主体合并；Residual Evidence Logging PR 合并  
 > 核心原则：效率与准确率双优先；最小可用闭环；不重写主链路；不伪造 outcome；配置单一真源
+
+> 说明：`docs/stage6/STAGE6_SCOPE_CANONICAL.md` 是 Stage6 PR-7 的最高优先级范围文件；若 v2.1 执行方案与 canonical 文件冲突，以 canonical 文件为准。
 
 ---
 
@@ -84,6 +86,7 @@ Stage6 将 provider / market data 问题归入 data_quality / failure_reason
 PR-7 合并前必须同时满足：
 
 - schemas/opportunity_outcome.schema.json 存在并可加载
+- schemas/outcome_by_score_bucket.schema.json 存在并可加载
 - configs/outcome_scoring_policy.yaml 为唯一阈值真源
 - module-registry.yaml 声明 Stage6 outcome 模块
 - module-registry.yaml 引用 opportunity_outcome.schema.json
@@ -94,13 +97,15 @@ PR-7 合并前必须同时满足：
 
 缺任一项 → **PR 不得合并（BLOCKER）**
 
+PR97 taskbook / registry 已将 `schemas/outcome_by_score_bucket.schema.json` 纳入 PR-7a contract artifacts。
+
 ---
 
 ## 0.6 成员任务速览表
 
 | 成员 | 核心定位 | 主要负责内容 | 主要文件 | 不负责 / 禁止越界 | 最终交付物 |
 |---|---|---|---|---|---|
-| A 成员 | 契约 / Schema / 门禁规则负责人 | 定义 outcome 标准字段、schema、状态机、枚举、data_quality gate、DoD、硬门禁；审核 policy 合规性 | `schemas/opportunity_outcome.schema.json`；`module-registry.yaml`；`configs/metric_dictionary.yaml` | 不写 outcome engine 主逻辑；不改交易主链路；不维护收益阈值细项 | schema、状态机、DoD、review checklist、policy 合规签字 |
+| A 成员 | 契约 / Schema / 门禁规则负责人 | 定义 outcome 标准字段、schema、状态机、枚举、data_quality gate、DoD、硬门禁；审核 policy 合规性 | `schemas/opportunity_outcome.schema.json`；`schemas/outcome_by_score_bucket.schema.json`；`module-registry.yaml`；`configs/metric_dictionary.yaml` | 不写 outcome engine 主逻辑；不改交易主链路；不维护收益阈值细项 | schema、状态机、DoD、review checklist、policy 合规签字 |
 | B 成员 | 归因规则 / 统计口径负责人 | 定义 hit/miss、WATCH/BLOCK 标签、score bucket、benchmark、alpha、failure_reason、score_monotonicity | `configs/outcome_scoring_policy.yaml` | 不写主执行引擎；不改 Stage5 日志；不改 gate 执行语义 | 归因规则、分组统计口径、score monotonicity 规则、failure_reason 分类 |
 | C 成员 | 工程实现 / 测试 / 报告负责人 | 实现 outcome_attribution_engine，读取日志、join 证据链、生成 outcome、summary、report、测试 | `scripts/outcome_attribution_engine.py`；`tests/test_outcome_attribution_engine.py` | 不修改阈值语义；不硬编码配置；不重写 Stage5 evaluator；不提交真实 logs | 可运行 engine、测试、fixture、报告输出 |
 
@@ -121,6 +126,7 @@ PR-7 合并前必须同时满足：
 ### A 成员交付物
 
 - [ ] schemas/opportunity_outcome.schema.json
+- [ ] schemas/outcome_by_score_bucket.schema.json
 - [ ] schemas/log_trust.schema.json
 - [ ] schemas/mapping_attribution.schema.json
 - [ ] outcome_status 枚举
@@ -287,6 +293,9 @@ PR-7 合并前必须同时满足：
 - 若存在 `actual_entry_price` 但缺失 `actual_entry_ts` 或 `execution_id`，不得进入 execution quality stats
 - `primary_failure_reason` 用于主统计；`failure_reasons[]` 用于复合归因
 - 若仅一个失败原因，`primary_failure_reason` 必须与 `failure_reasons[0]` 一致
+- `action_after_gate` 允许值为 `EXECUTE`、`WATCH`、`BLOCK`、`PENDING_CONFIRM`、`UNKNOWN`
+- `PENDING_CONFIRM` / `UNKNOWN` 仅用于审计表达：可落盘但不进入 primary stats，不输出 hit / miss，不进入 alpha 主统计，不进入 score monotonicity 主统计，且必须按 policy 标记为 `data_quality=degraded` 或 `data_quality=invalid`
+- `PENDING_CONFIRM` / `UNKNOWN` 不改变 Gate / execution / final_action 语义
 
 ### 3.2 Mapping Attribution Schema
 
@@ -438,8 +447,14 @@ PR-7 合并前必须同时满足：
 Schema 文件必须包括：
 
 - schemas/opportunity_outcome.schema.json
+- schemas/outcome_by_score_bucket.schema.json
 - schemas/log_trust.schema.json
 - schemas/mapping_attribution.schema.json
+
+说明：
+
+- `opportunity_outcome.schema.json` 内的 `score_monotonicity` 字段仅作为摘要字段
+- 正式分桶明细与强 schema 以 `schemas/outcome_by_score_bucket.schema.json` 为准
 
 审查规则：
 
@@ -636,21 +651,23 @@ reports/outcome/outcome_by_market_regime.json
 
 文件：`docs/review/pr7_rules_test_mapping.md`
 
-| Rule ID | 规则 | Test ID | 文件 |
-|--------|------|--------|------|
-| S6-R001 | pending 不得 hit/miss | S6-011 | test_outcome_attribution_engine.py |
-| S6-R002 | invalid 不进统计 | S6-008 | test_outcome_attribution_engine.py |
-| S6-R003 | 样本不足不判 monotonicity | S6-013 | test_outcome_attribution_engine.py |
-| S6-R004 | mock/test 不进统计 | S6-016 | test_outcome_attribution_engine.py |
-| S6-R005 | 幂等不可重复写入 | S6-017 | test_outcome_idempotency.py |
-| S6-R006 | 重放结果一致 | S6-018 | test_outcome_replay_consistency.py |
-| S6-R007 | provider 只用于归因，不生成 gate | S6-019 | test_outcome_attribution_engine.py |
-| S6-R008 | BLOCK 无明确优势时必须归类 neutral_block | S6-007N | test_outcome_attribution_engine.py |
-| S6-R009 | 半日交易日按交易日历推进 | S6-020 | test_outcome_attribution_engine.py |
-| S6-R010 | 停牌/无价格不得伪造前值 | S6-021 | test_outcome_attribution_engine.py |
-| S6-R011 | 非交易日必须顺延到下个交易日 | S6-022 | test_outcome_attribution_engine.py |
-| S6-R012 | score bucket 明细必须生成 outcome_by_score_bucket.json | S6-012/S6-013 | test_outcome_attribution_engine.py |
-| S6-R013 | WATCH 在证据不足时必须归类 neutral_watch | S6-005N | test_outcome_attribution_engine.py |
+PR-7a 只覆盖 contract/schema/metric dictionary 层测试；engine / idempotency / replay / calendar / outcome calculation 测试属于 PR-7b；PR-7 Final 才要求全部通过。
+
+| Rule ID | 规则 | Phase | Test ID | 文件 |
+|--------|------|-------|--------|------|
+| S6-R001 | pending 不得 hit/miss | PR-7b engine | S6-011 | test_outcome_attribution_engine.py |
+| S6-R002 | invalid 不进统计 | PR-7b engine | S6-008 | test_outcome_attribution_engine.py |
+| S6-R003 | 样本不足不判 monotonicity | PR-7b engine | S6-013 | test_outcome_attribution_engine.py |
+| S6-R004 | mock/test 不进统计 | PR-7b engine | S6-016 | test_outcome_attribution_engine.py |
+| S6-R005 | 幂等不可重复写入 | PR-7b engine | S6-017 | test_outcome_idempotency.py |
+| S6-R006 | 重放结果一致 | PR-7b engine | S6-018 | test_outcome_replay_consistency.py |
+| S6-R007 | provider 只用于归因，不生成 gate | PR-7b engine | S6-019 | test_outcome_attribution_engine.py |
+| S6-R008 | BLOCK 无明确优势时必须归类 neutral_block | PR-7b engine | S6-007N | test_outcome_attribution_engine.py |
+| S6-R009 | 半日交易日按交易日历推进 | PR-7b engine | S6-020 | test_outcome_attribution_engine.py |
+| S6-R010 | 停牌/无价格不得伪造前值 | PR-7b engine | S6-021 | test_outcome_attribution_engine.py |
+| S6-R011 | 非交易日必须顺延到下个交易日 | PR-7b engine | S6-022 | test_outcome_attribution_engine.py |
+| S6-R012 | score bucket 明细必须生成 outcome_by_score_bucket.json | PR-7b engine | S6-012/S6-013 | test_outcome_attribution_engine.py |
+| S6-R013 | WATCH 在证据不足时必须归类 neutral_watch | PR-7b engine | S6-005N | test_outcome_attribution_engine.py |
 
 规则：
 - 每个 Rule 必须有 Test
@@ -762,7 +779,7 @@ benchmark 规则：
 ### PR-7a（契约层）
 
 包含：
-- schema 文件（opportunity_outcome, log_trust, mapping_attribution）
+- schema 文件（opportunity_outcome, outcome_by_score_bucket, log_trust, mapping_attribution）
 - config 文件（outcome_scoring_policy.yaml, metric_dictionary.yaml）
 - registry（module-registry.yaml）
 - tasks（stage6-pr7-outcome-attribution.md）
@@ -910,13 +927,19 @@ Stage6 新增指标必须在 metric_dictionary.yaml 中注册，不得只写在 
 
 每个指标必须包含：
 
-- name
+- metric key as name
 - definition
 - formula
 - data_source
 - output_file
 - owner
 - quality_rule
+
+说明：
+
+- `metric_dictionary.yaml` 使用 YAML key 作为 metric name，不要求每个 metric 内部重复写 `name` 字段
+- 指标定义不得硬编码在 Python 中
+- 指标口径必须与 configs/outcome_scoring_policy.yaml 一致
 
 要求：
 
@@ -1154,6 +1177,12 @@ score_monotonicity.status = "insufficient_sample"
 
 ## 21. DoD（完成标准）
 
+本 DoD 中涉及 `reports/outcome/*` 运行产物、outcome engine、idempotency、replay consistency、engine tests 的项目，属于 PR-7b / PR-7 Final 范围，不属于 PR-7a Contract Freeze 的交付要求。
+
+PR-7a = contract freeze
+PR-7b = engine / outputs / fixtures / idempotency / replay tests
+PR-7 Final = 全量验收
+
 ### 必须满足
 
 | 指标 | 阈值 | 证据路径 |
@@ -1268,10 +1297,11 @@ Stage6 / New Feature / Evaluation Layer
 
 ### 25.1 A 成员：契约、schema、状态机、门禁规则
 
-**主责范围**：schemas/opportunity_outcome.schema.json, DoD, module-registry.yaml, metric_dictionary.yaml, policy 合规审核
+**主责范围**：schemas/opportunity_outcome.schema.json, schemas/outcome_by_score_bucket.schema.json, DoD, module-registry.yaml, metric_dictionary.yaml, policy 合规审核
 
 **具体任务**：
 - 定义 outcome schema
+- 定义 outcome_by_score_bucket 强 schema
 - 定义枚举（direction, action, gate_result, outcome_status, outcome_label, data_quality）
 - 定义 data_quality gate
 - 定义 DoD
@@ -1286,6 +1316,7 @@ Stage6 / New Feature / Evaluation Layer
 - [ ] 缺 join key 不得通过正式统计
 - [ ] module-registry.yaml 已声明 outcome 模块
 - [ ] metric_dictionary.yaml 已注册指标
+- [ ] outcome_by_score_bucket.schema.json 已纳入 PR-7a contract artifacts
 
 ---
 

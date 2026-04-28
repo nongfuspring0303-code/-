@@ -461,6 +461,7 @@ def _compute_summary(opportunities: list[dict]) -> dict:
     degraded = [o for o in opportunities if o["data_quality"] == "degraded"]
     invalid = [o for o in opportunities if o["data_quality"] == "invalid"]
     pending = [o for o in opportunities if o["data_quality"] == "pending"]
+    matured = [o for o in opportunities if o["data_quality"] != "pending"]
 
     resolved_valid = [o for o in valid if "resolved" in o.get("outcome_status", "")]
     hits = [o for o in resolved_valid if o.get("outcome_label") == "hit"]
@@ -497,6 +498,21 @@ def _compute_summary(opportunities: list[dict]) -> dict:
            o.get("outcome_status") == "invalid_join_key"
     )
 
+    # Coverage metrics required by metric_dictionary
+    execute_with_outcome_count = sum(
+        1 for o in execute_decisions if o.get("outcome_status") is not None
+    )
+    linked_outcome_count = sum(
+        1 for o in opportunities if o.get("trace_id") and o.get("event_hash")
+    )
+    records_requiring_failure_reason = [
+        o for o in opportunities
+        if o.get("data_quality") in ("degraded", "invalid") or o.get("failure_reasons")
+    ]
+    records_with_primary_failure_reason = sum(
+        1 for o in records_requiring_failure_reason if o.get("primary_failure_reason")
+    )
+
     return {
         "total_opportunities": total,
         "valid_outcome_count": len(valid),
@@ -521,6 +537,20 @@ def _compute_summary(opportunities: list[dict]) -> dict:
         "benchmark_missing_count": benchmark_missing_count,
         "mapping_failure_count": mapping_failures,
         "mapping_failure_rate": round(mapping_failures / total, 4) if total else None,
+        "outcome_record_coverage_rate": round(
+            (len(valid) + len(degraded) + len(invalid) + len(pending)) / total, 4
+        ) if total else None,
+        "resolved_outcome_coverage_rate": round(
+            (len(valid) + len(degraded) + len(invalid)) / len(matured), 4
+        ) if matured else None,
+        "pending_outcome_rate": round(len(pending) / total, 4) if total else None,
+        "execute_outcome_coverage_rate": round(
+            execute_with_outcome_count / len(execute_decisions), 4
+        ) if execute_decisions else None,
+        "join_key_link_rate": round(linked_outcome_count / total, 4) if total else None,
+        "failure_reason_coverage_rate": round(
+            records_with_primary_failure_reason / len(records_requiring_failure_reason), 4
+        ) if records_requiring_failure_reason else None,
     }
 
 
@@ -549,7 +579,7 @@ def _compute_score_buckets(opportunities: list[dict], policy: dict) -> list[dict
         if bucket:
             buckets_map[bucket].append(o)
 
-    bucket_order = ["80_PLUS", "60_79", "40_59", "LT_40"]
+    bucket_order = [b["name"] for b in policy.get("score_buckets", []) if b.get("name")]
     result = []
     for name in bucket_order:
         recs = buckets_map.get(name, [])
@@ -1013,7 +1043,7 @@ def run_engine(
     # outcome_summary.json
     summary_path = out_dir / "outcome_summary.json"
     summary_full = {
-        "schema_version": "stage6.summary.v1",
+        "schema_version": "stage6.outcome_summary.v1",
         "generated_at": generated_at,
         "horizon": horizon,
         **summary,

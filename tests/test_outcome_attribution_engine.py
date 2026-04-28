@@ -87,6 +87,11 @@ def score_buckets(engine_result) -> dict:
 
 
 @pytest.fixture(scope="module")
+def scoring_policy() -> dict:
+    return _load_yaml(REPO_ROOT / "configs" / "outcome_scoring_policy.yaml")
+
+
+@pytest.fixture(scope="module")
 def outcome_schema() -> dict:
     return _load_json(REPO_ROOT / "schemas" / "opportunity_outcome.schema.json")
 
@@ -429,15 +434,29 @@ def test_score_bucket_assignment(opportunity_outcomes):
     assert scorelt["score_bucket"] == "LT_40"
 
 
-def test_score_buckets_output_valid(score_buckets):
+def test_score_buckets_output_valid(score_buckets, scoring_policy):
     """Verify score bucket output matches schema."""
     assert score_buckets["schema_version"] == "stage6.outcome_by_score_bucket.v1"
     assert "buckets" in score_buckets
-    bucket_names = {b["name"] for b in score_buckets["buckets"]}
-    assert "80_PLUS" in bucket_names
-    assert "60_79" in bucket_names
-    assert "40_59" in bucket_names
-    assert "LT_40" in bucket_names
+    expected_order = [b["name"] for b in scoring_policy["score_buckets"]]
+    actual_order = [b["name"] for b in score_buckets["buckets"]]
+    assert actual_order == expected_order
+
+
+def test_summary_schema_and_coverage_metrics(outcome_summary):
+    """Summary must expose contract schema version and required coverage metrics."""
+    assert outcome_summary["schema_version"] == "stage6.outcome_summary.v1"
+    required_coverage_keys = [
+        "outcome_record_coverage_rate",
+        "resolved_outcome_coverage_rate",
+        "pending_outcome_rate",
+        "execute_outcome_coverage_rate",
+        "join_key_link_rate",
+        "failure_reason_coverage_rate",
+    ]
+    for key in required_coverage_keys:
+        assert key in outcome_summary
+        assert outcome_summary[key] is not None
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ This mapping is complete for PR-7a contract-freeze scope. Rules marked "planned 
 | S6-R002 | invalid records excluded from primary stats | S6-008 | *(planned in PR-7b, not covered in PR-7a)* |
 | S6-R003 | monotonicity requires enough sample | S6-013 | *(planned in PR-7b, not covered in PR-7a)* |
 | S6-R004 | mock/test source excluded from primary stats | S6-016 | *(planned in PR-7b, not covered in PR-7a)* |
-| S6-R005 | idempotent writes for same key | S6-017 | *(planned in PR-7b, not covered in PR-7a)* |
+| S6-R005 | idempotent writes for same key | S6-017 | tests/test_outcome_idempotency.py |
 | S6-R006 | replay result consistency | S6-018 | *(planned in PR-7b, not covered in PR-7a)* |
 | S6-R007 | provider info used for attribution only | S6-019 | *(planned in PR-7b, not covered in PR-7a)* |
 | S6-R008 | BLOCK no-advantage must map neutral_block | S6-007N | *(planned in PR-7b, not covered in PR-7a)* |

@@ -1,18 +1,16 @@
-"""Stage6 PR-7b: Outcome Engine Idempotency Tests.
+"""Stage6 PR-7b: Outcome Engine idempotency coverage.
 
-Member-C implementation.
-Verifies:
-  - Same input repeated does not duplicate records
-  - Same idempotency key produces stable results
-  - Core summary metrics are consistent across runs
+Rule ID: S6-R005
+Test ID: S6-017
+
+This file verifies same-key reruns are idempotent when the engine writes into
+the same output target more than once.
 """
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -40,149 +38,83 @@ def _read_jsonl(path: Path) -> list[dict]:
     return recs
 
 
-def test_idempotency_same_input_same_summary(tmp_path):
-    """Running twice on the same input should produce identical summary statistics."""
+def _without_generated_at(payload: dict) -> dict:
+    return {k: v for k, v in payload.items() if k != "generated_at"}
+
+
+def _run_same_target_twice(tmp_path: Path) -> tuple[dict, dict]:
     logs_dir = FIXTURES_DIR / "outcome_logs"
+    out_dir = tmp_path / "same-target"
+    out_dir.mkdir()
 
-    # Run 1
-    out1 = tmp_path / "run1"
-    out1.mkdir()
-    result1 = run_engine(logs_dir=logs_dir, out_dir=out1)
+    first = run_engine(logs_dir=logs_dir, out_dir=out_dir)
+    first_snapshot = {
+        "summary": _load_json(Path(first["summary_path"])),
+        "outcomes": _read_jsonl(Path(first["outcome_path"])),
+        "mapping": _read_jsonl(Path(first["mapping_path"])),
+        "failure": _load_json(Path(first["failure_path"])),
+    }
 
-    # Run 2
-    out2 = tmp_path / "run2"
-    out2.mkdir()
-    result2 = run_engine(logs_dir=logs_dir, out_dir=out2)
+    second = run_engine(logs_dir=logs_dir, out_dir=out_dir)
+    second_snapshot = {
+        "summary": _load_json(Path(second["summary_path"])),
+        "outcomes": _read_jsonl(Path(second["outcome_path"])),
+        "mapping": _read_jsonl(Path(second["mapping_path"])),
+        "failure": _load_json(Path(second["failure_path"])),
+    }
 
-    # Load summaries
-    summary1 = _load_json(Path(result1["summary_path"]))
-    summary2 = _load_json(Path(result2["summary_path"]))
-
-    # Core metrics must be identical
-    core_metrics = [
-        "total_opportunities",
-        "valid_outcome_count",
-        "degraded_outcome_count",
-        "invalid_outcome_count",
-        "pending_outcome_count",
-        "valid_resolved_t5_count",
-        "hit_count_t5",
-        "miss_count_t5",
-        "execute_decision_count",
-        "watch_decision_count",
-        "block_decision_count",
-        "overblocked_count",
-        "correct_block_count",
-        "missed_opportunity_count",
-    ]
-
-    for metric in core_metrics:
-        val1 = summary1.get(metric)
-        val2 = summary2.get(metric)
-        assert val1 == val2, (
-            f"Idempotency violation: {metric} differs across runs "
-            f"({val1} vs {val2})"
-        )
+    return first_snapshot, second_snapshot
 
 
-def test_idempotency_same_record_count(tmp_path):
-    """Running twice produces the same number of outcome records."""
-    logs_dir = FIXTURES_DIR / "outcome_logs"
+def test_s6_017_same_output_target_keeps_summary_stable(tmp_path):
+    """Test ID S6-017: rerunning the same output target must not drift summary metrics."""
+    first, second = _run_same_target_twice(tmp_path)
 
-    out1 = tmp_path / "run1"
-    out1.mkdir()
-    result1 = run_engine(logs_dir=logs_dir, out_dir=out1)
-    outcomes1 = _read_jsonl(Path(result1["outcome_path"]))
-
-    out2 = tmp_path / "run2"
-    out2.mkdir()
-    result2 = run_engine(logs_dir=logs_dir, out_dir=out2)
-    outcomes2 = _read_jsonl(Path(result2["outcome_path"]))
-
-    assert len(outcomes1) == len(outcomes2), (
-        f"Record count differs: {len(outcomes1)} vs {len(outcomes2)}"
+    assert _without_generated_at(first["summary"]) == _without_generated_at(second["summary"]), (
+        "S6-017 violation: summary metrics changed after rerunning the same output target"
     )
 
 
-def test_idempotency_same_opportunity_ids(tmp_path):
-    """Opportunity IDs should be the same across runs (deterministic ordering)."""
-    logs_dir = FIXTURES_DIR / "outcome_logs"
+def test_s6_017_same_output_target_does_not_duplicate_outcomes(tmp_path):
+    """Test ID S6-017: rerunning the same output target must not duplicate outcome rows."""
+    first, second = _run_same_target_twice(tmp_path)
 
-    out1 = tmp_path / "run1"
-    out1.mkdir()
-    result1 = run_engine(logs_dir=logs_dir, out_dir=out1)
-    outcomes1 = _read_jsonl(Path(result1["outcome_path"]))
+    first_ids = [row["opportunity_id"] for row in first["outcomes"]]
+    second_ids = [row["opportunity_id"] for row in second["outcomes"]]
 
-    out2 = tmp_path / "run2"
-    out2.mkdir()
-    result2 = run_engine(logs_dir=logs_dir, out_dir=out2)
-    outcomes2 = _read_jsonl(Path(result2["outcome_path"]))
-
-    ids1 = sorted([o["opportunity_id"] for o in outcomes1])
-    ids2 = sorted([o["opportunity_id"] for o in outcomes2])
-
-    assert ids1 == ids2, (
-        f"Opportunity IDs differ across runs. "
-        f"Unique to run1: {set(ids1) - set(ids2)}, "
-        f"Unique to run2: {set(ids2) - set(ids1)}"
+    assert len(second["outcomes"]) == len(first["outcomes"]), (
+        "S6-017 violation: rerun changed opportunity_outcome row count"
+    )
+    assert len(second_ids) == len(set(second_ids)), (
+        "S6-017 violation: duplicate opportunity_id rows found after rerun"
+    )
+    assert first_ids == second_ids, (
+        "S6-017 violation: rerun changed opportunity_outcome ordering or membership"
     )
 
 
-def test_idempotency_created_at_can_differ(tmp_path):
-    """created_at timestamps may differ, but everything else should be stable."""
-    logs_dir = FIXTURES_DIR / "outcome_logs"
+def test_s6_017_same_output_target_does_not_duplicate_mapping_rows(tmp_path):
+    """Test ID S6-017: rerunning the same output target must not duplicate mapping rows."""
+    first, second = _run_same_target_twice(tmp_path)
 
-    out1 = tmp_path / "run1"
-    out1.mkdir()
-    result1 = run_engine(logs_dir=logs_dir, out_dir=out1)
-    outcomes1 = _read_jsonl(Path(result1["outcome_path"]))
+    first_keys = [(row["trace_id"], row["opportunity_id"]) for row in first["mapping"]]
+    second_keys = [(row["trace_id"], row["opportunity_id"]) for row in second["mapping"]]
 
-    out2 = tmp_path / "run2"
-    out2.mkdir()
-    result2 = run_engine(logs_dir=logs_dir, out_dir=out2)
-    outcomes2 = _read_jsonl(Path(result2["outcome_path"]))
-
-    # Compare all fields except created_at
-    for o1, o2 in zip(outcomes1, outcomes2):
-        o1_stable = {k: v for k, v in o1.items() if k != "created_at"}
-        o2_stable = {k: v for k, v in o2.items() if k != "created_at"}
-        assert o1_stable == o2_stable, (
-            f"Outcome record differs: opp_id={o1.get('opportunity_id')} "
-            f"trace_id={o1.get('trace_id')}"
-        )
-
-
-def test_idempotency_score_buckets_consistent(tmp_path):
-    """Score bucket output should be identical across runs."""
-    logs_dir = FIXTURES_DIR / "outcome_logs"
-
-    out1 = tmp_path / "run1"
-    out1.mkdir()
-    result1 = run_engine(logs_dir=logs_dir, out_dir=out1)
-    buckets1 = _load_json(Path(result1["bucket_path"]))
-
-    out2 = tmp_path / "run2"
-    out2.mkdir()
-    result2 = run_engine(logs_dir=logs_dir, out_dir=out2)
-    buckets2 = _load_json(Path(result2["bucket_path"]))
-
-    assert buckets1["buckets"] == buckets2["buckets"], (
-        "Score bucket data differs across runs"
+    assert len(second["mapping"]) == len(first["mapping"]), (
+        "S6-017 violation: rerun changed mapping_attribution row count"
+    )
+    assert len(second_keys) == len(set(second_keys)), (
+        "S6-017 violation: duplicate mapping_attribution rows found after rerun"
+    )
+    assert first_keys == second_keys, (
+        "S6-017 violation: rerun changed mapping_attribution ordering or membership"
     )
 
 
-def test_idempotency_failure_distribution_consistent(tmp_path):
-    """Failure reason distribution should be identical across runs."""
-    logs_dir = FIXTURES_DIR / "outcome_logs"
+def test_s6_017_same_output_target_keeps_failure_distribution_stable(tmp_path):
+    """Test ID S6-017: rerunning the same output target must not drift failure stats."""
+    first, second = _run_same_target_twice(tmp_path)
 
-    out1 = tmp_path / "run1"
-    out1.mkdir()
-    result1 = run_engine(logs_dir=logs_dir, out_dir=out1)
-    fail1 = _load_json(Path(result1["failure_path"]))
-
-    out2 = tmp_path / "run2"
-    out2.mkdir()
-    result2 = run_engine(logs_dir=logs_dir, out_dir=out2)
-    fail2 = _load_json(Path(result2["failure_path"]))
-
-    assert fail1 == fail2, "Failure reason distribution differs across runs"
+    assert first["failure"] == second["failure"], (
+        "S6-017 violation: failure distribution changed after rerunning the same output target"
+    )

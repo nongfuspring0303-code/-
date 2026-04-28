@@ -61,3 +61,41 @@ def test_stage6_metric_entries_have_minimum_fields() -> None:
         assert required_fields.issubset(
             set(metric_cfg.keys())
         ), f"{metric_name} missing required metadata"
+
+
+def test_metric_dictionary_preserves_legacy_stage4_stage5_metrics() -> None:
+    data = _load_metric_dictionary()
+    metrics = data.get("metrics", {})
+
+    assert "ai_confidence" in metrics
+    assert "ai_a0_event_strength" in metrics
+    assert "ai_expectation_gap" in metrics
+
+    enumerations = data.get("enumerations", {})
+    assert "market_data_provenance" in enumerations
+    assert "semantic" in enumerations
+    assert "fallback_reason" in enumerations["market_data_provenance"]
+    assert "fallback_reason" in enumerations["semantic"]
+
+
+def test_metric_dictionary_preserves_legacy_fallback_reason_values() -> None:
+    data = _load_metric_dictionary()
+    enumerations = data["enumerations"]
+
+    market_fallback = set(enumerations["market_data_provenance"]["fallback_reason"])
+    semantic_fallback = set(enumerations["semantic"]["fallback_reason"])
+
+    assert "" in market_fallback
+    assert "NO_PRICE_RESOLVED" in market_fallback
+    assert "FALLBACK_PARTIAL" in market_fallback
+    assert "PARTIAL_PRICE_RESOLVED" in market_fallback
+
+    assert "" in semantic_fallback
+    assert "semantic_disabled" in semantic_fallback
+    assert "emergency_disabled" in semantic_fallback
+    assert "full_enable_disabled" in semantic_fallback
+    assert "timeout" in semantic_fallback
+    assert "provider_error" in semantic_fallback
+    assert "api_key_missing" in semantic_fallback
+    assert "confidence_below_threshold" in semantic_fallback
+    assert "chain_missing" in semantic_fallback

@@ -457,6 +457,7 @@ def test_summary_schema_and_coverage_metrics(outcome_summary):
     for key in required_coverage_keys:
         assert key in outcome_summary
         assert outcome_summary[key] is not None
+    assert outcome_summary["failure_reason_coverage_rate"] >= 0.95
 
 
 def test_score_buckets_policy_missing_fails_fast():
@@ -478,6 +479,7 @@ def test_all_output_files_exist(engine_result):
     expected_files = [
         "outcome_path",        # opportunity_outcome.jsonl
         "summary_path",        # outcome_summary.json
+        "report_path",         # outcome_report.md
         "bucket_path",         # outcome_by_score_bucket.json
         "mono_path",           # score_monotonicity_report.json
         "failure_path",        # failure_reason_distribution.json

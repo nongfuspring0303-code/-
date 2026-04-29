@@ -93,6 +93,40 @@ def _require_policy_score_buckets(policy: dict) -> list[dict]:
             )
     return buckets
 
+
+def _derive_failure_reasons(
+    dq_reasons: list[str],
+    *,
+    is_pending: bool = False,
+) -> list[str]:
+    """Map lower-level data-quality reasons to canonical failure reasons."""
+    dq = set(dq_reasons)
+
+    if "join_key_missing" in dq:
+        return ["join_key_missing"]
+    if "benchmark_missing" in dq:
+        return ["benchmark_missing"]
+    if is_pending or "pending_t5" in dq:
+        return ["insufficient_sample"]
+    if "audit_only_decision" in dq:
+        return ["gate_rule_wrong"]
+    if (
+        "market_data_default_used" in dq
+        or "market_data_stale" in dq
+        or "market_data_fallback_used" in dq
+        or "invalid_price_series" in dq
+    ):
+        return ["market_data_bad"]
+    if "provider_untrusted" in dq:
+        return ["provider_bad"]
+    if "provenance_field_missing" in dq or "mock_test_rejected" in dq:
+        return ["source_bad"]
+    if "symbol_missing" in dq or "direction_missing" in dq:
+        return ["source_bad"]
+    if "decision_price_missing" in dq:
+        return ["execution_missing"]
+    return []
+
 # ---------------------------------------------------------------------------
 # Data quality classification helpers
 # ---------------------------------------------------------------------------
@@ -349,11 +383,20 @@ def _normalize_gate_result(raw: str) -> Optional[str]:
 
 
 def _make_join_key(record: dict) -> Optional[str]:
-    """Create a join key from trace_id and event_hash."""
+    """Create a join key from trace_id and event_hash.
+
+    A complete join key requires both fields. If only one field is present,
+    return a partial key so the record can still be grouped for auditing,
+    but the record will be marked join_key_invalid downstream.
+    """
     tid = record.get("trace_id", "")
     ehash = record.get("event_hash", "")
-    if tid or ehash:
+    if tid and ehash:
         return f"{tid}|{ehash}"
+    if tid:
+        return f"{tid}|"
+    if ehash:
+        return f"|{ehash}"
     return None
 
 
@@ -524,7 +567,7 @@ def _compute_summary(opportunities: list[dict]) -> dict:
     )
     records_requiring_failure_reason = [
         o for o in opportunities
-        if o.get("data_quality") in ("degraded", "invalid") or o.get("failure_reasons")
+        if o.get("data_quality") in ("degraded", "invalid", "pending") or o.get("failure_reasons")
     ]
     records_with_primary_failure_reason = sum(
         1 for o in records_requiring_failure_reason if o.get("primary_failure_reason")
@@ -575,11 +618,13 @@ def _compute_failure_distribution(opportunities: list[dict]) -> dict:
     """Compute distribution of failure reasons."""
     dist: dict[str, int] = defaultdict(int)
     for o in opportunities:
-        pf = o.get("primary_failure_reason")
-        if pf:
-            dist[pf] += 1
-        for fr in o.get("failure_reasons", []):
-            dist[fr] += 1
+        reasons = {
+            reason
+            for reason in [o.get("primary_failure_reason"), *o.get("failure_reasons", [])]
+            if reason
+        }
+        for reason in reasons:
+            dist[reason] += 1
     return dict(sorted(dist.items()))
 
 
@@ -712,18 +757,21 @@ def _build_outcome_record(
     # Handle data quality issues that affect outcome
     if data_quality in ("degraded", "invalid", "pending"):
         outcome_label = None
-        # Add failure reasons for data quality issues
-        for reason in dq_reasons:
-            if reason in FAILURE_REASONS:
-                failure_reasons.append(reason)
+        # Map lower-level data quality issues onto the canonical failure enum.
+        failure_reasons.extend(
+            reason for reason in _derive_failure_reasons(dq_reasons, is_pending=is_pending)
+            if reason in FAILURE_REASONS
+        )
 
     # Handle specific failure reason conditions
     if joined.get("benchmark_missing"):
-        failure_reasons.append("benchmark_missing")
+        if "benchmark_missing" not in failure_reasons:
+            failure_reasons.append("benchmark_missing")
 
     if "join_key_missing" in dq_reasons:
         outcome_status = "invalid_join_key"
-        failure_reasons.append("join_key_missing")
+        if "join_key_missing" not in failure_reasons:
+            failure_reasons.append("join_key_missing")
 
     if "symbol_missing" in dq_reasons:
         outcome_status = "symbol_untradeable"
@@ -849,7 +897,7 @@ def run_engine(
     policy_path: Optional[Path] = None,
     metric_dictionary_path: Optional[Path] = None,
     horizon: str = "t5",
-    emit_report: bool = False,
+    emit_report: bool = True,
 ) -> dict:
     """Run the outcome attribution engine.
 
@@ -1003,7 +1051,7 @@ def run_engine(
             })
 
         # Check join key validity
-        join_key_valid = bool(key and key != "|")
+        join_key_valid = bool(joined.get("trace_id") and joined.get("event_hash"))
         missing_join_fields: list[str] = []
         if not joined.get("trace_id"):
             missing_join_fields.append("trace_id")
@@ -1287,8 +1335,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--emit-report", action="store_true",
-        help="Also generate outcome_report.md",
+        help="Also generate outcome_report.md (enabled by default)",
     )
+    parser.set_defaults(emit_report=True)
 
     args = parser.parse_args()
 

@@ -239,7 +239,7 @@ registry:
     output_schema: opportunity_outcome.schema.json
     dependencies: [Logger]
     config: outcome_scoring_policy.yaml
-    implementation_status: contract_only
+    implementation_status: implemented
     runtime_enabled: false
     test_case: tests/test_opportunity_outcome_schema.py
     acceptance_case: tests/test_stage6_metric_dictionary.py

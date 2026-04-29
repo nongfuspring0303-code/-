@@ -618,11 +618,13 @@ def _compute_failure_distribution(opportunities: list[dict]) -> dict:
     """Compute distribution of failure reasons."""
     dist: dict[str, int] = defaultdict(int)
     for o in opportunities:
-        pf = o.get("primary_failure_reason")
-        if pf:
-            dist[pf] += 1
-        for fr in o.get("failure_reasons", []):
-            dist[fr] += 1
+        reasons = {
+            reason
+            for reason in [o.get("primary_failure_reason"), *o.get("failure_reasons", [])]
+            if reason
+        }
+        for reason in reasons:
+            dist[reason] += 1
     return dict(sorted(dist.items()))
 
 

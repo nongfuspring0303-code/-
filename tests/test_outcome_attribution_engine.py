@@ -112,6 +112,11 @@ def log_trust_report(engine_result) -> dict:
 
 
 @pytest.fixture(scope="module")
+def failure_reason_distribution(engine_result) -> dict:
+    return _load_json(Path(engine_result["failure_path"]))
+
+
+@pytest.fixture(scope="module")
 def expected_outcomes_contract() -> dict:
     return _load_yaml(FIXTURES_DIR / "expected_outcomes.yaml")
 
@@ -286,6 +291,11 @@ def test_join_key_missing_trust_report_counts(log_trust_report):
     )
     assert rec["join_key_valid"] is False
     assert "event_hash" in rec.get("missing_join_fields", [])
+
+
+def test_join_key_missing_counted_once_in_failure_distribution(failure_reason_distribution):
+    """join_key_missing should be counted once per record, not twice."""
+    assert failure_reason_distribution.get("join_key_missing") == 1
 
 
 def test_symbol_missing_is_invalid(opportunity_outcomes):

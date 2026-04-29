@@ -6,15 +6,17 @@
 - PR 标题：`feat(stage6-7b3): add replay consistency and validation docs`
 - 审查时间：`2026-04-29`
 - 审查人：`Member-C (自审)`
-- Base 分支：`stage6-pr7b-2-idempotency-rules`
+- Base 分支：`main`
 - Head 分支：`stage6-pr7b-3-replay-report`
-- 最新 Head SHA：`77d461b`
-- 变更文件数：`4`
+- 最新 Head SHA：`46cae7c`
+- Base SHA：`1f0e770`
+- 变更文件数：`5`
 - 结论是否基于最新 head：`是`
 
 核验 diff：
 
 ```text
+A docs/review/pr7_rules_test_mapping.md
 A docs/review/stage6_pr7b_self_review.md
 M module-registry.yaml
 A tests/run_stage6_tests.py
@@ -80,9 +82,9 @@ A tests/test_outcome_replay_consistency.py
 
 ## 6. 最终结论
 
-`需修改后再审` 之前的两个问题已针对性修复后，本 PR 才可进入复审：
+当前 PR102 自审结论：
 
-1. 自审文档必须基于 PR102 最新 head 与最新 diff。
-2. replay consistency 测试必须显式绑定 `S6-R006 / S6-018`，并更新规则映射表。
-
-本文件即用于完成第 1 条闭环；第 2 条由 `tests/test_outcome_replay_consistency.py` 与 `docs/review/pr7_rules_test_mapping.md` 配合完成。
+- 已基于当前 latest head `46cae7c`
+- 已基于当前 base `main` / `1f0e770`
+- 已对应当前 5 个 changed files
+- replay consistency 规则追踪与自审文档时效性问题已完成收口

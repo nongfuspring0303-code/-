@@ -77,7 +77,7 @@ PR-7 Final 开始前，必须满足以下前置条件。
 | PR-7b-1 已合并 | PASS | [PR100](https://github.com/nongfuspring0303-code-org/-/pull/100) | fixtures + 最小 engine |
 | PR-7b-2 已合并 | PASS | [PR101](https://github.com/nongfuspring0303-code-org/-/pull/101) | 标签与归因规则 |
 | PR-7b-3 已合并 | PASS | [PR102](https://github.com/nongfuspring0303-code-org/-/pull/102) | 报告、alpha、idempotency、replay |
-| 最新 `main` 已同步 | PASS | `main@ba5d586cb31d7fa80440b046f71ae4b8dd62d5f8 / PR104@1fafdaa6778befd4de2cb03bfb39bbbf9780ad44` | 必须基于最新 main 验收 |
+| 最新 `main` 已同步 | PASS | `main@ba5d586cb31d7fa80440b046f71ae4b8dd62d5f8 / PR104@b6a395a7e745f35a93a98650e85d94e308b2aa36` | 必须基于最新 main 验收 |
 | CI / healthcheck 可运行 | PASS | `python3 scripts/system_healthcheck.py --mode dev` | RETURN_CODE: 0, OVERALL GREEN, canary/data YELLOW note is non-Stage6 regression |
 
 ---

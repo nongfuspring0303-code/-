@@ -72,13 +72,13 @@ PR-7 Final 开始前，必须满足以下前置条件。
 
 | 前置条件 | 状态 | 证据 / 链接 | 备注 |
 |---|---:|---|---|
-| PR-7a / PR97 Contract Freeze 已合并 | PASS | `<link>` | 冻结 schema / policy / registry / metric dictionary / tests |
-| PR98 v2.1 Implementation Plan 已合并 | PASS | `<link>` | docs-only plan 落地 |
-| PR-7b-1 已合并 | PASS | `<link>` | fixtures + 最小 engine |
-| PR-7b-2 已合并 | PASS | `<link>` | 标签与归因规则 |
-| PR-7b-3 已合并 | PASS | `<link>` | 报告、alpha、idempotency、replay |
-| 最新 `main` 已同步 | PASS | `git rev-parse HEAD` | 必须基于最新 main 验收 |
-| CI / healthcheck 可运行 | PASS | `<log>` | 不允许因 Stage6 变更导致 RED |
+| PR-7a / PR97 Contract Freeze 已合并 | PASS | [PR97](https://github.com/nongfuspring0303-code-org/-/pull/97) | 冻结 schema / policy / registry / metric dictionary / tests |
+| PR98 v2.1 Implementation Plan 已合并 | PASS | [PR98](https://github.com/nongfuspring0303-code-org/-/pull/98) | docs-only plan 落地 |
+| PR-7b-1 已合并 | PASS | [PR100](https://github.com/nongfuspring0303-code-org/-/pull/100) | fixtures + 最小 engine |
+| PR-7b-2 已合并 | PASS | [PR101](https://github.com/nongfuspring0303-code-org/-/pull/101) | 标签与归因规则 |
+| PR-7b-3 已合并 | PASS | [PR102](https://github.com/nongfuspring0303-code-org/-/pull/102) | 报告、alpha、idempotency、replay |
+| 最新 `main` 已同步 | PASS | `main@ba5d586cb31d7fa80440b046f71ae4b8dd62d5f8 / PR104@aae53005731fcf0de1b3b4db236b3a2b628bee75` | 必须基于最新 main 验收 |
+| CI / healthcheck 可运行 | PASS | `python3 scripts/system_healthcheck.py --mode dev` | RETURN_CODE: 0, OVERALL GREEN, canary/data YELLOW note is non-Stage6 regression |
 
 ---
 

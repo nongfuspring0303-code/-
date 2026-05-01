@@ -71,7 +71,7 @@ class RealtimeNewsMonitor:
         self._thread_local = threading.local()
         if self._use_concurrent_processing:
             self._executor = ThreadPoolExecutor(max_workers=self._glm_concurrency)
-            atexit.register(self._executor.shutdown, wait=True)
+            atexit.register(self._shutdown_executor)
         self.translator = Translator() if Translator else None
         if not self.translator:
             logger.warning("⚠️ googletrans 不可用，中文翻译将跳过")
@@ -87,6 +87,16 @@ class RealtimeNewsMonitor:
         except (ValueError, TypeError):
             logger.warning("⚠️ 环境变量 %s='%s' 不是有效整数，使用默认值 %d", key, raw, default)
             return default
+
+    def _shutdown_executor(self) -> None:
+        executor = self._executor
+        if executor is None:
+            return
+        self._executor = None
+        try:
+            executor.shutdown(wait=True)
+        except Exception as exc:
+            logger.warning("executor shutdown failed: %s", exc)
 
     def _load_node_role(self) -> str:
         env_role = os.getenv("EDT_NODE_ROLE", "").strip().lower()
@@ -667,7 +677,8 @@ class RealtimeNewsMonitor:
         processed_any = False
         if process_count > 0:
             items = [self._pending_news.pop(0) for _ in range(process_count)]
-            if self._use_concurrent_processing and self._executor:
+            use_concurrent = self._use_concurrent_processing and self._executor is not None
+            if use_concurrent:
                 # Keep FIFO order: submit all, wait all, retrieve in input order.
                 futures = [self._executor.submit(self._process_news, item) for item in items]
                 from concurrent.futures import wait as futures_wait
@@ -725,7 +736,7 @@ class RealtimeNewsMonitor:
     
         finally:
             if self._executor:
-                self._executor.shutdown(wait=True)
+                self._shutdown_executor()
 
     async def run_loop_async(self):
         """异步版本的持续运行"""
@@ -747,7 +758,7 @@ class RealtimeNewsMonitor:
                 await asyncio.sleep(self.poll_interval)
         finally:
             if self._executor:
-                self._executor.shutdown(wait=True)
+                self._shutdown_executor()
 
 def main():
     parser = argparse.ArgumentParser(description="实时新闻监控")

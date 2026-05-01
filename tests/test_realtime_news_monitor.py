@@ -1,3 +1,4 @@
+import pytest
 import sys
 from pathlib import Path
 
@@ -513,6 +514,8 @@ def test_concurrent_multi_news_isolation(monkeypatch):
     monitor._fetch_latest_news = lambda: []
     monitor._seen_signatures = {}
 
+    # Override trigger to accept publish_event_update kwarg
+    monitor._trigger_ab_pipeline = lambda news, **kwargs: None
     try:
         result = monitor.run_once()
         assert result is True
@@ -563,3 +566,304 @@ def test_env_var_invalid_values_fallback_safely(monkeypatch):
     monitor = _build_monitor(monkeypatch)
     assert monitor._glm_concurrency == 5, f"Expected default 5, got {monitor._glm_concurrency}"
     assert monitor.max_process_per_cycle == 5, f"Expected default 5, got {monitor.max_process_per_cycle}"
+
+
+# ---------------------------------------------------------------------------
+# 修复1: 真实 _process_news 多新闻并发隔离测试
+# S6-R016 / Test IDs: S6-T016-08
+# ---------------------------------------------------------------------------
+
+def test_concurrent_real_process_news_isolation(monkeypatch):
+    """S6-R016: 真实 _process_news 并发处理多条新闻时 trace_id/headline 不串线。
+    Test ID: S6-T016-08"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    # Track push payloads per trace_id
+    preview_payloads = []
+    sector_payloads = []
+
+    def _fake_preview(news, **kwargs):
+        preview_payloads.append({"headline": news.get("headline"), "event_id": news.get("event_id")})
+
+    def _fake_push(result, news=None, **kwargs):
+        trace_id = result.get("trace_id", "")
+        headline = ""
+        if "intel" in result:
+            headline = result["intel"].get("event_object", {}).get("headline", "")
+        sector_payloads.append({"trace_id": trace_id, "headline": headline})
+
+    class _FakeEventCapture:
+        def __init__(self, config_path=None):
+            pass
+        def run(self, news):
+            class _Result:
+                data = {
+                    "captured": True,
+                    "matched_keywords": ["test"],
+                    "vix_amplify": False,
+                    "ai_verdict": "hit",
+                    "ai_confidence": 80,
+                    "ai_reason": "test",
+                }
+            return _Result()
+
+    class _FakeDataAdapter:
+        def __init__(self):
+            pass
+        def fetch_market_data(self):
+            return {}
+
+    class _FakeWorkflowRunner:
+        def __init__(self, audit_dir=None, state_db_path=None):
+            pass
+        def run(self, payload):
+            headline = payload.get("headline", "")
+            source = payload.get("source", "")
+            return {
+                "intel": {
+                    "event_object": {
+                        "event_id": headline,
+                        "headline": headline,
+                        "source_url": source,
+                        "severity": "E1",
+                        "detected_at": "2026-05-01T00:00:00Z",
+                    }
+                },
+                "analysis": {
+                    "conduction": {"sector_impacts": [], "confidence": 0},
+                    "opportunity_update": {"opportunities": []},
+                },
+                "trace_id": f"TRACE-{headline}",
+            }
+
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor.max_process_per_cycle = 3
+    monitor._use_concurrent_processing = True
+    monitor._executor = ThreadPoolExecutor(max_workers=3)
+    # Wire up real classes
+    monitor._event_capture_cls = _FakeEventCapture
+    monitor._data_adapter_cls = _FakeDataAdapter
+    monitor._workflow_cls = _FakeWorkflowRunner
+    monkeypatch.setattr(type(monitor), "_push_news_preview",
+                      lambda self, news, **kwargs: _fake_preview(news, **kwargs))
+    monkeypatch.setattr(type(monitor), "_push_sectors_to_c",
+                      lambda self, result, news=None, **kwargs: _fake_push(result, news=news, **kwargs))
+    monitor.node_role = "master"
+    monitor._bootstrap_done = True
+    monitor._pending_news = [
+        {"headline": "NewsAlpha", "source_url": "https://source.alpha", "source_type": "rss",
+         "timestamp": "2026-05-01T00:00:00Z", "event_id": "A1", "metadata": {}},
+        {"headline": "NewsBeta", "source_url": "https://source.beta", "source_type": "rss",
+         "timestamp": "2026-05-01T00:00:01Z", "event_id": "B1", "metadata": {}},
+        {"headline": "NewsGamma", "source_url": "https://source.gamma", "source_type": "rss",
+         "timestamp": "2026-05-01T00:00:02Z", "event_id": "G1", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: []
+    monitor._seen_signatures = {}
+    # Remove _build_monitor's fake trigger so real _trigger_ab_pipeline runs
+    if "_trigger_ab_pipeline" in monitor.__dict__:
+        del monitor._trigger_ab_pipeline
+
+    try:
+        result = monitor.run_once()
+        assert result is True
+
+        # Verify isolation: all headlines present (may be called multiple times per item)
+        preview_headlines = set(p["headline"] for p in preview_payloads)
+        assert preview_headlines == {"NewsAlpha", "NewsBeta", "NewsGamma"}, \
+            f"Preview isolation broken: {preview_headlines}"
+
+        sector_headlines = [p["headline"] for p in sector_payloads]
+        assert set(sector_headlines) == {"NewsAlpha", "NewsBeta", "NewsGamma"}, \
+            f"Sector push isolation broken: {sector_headlines}"
+
+        # Verify no cross-contamination: each trace_id maps to correct headline
+        for entry in sector_payloads:
+            tid = entry["trace_id"]
+            hl = entry["headline"]
+            expected_tid = f"TRACE-{hl}"
+            assert tid == expected_tid, f"Trace mismatch: {tid} vs expected {expected_tid}"
+    finally:
+        monitor._executor = None
+
+
+# ---------------------------------------------------------------------------
+# 修复2: EventCapture / DataAdapter thread-local 测试
+# Test IDs: S6-T016-09 ~ S6-T016-12
+# ---------------------------------------------------------------------------
+
+def test_concurrent_event_capture_thread_local_isolation(monkeypatch):
+    """S6-R016: EventCapture thread-local —— 不同线程不同实例，同线程复用。
+    Test ID: S6-T016-09"""
+    import threading
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+
+    class _FakeCapture:
+        _next_id = 0
+        def __init__(self, config_path=None):
+            _FakeCapture._next_id += 1
+            self.instance_id = _FakeCapture._next_id
+
+    monitor._event_capture_cls = _FakeCapture
+
+    ids = []
+    lock = threading.Lock()
+
+    def _get():
+        ec = monitor._get_event_capture()
+        with lock:
+            ids.append(ec.instance_id)
+
+    threads = [threading.Thread(target=_get) for _ in range(2)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    assert len(set(ids)) == 2, f"Expected 2 unique instances, got {ids}"
+
+
+def test_concurrent_event_capture_same_thread_reuses_instance(monkeypatch):
+    """S6-R016: EventCapture 同线程重复调用复用同一实例。
+    Test ID: S6-T016-10"""
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+
+    class _FakeCapture:
+        _next_id = 0
+        def __init__(self, config_path=None):
+            _FakeCapture._next_id += 1
+            self.instance_id = _FakeCapture._next_id
+
+    monitor._event_capture_cls = _FakeCapture
+    first = monitor._get_event_capture()
+    second = monitor._get_event_capture()
+    assert first is second, "Same thread should reuse EventCapture"
+
+
+def test_concurrent_data_adapter_thread_local_isolation(monkeypatch):
+    """S6-R016: DataAdapter thread-local —— 不同线程不同实例，同线程复用。
+    Test ID: S6-T016-11"""
+    import threading
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+
+    class _FakeAdapter:
+        _next_id = 0
+        def __init__(self):
+            _FakeAdapter._next_id += 1
+            self.instance_id = _FakeAdapter._next_id
+
+    monitor._data_adapter_cls = _FakeAdapter
+
+    ids = []
+    lock = threading.Lock()
+
+    def _get():
+        da = monitor._get_market_data_adapter()
+        with lock:
+            ids.append(da.instance_id)
+
+    threads = [threading.Thread(target=_get) for _ in range(2)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    assert len(set(ids)) == 2, f"Expected 2 unique instances, got {ids}"
+
+
+def test_concurrent_data_adapter_same_thread_reuses_instance(monkeypatch):
+    """S6-R016: DataAdapter 同线程重复调用复用同一实例。
+    Test ID: S6-T016-12"""
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+
+    class _FakeAdapter:
+        _next_id = 0
+        def __init__(self):
+            _FakeAdapter._next_id += 1
+            self.instance_id = _FakeAdapter._next_id
+
+    monitor._data_adapter_cls = _FakeAdapter
+    first = monitor._get_market_data_adapter()
+    second = monitor._get_market_data_adapter()
+    assert first is second, "Same thread should reuse DataAdapter"
+
+
+# ---------------------------------------------------------------------------
+# 修复3: executor shutdown 后 run_once 不丢消息
+# Test ID: S6-T016-13
+# ---------------------------------------------------------------------------
+
+def test_run_once_after_executor_shutdown_does_not_drop_pending_news(monkeypatch):
+    """S6-R016: executor shutdown 后 run_once 降级 sequential，不丢 _pending_news。
+    Test ID: S6-T016-13"""
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor.max_process_per_cycle = 5
+    monitor._use_concurrent_processing = True
+    from concurrent.futures import ThreadPoolExecutor
+    monitor._executor = ThreadPoolExecutor(max_workers=3)
+    # Shutdown executor
+    monitor._shutdown_executor()
+    assert monitor._executor is None, "executor should be None after shutdown"
+
+    processed_ids = []
+    def _fake_process(news):
+        processed_ids.append(news.get("event_id"))
+        return True
+    monitor._process_news = _fake_process
+
+    monitor._pending_news = [
+        {"event_id": "S1", "headline": "post-shutdown", "metadata": {}},
+        {"event_id": "S2", "headline": "still-processed", "metadata": {}},
+    ]
+    monitor._bootstrap_done = True
+    monitor._fetch_latest_news = lambda: []
+
+    result = monitor.run_once()
+    assert result is True
+    # Both items must be processed (sequential fallback)
+    assert processed_ids == ["S1", "S2"], f"Items dropped after shutdown: {processed_ids}"
+    assert len(monitor._pending_news) == 0
+
+
+# ---------------------------------------------------------------------------
+# 修复4: 环境变量边界测试
+# Test IDs: S6-T016-14 ~ S6-T016-18
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("env_val,field,expected", [
+    ("0", "_glm_concurrency", 1),     # EDT_GLM_CONCURRENCY=0 → clamped to 1
+    ("-1", "_glm_concurrency", 1),    # EDT_GLM_CONCURRENCY=-1 → clamped to 1
+])
+def test_env_var_glm_concurrency_edge(monkeypatch, env_val, field, expected):
+    """S6-R016: EDT_GLM_CONCURRENCY 边界值 clamp 到至少 1。
+    Test IDs: S6-T016-14~15"""
+    monkeypatch.setenv("EDT_GLM_CONCURRENCY", env_val)
+    monitor = _build_monitor(monkeypatch)
+    assert getattr(monitor, field) == expected, f"{field}={getattr(monitor, field)} != {expected}"
+
+
+@pytest.mark.parametrize("env_val", ["0", "-1"])
+def test_env_var_max_process_per_cycle_edge(monkeypatch, env_val):
+    """S6-R016: EDT_MAX_PROCESS_PER_CYCLE=0/-1 clamp 到至少 1。
+    Test IDs: S6-T016-16~17"""
+    monkeypatch.setenv("EDT_MAX_PROCESS_PER_CYCLE", env_val)
+    monitor = _build_monitor(monkeypatch)
+    assert monitor.max_process_per_cycle >= 1, f"max_process_per_cycle={monitor.max_process_per_cycle}"
+
+
+def test_env_var_glm2_max5_combination(monkeypatch):
+    """S6-R016: EDT_GLM_CONCURRENCY=2 + EDT_MAX_PROCESS_PER_CYCLE=5。
+    Test ID: S6-T016-18"""
+    monkeypatch.setenv("EDT_GLM_CONCURRENCY", "2")
+    monkeypatch.setenv("EDT_MAX_PROCESS_PER_CYCLE", "5")
+    monitor = _build_monitor(monkeypatch)
+    assert monitor._glm_concurrency == 2
+    assert monitor.max_process_per_cycle == 5
+    assert monitor._use_concurrent_processing is True
+    assert monitor._executor is not None

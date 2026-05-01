@@ -30,6 +30,10 @@ jobs:
         run: |
           python -m pytest tests/test_realtime_news_monitor.py tests/test_canary_source_health.py tests/test_verify_canary_source_health.py -q
 
+      - name: Run stage5/stage6 contract pytest
+        run: |
+          python -m pytest tests/test_member_b_stage5_scorecard_contract.py tests/test_outcome_attribution_engine.py tests/test_opportunity_score.py -q
+
       - name: Run healthcheck
         run: |
           python scripts/system_healthcheck.py --mode dev

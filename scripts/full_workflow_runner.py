@@ -407,6 +407,7 @@ class FullWorkflowRunner:
             "theme_tags": list(theme_tags) if isinstance(theme_tags, list) else [],
             "tradeable": tradeable,
             "opportunity_count": opportunity_count,
+            "decision_price": execution_in.get("decision_price"),
             "final_action": final_action,
             "final_reason": final_reason,
             "sectors[]": sectors_list,
@@ -963,6 +964,7 @@ class FullWorkflowRunner:
         analysis_out["opportunity_update"] = opportunity_update
         opportunities = opportunity_update.get("opportunities", []) if isinstance(opportunity_update, dict) else []
         has_opportunity = bool(opportunities)
+        primary_decision_price = opportunities[0].get("decision_price") if opportunities else None
         provider_meta = {}
         if isinstance(opportunity_update, dict):
             raw_provider_meta = opportunity_update.get("provider_meta")
@@ -1101,6 +1103,7 @@ class FullWorkflowRunner:
             "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
             "enforce_resolved_symbol": True,
             "tradeable": has_opportunity and validation_out.get("a1_market_validation") != "fail",
+            "decision_price": primary_decision_price,
             "contract_version": contract_version,
             "legacy_contract_version": legacy_contract_version,
             "dual_write": True,

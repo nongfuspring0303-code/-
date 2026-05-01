@@ -538,6 +538,7 @@ class OpportunityScorer:
             "sector": sector_name,
             "signal": target_signal,
             "entry_zone": self._build_entry_zone(realtime_price if realtime_price is not None else stock.last_price),
+            "decision_price": realtime_price if realtime_price is not None else getattr(stock, 'last_price', None),
             "price_source": "live" if realtime_price is not None else stock.price_source,
             "needs_price_refresh": realtime_price is None,
             "risk_flags": risk_flags,

@@ -1074,15 +1074,33 @@ def run_engine(
         # Prefer per-symbol decision price context when available (symbol-first).
         # This makes decision_price/source evaluation symbol-aware instead of event-level only.
         by_symbol = joined.get("decision_prices_by_symbol")
-        sym = joined.get("symbol")
-        if isinstance(by_symbol, dict) and sym and isinstance(by_symbol.get(sym), dict):
-            sym_ctx = by_symbol.get(sym) or {}
-            if "decision_price" in sym_ctx:
-                joined["decision_price"] = sym_ctx.get("decision_price")
-            if "decision_price_source" in sym_ctx:
-                joined["decision_price_source"] = sym_ctx.get("decision_price_source")
-            if "needs_price_refresh" in sym_ctx:
-                joined["needs_price_refresh"] = sym_ctx.get("needs_price_refresh")
+        sym = _normalize_symbol_key(joined.get("symbol"))
+        if isinstance(by_symbol, dict):
+            normalized_by_symbol = {}
+            for key, value in by_symbol.items():
+                nkey = _normalize_symbol_key(key)
+                if not nkey:
+                    continue
+                if isinstance(value, dict):
+                    normalized_by_symbol[nkey] = value
+            joined["decision_prices_by_symbol"] = normalized_by_symbol
+
+            if sym:
+                joined["symbol"] = sym
+            if sym and isinstance(normalized_by_symbol.get(sym), dict):
+                sym_ctx = normalized_by_symbol.get(sym) or {}
+                if "decision_price" in sym_ctx:
+                    joined["decision_price"] = sym_ctx.get("decision_price")
+                if "decision_price_source" in sym_ctx:
+                    joined["decision_price_source"] = sym_ctx.get("decision_price_source")
+                if "needs_price_refresh" in sym_ctx:
+                    joined["needs_price_refresh"] = sym_ctx.get("needs_price_refresh")
+            elif sym and normalized_by_symbol:
+                # by_symbol exists but current symbol has no entry: force missing context,
+                # never fall back to another symbol's event-level live price.
+                joined["decision_price"] = None
+                joined["decision_price_source"] = "missing"
+                joined["needs_price_refresh"] = True
 
         missing_join_fields: list[str] = []
         if not joined.get("trace_id"):
@@ -1230,7 +1248,8 @@ def _extract_symbol(scorecard: dict) -> Optional[str]:
     """Extract symbol from stock_candidates in trace_scorecard."""
     candidates = scorecard.get("stock_candidates", [])
     if candidates and isinstance(candidates, list) and len(candidates) > 0:
-        return candidates[0].get("symbol") if isinstance(candidates[0], dict) else None
+        symbol = candidates[0].get("symbol") if isinstance(candidates[0], dict) else None
+        return _normalize_symbol_key(symbol)
     return None
 
 
@@ -1242,6 +1261,13 @@ def _extract_direction(scorecard: dict) -> Optional[str]:
         if d:
             return d.upper()
     return None
+
+
+def _normalize_symbol_key(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip().upper()
+    return text or None
 
 
 def _generate_markdown_report(

@@ -978,7 +978,8 @@ class FullWorkflowRunner:
         # Build per-symbol price map for multi-opportunity scenarios
         decision_prices_by_symbol: Dict[str, Dict[str, Any]] = {}
         for opp in opportunities:
-            sym = opp.get("symbol") or opp.get("ticker")
+            sym_raw = opp.get("symbol") or opp.get("ticker")
+            sym = str(sym_raw).strip().upper() if sym_raw else ""
             if not sym:
                 continue
             decision_price = opp.get("decision_price")

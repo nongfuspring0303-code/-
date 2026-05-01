@@ -796,3 +796,85 @@ def test_s6_r015_end_to_end_symbol_context_prevents_cross_symbol_leakage(tmp_pat
     assert rec.get("decision_price_source") in (None, "missing")
     assert rec["data_quality"] == "invalid"
     assert rec.get("primary_failure_reason") == "execution_missing"
+
+
+def test_multi_symbol_missing_price_does_not_inherit_event_level_price(tmp_path):
+    """Required regression: missing-price symbol must not inherit event-level/live price.
+    AAPL has live price, TSLA missing; TSLA must resolve to invalid/execution_missing.
+    """
+    logs_dir = tmp_path / "logs_multi_symbol_missing_price"
+    out_dir = tmp_path / "out_multi_symbol_missing_price"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    trace_id = "E2E-MULTI-SYMBOL-PRICE-001"
+    event_hash = "hash-e2e-multi-symbol"
+
+    (logs_dir / "trace_scorecard.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "symbol": "TSLA",
+            "side": "LONG",
+            "direction": "LONG",
+            "stock_candidates": [
+                {"symbol": "TSLA", "direction": "LONG"},
+                {"symbol": "AAPL", "direction": "LONG"},
+            ],
+            "final_action": "WATCH",
+            "event_time": "2026-05-01T10:12:00Z",
+            # event-level fields may reflect AAPL context
+            "decision_price": 100.0,
+            "decision_price_source": "live",
+            "decision_prices_by_symbol": {
+                "AAPL": {
+                    "decision_price": 100.0,
+                    "decision_price_source": "live",
+                    "needs_price_refresh": False,
+                },
+                "TSLA": {
+                    "decision_price": None,
+                    "decision_price_source": "missing",
+                    "needs_price_refresh": True,
+                },
+            },
+            "log_source": "live",
+            "t5_return": 0.0,
+            "sector_relative_alpha_t5": 0.0,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "decision_gate.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "final_action_after_gate": "WATCH",
+            "logged_at": "2026-05-01T10:12:01Z",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "market_data_provenance.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "market_data_default_used": False,
+            "market_data_stale": False,
+            "market_data_fallback_used": False,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "execution_emit.jsonl").write_text("", encoding="utf-8")
+    (logs_dir / "replay_write.jsonl").write_text("", encoding="utf-8")
+
+    result = run_engine(logs_dir=logs_dir, out_dir=out_dir, horizon="t5")
+    outcomes = _read_jsonl(Path(result["outcome_path"]))
+    assert len(outcomes) == 1
+    rec = outcomes[0]
+
+    # TSLA must keep its own missing context and not inherit AAPL live price/source.
+    assert rec.get("symbol") == "TSLA"
+    assert rec.get("decision_price") is None
+    assert rec.get("decision_price_source") in (None, "missing")
+    assert rec.get("data_quality") == "invalid"
+    assert rec.get("primary_failure_reason") == "execution_missing"
+    assert "execution_missing" in rec.get("failure_reasons", [])

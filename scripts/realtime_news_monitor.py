@@ -12,12 +12,14 @@ Real-time News Monitor for EDT Project
 
 import argparse
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
 import logging
 import re
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,7 +62,9 @@ class RealtimeNewsMonitor:
         self._bootstrap_done = False
         self.batch_news_limit = 20
         self._pending_news: List[Dict[str, Any]] = []
-        self.max_process_per_cycle = max(1, int(os.getenv("EDT_MAX_PROCESS_PER_CYCLE", "1") or "1"))
+        self._glm_concurrency = max(1, int(os.getenv("EDT_GLM_CONCURRENCY", "3") or "3"))
+        self.max_process_per_cycle = max(self._glm_concurrency, int(os.getenv("EDT_MAX_PROCESS_PER_CYCLE", str(self._glm_concurrency))))
+        self._executor = ThreadPoolExecutor(max_workers=self._glm_concurrency)
         self.translator = Translator() if Translator else None
         if not self.translator:
             logger.warning("⚠️ googletrans 不可用，中文翻译将跳过")
@@ -607,10 +611,18 @@ class RealtimeNewsMonitor:
 
         process_count = min(self.max_process_per_cycle, len(self._pending_news))
         processed_any = False
-        for _ in range(process_count):
-            item = self._pending_news.pop(0)
-            self.last_news_signature = self._get_news_signature(item)
-            processed_any = self._process_news(item) or processed_any
+        if process_count > 0:
+            items = [self._pending_news.pop(0) for _ in range(process_count)]
+            if len(items) == 1:
+                processed_any = self._process_news(items[0])
+            else:
+                futures = {self._executor.submit(self._process_news, item): item for item in items}
+                for future in as_completed(futures):
+                    try:
+                        if future.result():
+                            processed_any = True
+                    except Exception as e:
+                        logger.error(f"并发处理新闻失败: {e}")
 
         logger.info(
             "🆕 实时采样: 新增=%d 本轮处理=%d 待处理=%d",

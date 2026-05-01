@@ -19,7 +19,11 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from outcome_attribution_engine import run_engine, _require_policy_score_buckets
+from outcome_attribution_engine import (
+    run_engine,
+    _require_policy_score_buckets,
+    _check_condition,
+)
 
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "stage6"
 
@@ -559,3 +563,42 @@ def _is_alpha_primary_included(outcome: dict) -> bool:
     return outcome.get("data_quality") == "valid" and "benchmark_missing" not in outcome.get(
         "failure_reasons", []
     )
+
+
+# ---------------------------------------------------------------------------
+# S6-R015: decision_price_source data_quality rules
+# Test IDs: S6-T015-01 ~ S6-T015-04
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("source,expected", [
+    (None, True),       # None → decision_price_source_missing → invalid
+    ("missing", True),  # "missing" → decision_price_source_missing → invalid
+    ("", True),         # empty → decision_price_source_missing → invalid
+])
+def test_s6_r015_decision_price_source_missing(source, expected):
+    """S6-R015: decision_price_source is None/missing/empty -> decision_price_source_missing.
+    Test IDs: S6-T015-01~03"""
+    result = _check_condition({"decision_price_source": source}, "decision_price_source_missing")
+    assert result is expected
+
+
+def test_s6_r015_decision_price_source_live_not_missing():
+    """S6-R015: decision_price_source='live' does NOT trigger missing condition.
+    Test ID: S6-T015-04"""
+    result = _check_condition({"decision_price_source": "live"}, "decision_price_source_missing")
+    assert result is False
+
+
+@pytest.mark.parametrize("source,expected", [
+    ("snapshot", True),       # non-live → non_live → degraded
+    ("reference", True),      # non-live → non_live → degraded
+    ("dynamic_cache", True),  # non-live → non_live → degraded
+    (None, False),            # None is already caught by decision_price_source_missing
+    ("missing", False),       # "missing" already caught by decision_price_source_missing
+    ("live", False),          # live is valid
+])
+def test_s6_r015_decision_price_source_non_live(source, expected):
+    """S6-R015: non-live decision_price_source -> decision_price_source_non_live -> degraded.
+    Test IDs: S6-T015-05~10"""
+    result = _check_condition({"decision_price_source": source}, "decision_price_source_non_live")
+    assert result is expected

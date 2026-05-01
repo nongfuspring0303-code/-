@@ -201,10 +201,12 @@ def _check_condition(record: dict, condition: str) -> bool:
         return record.get("benchmark_missing", False)
     if condition == "decision_price_source_missing":
         src = record.get("decision_price_source")
-        return src is None or src == "missing"
+        return src is None or str(src).strip() in ("", "missing")
     if condition == "decision_price_source_non_live":
         src = record.get("decision_price_source")
-        return src is not None and src != "live"
+        if src is None or str(src).strip() in ("", "missing"):
+            return False  # already handled by decision_price_source_missing
+        return str(src) != "live"
     return False
 
 

@@ -302,7 +302,7 @@ def test_run_once_queues_fresh_news_without_dropping(monkeypatch):
     assert len(monitor._pending_news) == 0
 
 
-def test_default_path_keeps_single_item_in_thread(monkeypatch):
+def test_default_path_uses_five_wide_concurrency(monkeypatch):
     monitor = _build_monitor(monkeypatch)
     monitor._bootstrap_done = True
 
@@ -319,11 +319,38 @@ def test_default_path_keeps_single_item_in_thread(monkeypatch):
     ]
     monitor._fetch_latest_news = lambda: []
 
+    assert monitor._glm_concurrency == 5
+    assert monitor.max_process_per_cycle == 5
+    assert monitor._executor is not None
+    assert monitor.run_once() is True
+    assert processed_ids == ["S1", "S2"]
+    assert len(monitor._pending_news) == 0
+
+
+def test_explicit_single_thread_override_keeps_one_item_per_cycle(monkeypatch):
+    monkeypatch.setenv("EDT_GLM_CONCURRENCY", "1")
+    monkeypatch.setenv("EDT_MAX_PROCESS_PER_CYCLE", "1")
+    monitor = _build_monitor(monkeypatch)
+    monitor._bootstrap_done = True
+
+    processed_ids = []
+
+    def _fake_process(news):
+        processed_ids.append(news.get("event_id"))
+        return True
+
+    monitor._process_news = _fake_process
+    monitor._pending_news = [
+        {"event_id": "O1", "headline": "first", "metadata": {}},
+        {"event_id": "O2", "headline": "second", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: []
+
     assert monitor._glm_concurrency == 1
     assert monitor.max_process_per_cycle == 1
     assert monitor._executor is None
     assert monitor.run_once() is True
-    assert processed_ids == ["S1"]
+    assert processed_ids == ["O1"]
     assert len(monitor._pending_news) == 1
 
 

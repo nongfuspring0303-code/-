@@ -181,7 +181,8 @@ def test_stage5_b_signoff_ready_requires_all_quality_conditions():
 
 
 def test_stage5_b_decision_price_written_when_provided():
-    """decision_price passes through from execution_in to trace_scorecard."""
+    """S6-R014: decision_price passes through execution_in -> trace_scorecard.
+    Test ID: S6-T014-01"""
     row = _build_contract_row(
         execution_in_override={
             "decision_price": 271.35,
@@ -195,15 +196,18 @@ def test_stage5_b_decision_price_written_when_provided():
 
 
 def test_stage5_b_decision_price_null_when_missing():
-    """When no decision_price in execution_in, trace_scorecard gets None."""
+    """S6-R014: decision_price defaults to None when missing,
+    decision_price_source normalizes to 'missing'.
+    Test ID: S6-T014-02"""
     row = _build_contract_row()
     assert row["decision_price"] is None
-    assert row["decision_price_source"] is None
+    assert row["decision_price_source"] == "missing"
     assert row["needs_price_refresh"] is None
 
 
 def test_stage5_b_decision_price_source_missing():
-    """decision_price_source=missing is preserved through the chain."""
+    """S6-R014: decision_price_source='missing' preserved through chain.
+    Test ID: S6-T014-03"""
     row = _build_contract_row(
         execution_in_override={
             "decision_price": None,
@@ -217,7 +221,8 @@ def test_stage5_b_decision_price_source_missing():
 
 
 def test_stage5_b_decision_prices_by_symbol_propagated():
-    """decision_prices_by_symbol dict passes through from execution_in."""
+    """S6-R014: decision_prices_by_symbol dict propagates to trace_scorecard.
+    Test ID: S6-T014-04"""
     by_symbol = {
         "AAPL": {
             "decision_price": 271.35,

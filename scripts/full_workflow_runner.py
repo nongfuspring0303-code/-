@@ -408,7 +408,7 @@ class FullWorkflowRunner:
             "tradeable": tradeable,
             "opportunity_count": opportunity_count,
             "decision_price": execution_in.get("decision_price"),
-            "decision_price_source": execution_in.get("decision_price_source"),
+            "decision_price_source": str(execution_in.get("decision_price_source") or "missing"),
             "needs_price_refresh": execution_in.get("needs_price_refresh"),
             "decision_prices_by_symbol": execution_in.get("decision_prices_by_symbol", {}),
             "final_action": final_action,

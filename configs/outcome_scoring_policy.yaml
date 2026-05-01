@@ -52,6 +52,7 @@ data_quality:
     - symbol_missing
     - direction_missing
     - decision_price_missing
+    - decision_price_source_missing
     - exit_price_missing_after_due
     - market_data_default_used
     - invalid_price_series
@@ -61,6 +62,7 @@ data_quality:
     - provider_untrusted
     - provenance_field_missing
     - benchmark_missing
+    - decision_price_source_non_live
 
 stats:
   include_degraded_in_primary_stats: false

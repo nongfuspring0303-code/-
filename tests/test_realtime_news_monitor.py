@@ -364,29 +364,33 @@ def test_concurrent_fifo_order_preserved(monkeypatch):
     monitor._use_concurrent_processing = True
     monitor._executor = ThreadPoolExecutor(max_workers=3)
 
-    received_order = []
+    # Spy on submit order by wrapping executor.submit
+    submit_order = []
+    original_submit = monitor._executor.submit
+
+    def _spy_submit(fn, *args, **kwargs):
+        if fn == monitor._process_news and args:
+            submit_order.append(args[0].get("event_id"))
+        return original_submit(fn, *args, **kwargs)
+
+    monitor._executor.submit = _spy_submit
 
     def _fake_process(news):
-        received_order.append(news.get("event_id"))
         return True
 
     monitor._process_news = _fake_process
-    # Pre-populate _pending_news with known FIFO order
-    original = [
+    monitor._pending_news = [
         {"event_id": "F1", "headline": "first", "metadata": {}},
         {"event_id": "F2", "headline": "second", "metadata": {}},
         {"event_id": "F3", "headline": "third", "metadata": {}},
     ]
-    monitor._pending_news = list(original)
     monitor._fetch_latest_news = lambda: []
     monitor._seen_signatures = {}
 
     result = monitor.run_once()
     assert result is True
-    # run_once pops items from _pending_news in FIFO order; verify the order
-    # of items passed to _process_news matches input order (submit order is FIFO
-    # even though worker execution order may differ).
-    assert received_order == ["F1", "F2", "F3"], f"Expected FIFO submit order, got {received_order}"
+    # Verify FIFO submit order (independent of worker execution order)
+    assert submit_order == ["F1", "F2", "F3"], f"Expected FIFO submit, got {submit_order}"
     assert len(monitor._pending_news) == 0
 
 

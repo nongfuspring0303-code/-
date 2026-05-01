@@ -566,14 +566,14 @@ modules:
         - "https://www.marketwatch.com/rss/topstories"
         - "https://feeds.apnews.com/rss/business"
         - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
-        - "https://seekingalpha.com/market_currents.xml"
+        # - "https://seekingalpha.com/market_currents.xml"  # 高频低价值，禁用
         - "https://www.finra.org/rss.xml"
         - "https://www.nasdaq.com/feed/rssoutbound?category=Markets"
         - "https://www.federalreserve.gov/feeds/press_all.xml"
         - "https://www.federalreserve.gov/feeds/speeches.xml"
         - "https://ustr.gov/rss.xml"
-        - "https://www.sec.gov/news/pressreleases.rss"
-        - "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&output=atom"
+        # - "https://www.sec.gov/news/pressreleases.rss"  # 披露信息滞后，禁用
+        # - "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&output=atom"  # 噪声高，禁用
         - "https://www.ft.com/rss/home"
         - "https://www.barrons.com/xml/rss/3_7202.xml"
         - "https://www.economist.com/rss.xml"
@@ -717,12 +717,13 @@ runtime:
   hurt_to_short: false
   semantic:
     enabled: true
-    provider: openai
-    model: gpt-5.3-codex
+    provider: deepseek
+    model: deepseek-chat
     min_confidence: 70
-    timeout_ms: 10000
+    timeout_ms: 30000
     full_enable: true
     emergency_disable: false
+    api_key_env: DEEPSEEK_API_KEY
   c_module_stack:
     history_file: "logs/event_bus_history.jsonl"
     mock_producer:

@@ -1003,6 +1003,12 @@ def run_engine(
         # From trace_scorecard
         if scorecards:
             s = scorecards[0]
+            decision_price = s.get("decision_price")
+            decision_price_source = s.get("decision_price_source")
+            # Backward compatibility for legacy scorecards:
+            # when decision_price exists but source is missing, treat it as live.
+            if decision_price is not None and (decision_price_source is None or str(decision_price_source).strip() == ""):
+                decision_price_source = "live"
             joined.update({
                 "event_type": s.get("semantic_event_type"),
                 "sector": (s.get("sector_candidates", [None]) or [None])[0],
@@ -1020,8 +1026,8 @@ def run_engine(
                 "benchmark_missing": s.get("benchmark_missing", False),
                 "pending_t5": s.get("pending_t5", False),
                 "log_source": s.get("log_source", ""),
-                "decision_price": s.get("decision_price"),
-                "decision_price_source": s.get("decision_price_source"),
+                "decision_price": decision_price,
+                "decision_price_source": decision_price_source,
                 "decision_prices_by_symbol": s.get("decision_prices_by_symbol", {}),
                 "benchmark_symbol": s.get("benchmark_symbol"),
                 "sector_benchmark_symbol": s.get("sector_benchmark_symbol"),

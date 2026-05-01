@@ -541,6 +541,7 @@ class OpportunityScorer:
             "decision_price": realtime_price,
             "decision_price_source": "live" if realtime_price is not None else "missing",
             "needs_price_refresh": realtime_price is None,
+            "price_source": "live" if realtime_price is not None else stock.price_source,
             "risk_flags": risk_flags,
             "final_action": final_action,
             "reasoning": reasoning,

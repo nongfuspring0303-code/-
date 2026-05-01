@@ -199,6 +199,12 @@ def _check_condition(record: dict, condition: str) -> bool:
         return bool(record.get("provenance_field_missing"))
     if condition == "benchmark_missing":
         return record.get("benchmark_missing", False)
+    if condition == "decision_price_source_missing":
+        src = record.get("decision_price_source")
+        return src is None or src == "missing"
+    if condition == "decision_price_source_non_live":
+        src = record.get("decision_price_source")
+        return src is not None and src != "live"
     return False
 
 
@@ -1013,6 +1019,8 @@ def run_engine(
                 "pending_t5": s.get("pending_t5", False),
                 "log_source": s.get("log_source", ""),
                 "decision_price": s.get("decision_price"),
+                "decision_price_source": s.get("decision_price_source"),
+                "decision_prices_by_symbol": s.get("decision_prices_by_symbol", {}),
                 "benchmark_symbol": s.get("benchmark_symbol"),
                 "sector_benchmark_symbol": s.get("sector_benchmark_symbol"),
             })

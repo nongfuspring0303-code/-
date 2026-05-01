@@ -410,6 +410,7 @@ class FullWorkflowRunner:
             "decision_price": execution_in.get("decision_price"),
             "decision_price_source": execution_in.get("decision_price_source"),
             "needs_price_refresh": execution_in.get("needs_price_refresh"),
+            "decision_prices_by_symbol": execution_in.get("decision_prices_by_symbol", {}),
             "final_action": final_action,
             "final_reason": final_reason,
             "sectors[]": sectors_list,
@@ -966,12 +967,25 @@ class FullWorkflowRunner:
         analysis_out["opportunity_update"] = opportunity_update
         opportunities = opportunity_update.get("opportunities", []) if isinstance(opportunity_update, dict) else []
         has_opportunity = bool(opportunities)
-        primary_decision_price = None
+        selected_opp = None
         for opp in opportunities:
-            dp = opp.get("decision_price")
-            if dp is not None:
-                primary_decision_price = dp
+            if opp.get("decision_price") is not None:
+                selected_opp = opp
                 break
+        if selected_opp is None and opportunities:
+            selected_opp = opportunities[0]
+        primary_decision_price = selected_opp.get("decision_price") if selected_opp else None
+        # Build per-symbol price map for multi-opportunity scenarios
+        decision_prices_by_symbol: Dict[str, Dict[str, Any]] = {}
+        for opp in opportunities:
+            sym = opp.get("symbol") or opp.get("ticker")
+            if sym and opp.get("decision_price") is not None:
+                decision_prices_by_symbol[sym] = {
+                    "decision_price": opp["decision_price"],
+                    "decision_price_source": opp.get("decision_price_source"),
+                    "needs_price_refresh": opp.get("needs_price_refresh"),
+                    "final_action": opp.get("final_action"),
+                }
         provider_meta = {}
         if isinstance(opportunity_update, dict):
             raw_provider_meta = opportunity_update.get("provider_meta")
@@ -1111,8 +1125,9 @@ class FullWorkflowRunner:
             "enforce_resolved_symbol": True,
             "tradeable": has_opportunity and validation_out.get("a1_market_validation") != "fail",
             "decision_price": primary_decision_price,
-            "decision_price_source": opportunities[0].get("decision_price_source") if opportunities else None,
-            "needs_price_refresh": opportunities[0].get("needs_price_refresh") if opportunities else None,
+            "decision_price_source": selected_opp.get("decision_price_source") if selected_opp else None,
+            "needs_price_refresh": selected_opp.get("needs_price_refresh") if selected_opp else None,
+            "decision_prices_by_symbol": decision_prices_by_symbol,
             "contract_version": contract_version,
             "legacy_contract_version": legacy_contract_version,
             "dual_write": True,

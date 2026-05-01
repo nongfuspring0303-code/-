@@ -17,6 +17,9 @@ class _FakeCapture:
 
 def _build_monitor(monkeypatch):
     def _fake_load(self):
+        self._event_capture_cls = None
+        self._data_adapter_cls = None
+        self._workflow_cls = None
         self.event_capture = _FakeCapture()
         self.data_adapter = None
         self.workflow = None
@@ -299,6 +302,31 @@ def test_run_once_queues_fresh_news_without_dropping(monkeypatch):
     assert len(monitor._pending_news) == 0
 
 
+def test_default_path_keeps_single_item_in_thread(monkeypatch):
+    monitor = _build_monitor(monkeypatch)
+    monitor._bootstrap_done = True
+
+    processed_ids = []
+
+    def _fake_process(news):
+        processed_ids.append(news.get("event_id"))
+        return True
+
+    monitor._process_news = _fake_process
+    monitor._pending_news = [
+        {"event_id": "S1", "headline": "first", "metadata": {}},
+        {"event_id": "S2", "headline": "second", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: []
+
+    assert monitor._glm_concurrency == 1
+    assert monitor.max_process_per_cycle == 1
+    assert monitor._executor is None
+    assert monitor.run_once() is True
+    assert processed_ids == ["S1"]
+    assert len(monitor._pending_news) == 1
+
+
 def test_concurrent_fifo_order_preserved(monkeypatch):
     """S6-R016: Concurrent dispatch dequeues _pending_news in FIFO order.
     Test ID: S6-T016-01"""
@@ -332,3 +360,35 @@ def test_concurrent_fifo_order_preserved(monkeypatch):
     assert dequeue_order == ["F1", "F2", "F3"], f"Expected FIFO dequeue, got {dequeue_order}"
     assert len(monitor._pending_news) == 0
 
+
+def test_concurrent_path_uses_thread_local_workflow(monkeypatch):
+    class _FakeWorkflow:
+        created = 0
+
+        def __init__(self):
+            type(self).created += 1
+            self.instance_id = type(self).created
+
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+    monitor._workflow_cls = _FakeWorkflow
+    monitor.workflow = _FakeWorkflow()
+
+    import threading
+
+    instance_ids = []
+    lock = threading.Lock()
+
+    def _read_workflow():
+        workflow = monitor._get_workflow_runner()
+        with lock:
+            instance_ids.append(workflow.instance_id)
+
+    threads = [threading.Thread(target=_read_workflow) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert instance_ids == [2, 3]

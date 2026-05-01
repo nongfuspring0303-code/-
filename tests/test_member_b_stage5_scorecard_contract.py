@@ -36,6 +36,9 @@ REQUIRED_FIELDS = [
     "mapping_acceptance_score",
     "b_overall_score",
     "b_signoff_ready",
+    "decision_price",
+    "decision_price_source",
+    "needs_price_refresh",
 ]
 
 
@@ -175,3 +178,59 @@ def test_stage5_b_signoff_ready_requires_all_quality_conditions():
     )
     assert bad["ticker_quality_score"] < 80
     assert bad["b_signoff_ready"] is False
+
+
+def test_stage5_b_decision_price_written_when_provided():
+    """decision_price passes through from execution_in to trace_scorecard."""
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_price": 271.35,
+            "decision_price_source": "live",
+            "needs_price_refresh": False,
+        }
+    )
+    assert row["decision_price"] == 271.35
+    assert row["decision_price_source"] == "live"
+    assert row["needs_price_refresh"] is False
+
+
+def test_stage5_b_decision_price_null_when_missing():
+    """When no decision_price in execution_in, trace_scorecard gets None."""
+    row = _build_contract_row()
+    assert row["decision_price"] is None
+    assert row["decision_price_source"] is None
+    assert row["needs_price_refresh"] is None
+
+
+def test_stage5_b_decision_price_source_missing():
+    """decision_price_source=missing is preserved through the chain."""
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_price": None,
+            "decision_price_source": "missing",
+            "needs_price_refresh": True,
+        }
+    )
+    assert row["decision_price"] is None
+    assert row["decision_price_source"] == "missing"
+    assert row["needs_price_refresh"] is True
+
+
+def test_stage5_b_decision_prices_by_symbol_propagated():
+    """decision_prices_by_symbol dict passes through from execution_in."""
+    by_symbol = {
+        "AAPL": {
+            "decision_price": 271.35,
+            "decision_price_source": "live",
+            "needs_price_refresh": False,
+            "final_action": "EXECUTE",
+        }
+    }
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_prices_by_symbol": by_symbol,
+        }
+    )
+    assert "decision_prices_by_symbol" in row
+    assert row["decision_prices_by_symbol"] == by_symbol
+    assert row["decision_prices_by_symbol"]["AAPL"]["decision_price"] == 271.35

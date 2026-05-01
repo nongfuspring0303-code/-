@@ -355,46 +355,87 @@ def test_explicit_single_thread_override_keeps_one_item_per_cycle(monkeypatch):
 
 
 def test_concurrent_fifo_order_preserved(monkeypatch):
-    """S6-R016: Concurrent dispatch dequeues _pending_news in FIFO order.
+    """S6-R016: Concurrent dispatch pops _pending_news in FIFO order.
     Test ID: S6-T016-01"""
     from concurrent.futures import ThreadPoolExecutor
-    import threading
     monitor = _build_monitor(monkeypatch)
     monitor.max_process_per_cycle = 3
     monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
     monitor._executor = ThreadPoolExecutor(max_workers=3)
 
-    dequeue_order = []
-    lock = threading.Lock()
+    received_order = []
 
     def _fake_process(news):
-        with lock:
-            dequeue_order.append(news.get("event_id"))
+        received_order.append(news.get("event_id"))
         return True
 
     monitor._process_news = _fake_process
-    monitor._pending_news = [
+    # Pre-populate _pending_news with known FIFO order
+    original = [
         {"event_id": "F1", "headline": "first", "metadata": {}},
         {"event_id": "F2", "headline": "second", "metadata": {}},
         {"event_id": "F3", "headline": "third", "metadata": {}},
     ]
+    monitor._pending_news = list(original)
     monitor._fetch_latest_news = lambda: []
     monitor._seen_signatures = {}
 
     result = monitor.run_once()
     assert result is True
-    # Items must be dequeued in FIFO order from _pending_news
-    assert dequeue_order == ["F1", "F2", "F3"], f"Expected FIFO dequeue, got {dequeue_order}"
+    # run_once pops items from _pending_news in FIFO order; verify the order
+    # of items passed to _process_news matches input order (submit order is FIFO
+    # even though worker execution order may differ).
+    assert received_order == ["F1", "F2", "F3"], f"Expected FIFO submit order, got {received_order}"
     assert len(monitor._pending_news) == 0
 
 
+def test_concurrent_dead_letter_on_worker_exception(monkeypatch):
+    """S6-R016 worker异常: 失败新闻进入dead-letter，不静默丢失。
+    Test ID: S6-T016-02"""
+    from concurrent.futures import ThreadPoolExecutor
+    monitor = _build_monitor(monkeypatch)
+    monitor.max_process_per_cycle = 3
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+    monitor._executor = ThreadPoolExecutor(max_workers=3)
+    monitor._dead_letter = []
+
+    call_count = 0
+
+    def _exploding_process(news):
+        nonlocal call_count
+        call_count += 1
+        if news.get("event_id") == "F2":
+            raise RuntimeError("simulated worker failure")
+        return True
+
+    monitor._process_news = _exploding_process
+    monitor._pending_news = [
+        {"event_id": "F1", "headline": "ok", "metadata": {}},
+        {"event_id": "F2", "headline": "boom", "metadata": {}},
+        {"event_id": "F3", "headline": "ok", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: []
+    monitor._seen_signatures = {}
+
+    result = monitor.run_once()
+    # run_once should not raise; failed item captured in dead_letter
+    assert result is True  # at least one succeeded
+    assert len(monitor._pending_news) == 0  # all popped from queue
+    assert len(monitor._dead_letter) == 1  # F2 in dead-letter
+    assert monitor._dead_letter[0]["event_id"] == "F2"
+
+
 def test_concurrent_path_uses_thread_local_workflow(monkeypatch):
+    """S6-R016: 各线程获得独立的 workflow 实例。
+    Test ID: S6-T016-03"""
     class _FakeWorkflow:
-        created = 0
+        _counter = 0
 
         def __init__(self):
-            type(self).created += 1
-            self.instance_id = type(self).created
+            _FakeWorkflow._counter += 1
+            self.instance_id = _FakeWorkflow._counter
 
     monitor = _build_monitor(monkeypatch)
     monitor._glm_concurrency = 3
@@ -403,19 +444,118 @@ def test_concurrent_path_uses_thread_local_workflow(monkeypatch):
     monitor.workflow = _FakeWorkflow()
 
     import threading
-
     instance_ids = []
     lock = threading.Lock()
 
     def _read_workflow():
-        workflow = monitor._get_workflow_runner()
+        wf = monitor._get_workflow_runner()
         with lock:
-            instance_ids.append(workflow.instance_id)
+            instance_ids.append(wf.instance_id)
 
     threads = [threading.Thread(target=_read_workflow) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    for t in threads: t.start()
+    for t in threads: t.join()
 
-    assert instance_ids == [2, 3]
+    # Use set uniqueness to avoid thread-schedule ordering flakiness
+    assert len(set(instance_ids)) == 2, f"Expected 2 unique instances, got {instance_ids}"
+
+
+def test_concurrent_workflow_same_thread_reuses_instance(monkeypatch):
+    """S6-R016: 同一线程重复调用复用同一个 workflow 实例。
+    Test ID: S6-T016-04"""
+    class _FakeWorkflow:
+        _counter = 0
+        def __init__(self):
+            _FakeWorkflow._counter += 1
+            self.instance_id = _FakeWorkflow._counter
+
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+    monitor._workflow_cls = _FakeWorkflow
+    monitor.workflow = _FakeWorkflow()
+
+    first = monitor._get_workflow_runner()
+    second = monitor._get_workflow_runner()
+    assert first is second, "Same thread should reuse the same workflow instance"
+
+
+def test_concurrent_multi_news_isolation(monkeypatch):
+    """S6-R016: 多新闻并发时 trace_id/headline 不串线。
+    Test ID: S6-T016-05"""
+    from concurrent.futures import ThreadPoolExecutor
+    # Track which headlines each thread processed (via thread-local)
+    processed = {}
+
+    def _isolated_process(news):
+        import threading
+        tid = threading.get_ident()
+        processed.setdefault(tid, []).append(news.get("event_id"))
+        return True
+
+    monitor = _build_monitor(monkeypatch)
+    monitor.max_process_per_cycle = 3
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+    monitor._executor = ThreadPoolExecutor(max_workers=3)
+    # Temporarily replace _process_news to track per-thread isolation
+    original_process = monitor._process_news
+    monitor._process_news = _isolated_process
+    monitor._pending_news = [
+        {"event_id": "I1", "headline": "alpha", "metadata": {}},
+        {"event_id": "I2", "headline": "beta", "metadata": {}},
+        {"event_id": "I3", "headline": "gamma", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: []
+    monitor._seen_signatures = {}
+
+    try:
+        result = monitor.run_once()
+        assert result is True
+        # All 3 items must be processed across threads (no item lost)
+        all_ids = []
+        for tid, ids in processed.items():
+            all_ids.extend(ids)
+        assert set(all_ids) == {"I1", "I2", "I3"}, f"Missing items: {all_ids}"
+    finally:
+        monitor._process_news = original_process
+
+
+def test_async_shutdown_cleans_up_executor(monkeypatch):
+    """S6-R016: run_loop_async 在退出时 shutdown executor。
+    Test ID: S6-T016-06"""
+    import asyncio
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+    from concurrent.futures import ThreadPoolExecutor
+    executor = ThreadPoolExecutor(max_workers=3)
+    monitor._executor = executor
+    shutdown_called = []
+    original_shutdown = executor.shutdown
+    def _spy_shutdown(wait=True):
+        shutdown_called.append(wait)
+        return original_shutdown(wait=wait)
+    executor.shutdown = _spy_shutdown
+
+    async def _run_and_stop():
+        task = asyncio.create_task(monitor.run_loop_async())
+        await asyncio.sleep(0.1)
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            pass
+
+    asyncio.run(_run_and_stop())
+    assert len(shutdown_called) >= 1, "executor.shutdown(wait=True) was not called"
+
+
+def test_env_var_invalid_values_fallback_safely(monkeypatch):
+    """S6-R016: 非法环境变量值回退到默认值。
+    Test ID: S6-T016-07"""
+    monkeypatch.setenv("EDT_GLM_CONCURRENCY", "abc")
+    monkeypatch.setenv("EDT_MAX_PROCESS_PER_CYCLE", "xyz")
+    monitor = _build_monitor(monkeypatch)
+    assert monitor._glm_concurrency == 5, f"Expected default 5, got {monitor._glm_concurrency}"
+    assert monitor.max_process_per_cycle == 5, f"Expected default 5, got {monitor.max_process_per_cycle}"

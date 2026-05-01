@@ -602,3 +602,65 @@ def test_s6_r015_decision_price_source_non_live(source, expected):
     Test IDs: S6-T015-05~10"""
     result = _check_condition({"decision_price_source": source}, "decision_price_source_non_live")
     assert result is expected
+
+
+def test_s6_r015_end_to_end_price_source_closure(tmp_path):
+    """S6-R015 E2E: producer scorecard field -> engine data_quality/failure_reason closure."""
+    logs_dir = tmp_path / "logs"
+    out_dir = tmp_path / "out"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    trace_id = "E2E-PRICE-SOURCE-MISSING-001"
+    event_hash = "hash-e2e-1"
+
+    # producer: trace_scorecard.jsonl
+    (logs_dir / "trace_scorecard.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "symbol": "AAPL",
+            "side": "LONG",
+            "direction": "LONG",
+            "stock_candidates": [{"symbol": "AAPL", "direction": "LONG"}],
+            "final_action": "EXECUTE",
+            "event_time": "2026-05-01T10:00:00Z",
+            "decision_price": 100.0,
+            "decision_price_source": "missing",
+            "log_source": "live",
+            "t5_return": 0.03,
+            "sector_relative_alpha_t5": 0.02,
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    # required sibling logs for join
+    (logs_dir / "decision_gate.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "final_action_after_gate": "EXECUTE",
+            "logged_at": "2026-05-01T10:00:01Z",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "market_data_provenance.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "market_data_default_used": False,
+            "market_data_stale": False,
+            "market_data_fallback_used": False,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "execution_emit.jsonl").write_text("", encoding="utf-8")
+    (logs_dir / "replay_write.jsonl").write_text("", encoding="utf-8")
+
+    result = run_engine(logs_dir=logs_dir, out_dir=out_dir, horizon="t5")
+    outcomes = _read_jsonl(Path(result["outcome_path"]))
+    assert len(outcomes) == 1
+    rec = outcomes[0]
+    assert rec["data_quality"] == "invalid"
+    assert rec.get("primary_failure_reason") == "execution_missing"
+    assert "execution_missing" in rec.get("failure_reasons", [])

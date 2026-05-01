@@ -123,8 +123,10 @@ def _derive_failure_reasons(
         return ["source_bad"]
     if "symbol_missing" in dq or "direction_missing" in dq:
         return ["source_bad"]
-    if "decision_price_missing" in dq:
+    if "decision_price_missing" in dq or "decision_price_source_missing" in dq:
         return ["execution_missing"]
+    if "decision_price_source_non_live" in dq:
+        return ["market_data_bad"]
     return []
 
 # ---------------------------------------------------------------------------
@@ -1068,6 +1070,20 @@ def run_engine(
 
         # Check join key validity
         join_key_valid = bool(joined.get("trace_id") and joined.get("event_hash"))
+
+        # Prefer per-symbol decision price context when available.
+        # This makes decision_price/source evaluation symbol-aware instead of event-level only.
+        by_symbol = joined.get("decision_prices_by_symbol")
+        sym = joined.get("symbol")
+        if isinstance(by_symbol, dict) and sym and isinstance(by_symbol.get(sym), dict):
+            sym_ctx = by_symbol.get(sym) or {}
+            if joined.get("decision_price") is None and sym_ctx.get("decision_price") is not None:
+                joined["decision_price"] = sym_ctx.get("decision_price")
+            if not joined.get("decision_price_source") and sym_ctx.get("decision_price_source") is not None:
+                joined["decision_price_source"] = sym_ctx.get("decision_price_source")
+            if joined.get("needs_price_refresh") is None and sym_ctx.get("needs_price_refresh") is not None:
+                joined["needs_price_refresh"] = sym_ctx.get("needs_price_refresh")
+
         missing_join_fields: list[str] = []
         if not joined.get("trace_id"):
             missing_join_fields.append("trace_id")

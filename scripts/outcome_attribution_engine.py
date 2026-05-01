@@ -1077,11 +1077,11 @@ def run_engine(
         sym = joined.get("symbol")
         if isinstance(by_symbol, dict) and sym and isinstance(by_symbol.get(sym), dict):
             sym_ctx = by_symbol.get(sym) or {}
-            if sym_ctx.get("decision_price") is not None:
+            if "decision_price" in sym_ctx:
                 joined["decision_price"] = sym_ctx.get("decision_price")
-            if sym_ctx.get("decision_price_source") is not None:
+            if "decision_price_source" in sym_ctx:
                 joined["decision_price_source"] = sym_ctx.get("decision_price_source")
-            if sym_ctx.get("needs_price_refresh") is not None:
+            if "needs_price_refresh" in sym_ctx:
                 joined["needs_price_refresh"] = sym_ctx.get("needs_price_refresh")
 
         missing_join_fields: list[str] = []

@@ -979,13 +979,21 @@ class FullWorkflowRunner:
         decision_prices_by_symbol: Dict[str, Dict[str, Any]] = {}
         for opp in opportunities:
             sym = opp.get("symbol") or opp.get("ticker")
-            if sym and opp.get("decision_price") is not None:
-                decision_prices_by_symbol[sym] = {
-                    "decision_price": opp["decision_price"],
-                    "decision_price_source": opp.get("decision_price_source"),
-                    "needs_price_refresh": opp.get("needs_price_refresh"),
-                    "final_action": opp.get("final_action"),
-                }
+            if not sym:
+                continue
+            decision_price = opp.get("decision_price")
+            decision_price_source = opp.get("decision_price_source")
+            if decision_price is None and not str(decision_price_source or "").strip():
+                decision_price_source = "missing"
+            needs_price_refresh = opp.get("needs_price_refresh")
+            if needs_price_refresh is None:
+                needs_price_refresh = decision_price is None
+            decision_prices_by_symbol[sym] = {
+                "decision_price": decision_price,
+                "decision_price_source": decision_price_source,
+                "needs_price_refresh": needs_price_refresh,
+                "final_action": opp.get("final_action"),
+            }
         provider_meta = {}
         if isinstance(opportunity_update, dict):
             raw_provider_meta = opportunity_update.get("provider_meta")

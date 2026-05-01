@@ -239,3 +239,30 @@ def test_stage5_b_decision_prices_by_symbol_propagated():
     assert "decision_prices_by_symbol" in row
     assert row["decision_prices_by_symbol"] == by_symbol
     assert row["decision_prices_by_symbol"]["AAPL"]["decision_price"] == 271.35
+
+
+def test_stage5_b_decision_prices_by_symbol_includes_missing_price_symbol():
+    """S6-R014: decision_prices_by_symbol preserves per-symbol missing context.
+    Test ID: S6-T014-05"""
+    by_symbol = {
+        "AAPL": {
+            "decision_price": 271.35,
+            "decision_price_source": "live",
+            "needs_price_refresh": False,
+            "final_action": "EXECUTE",
+        },
+        "TSLA": {
+            "decision_price": None,
+            "decision_price_source": "missing",
+            "needs_price_refresh": True,
+            "final_action": "WATCH",
+        },
+    }
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_prices_by_symbol": by_symbol,
+        }
+    )
+    assert row["decision_prices_by_symbol"]["TSLA"]["decision_price"] is None
+    assert row["decision_prices_by_symbol"]["TSLA"]["decision_price_source"] == "missing"
+    assert row["decision_prices_by_symbol"]["TSLA"]["needs_price_refresh"] is True

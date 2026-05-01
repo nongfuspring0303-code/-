@@ -723,3 +723,76 @@ def test_s6_r015_end_to_end_non_live_source_closure(tmp_path):
     assert rec["data_quality"] == "degraded"
     assert rec.get("primary_failure_reason") == "market_data_bad"
     assert "market_data_bad" in rec.get("failure_reasons", [])
+
+
+def test_s6_r015_end_to_end_symbol_context_prevents_cross_symbol_leakage(tmp_path):
+    """S6-R015 E2E: symbol with missing price context must not inherit event-level price/source."""
+    logs_dir = tmp_path / "logs_symbol_first"
+    out_dir = tmp_path / "out_symbol_first"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    trace_id = "E2E-SYMBOL-FIRST-001"
+    event_hash = "hash-e2e-symbol-first"
+
+    (logs_dir / "trace_scorecard.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "symbol": "TSLA",
+            "side": "LONG",
+            "direction": "LONG",
+            "stock_candidates": [{"symbol": "TSLA", "direction": "LONG"}],
+            "final_action": "WATCH",
+            "event_time": "2026-05-01T10:10:00Z",
+            # event-level fields may point to a different symbol context
+            "decision_price": 111.0,
+            "decision_price_source": "live",
+            "decision_prices_by_symbol": {
+                "AAPL": {
+                    "decision_price": 111.0,
+                    "decision_price_source": "live",
+                    "needs_price_refresh": False,
+                },
+                "TSLA": {
+                    "decision_price": None,
+                    "decision_price_source": "missing",
+                    "needs_price_refresh": True,
+                },
+            },
+            "log_source": "live",
+            "t5_return": 0.0,
+            "sector_relative_alpha_t5": 0.0,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "decision_gate.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "final_action_after_gate": "WATCH",
+            "logged_at": "2026-05-01T10:10:01Z",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "market_data_provenance.jsonl").write_text(
+        json.dumps({
+            "trace_id": trace_id,
+            "event_hash": event_hash,
+            "market_data_default_used": False,
+            "market_data_stale": False,
+            "market_data_fallback_used": False,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    (logs_dir / "execution_emit.jsonl").write_text("", encoding="utf-8")
+    (logs_dir / "replay_write.jsonl").write_text("", encoding="utf-8")
+
+    result = run_engine(logs_dir=logs_dir, out_dir=out_dir, horizon="t5")
+    outcomes = _read_jsonl(Path(result["outcome_path"]))
+    assert len(outcomes) == 1
+    rec = outcomes[0]
+    assert rec.get("decision_price") is None
+    assert rec.get("decision_price_source") in (None, "missing")
+    assert rec["data_quality"] == "invalid"
+    assert rec.get("primary_failure_reason") == "execution_missing"

@@ -12,7 +12,8 @@ Real-time News Monitor for EDT Project
 
 import argparse
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import atexit
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -65,6 +66,7 @@ class RealtimeNewsMonitor:
         self._glm_concurrency = max(1, int(os.getenv("EDT_GLM_CONCURRENCY", "5") or "5"))
         self.max_process_per_cycle = max(self._glm_concurrency, int(os.getenv("EDT_MAX_PROCESS_PER_CYCLE", str(self._glm_concurrency))))
         self._executor = ThreadPoolExecutor(max_workers=self._glm_concurrency)
+        atexit.register(self._executor.shutdown, wait=True)
         self.translator = Translator() if Translator else None
         if not self.translator:
             logger.warning("⚠️ googletrans 不可用，中文翻译将跳过")
@@ -613,16 +615,16 @@ class RealtimeNewsMonitor:
         processed_any = False
         if process_count > 0:
             items = [self._pending_news.pop(0) for _ in range(process_count)]
-            if len(items) == 1:
-                processed_any = self._process_news(items[0])
-            else:
-                futures = {self._executor.submit(self._process_news, item): item for item in items}
-                for future in as_completed(futures):
-                    try:
-                        if future.result():
-                            processed_any = True
-                    except Exception as e:
-                        logger.error(f"并发处理新闻失败: {e}")
+            # Keep FIFO order: submit all, wait all, retrieve in input order
+            futures = [self._executor.submit(self._process_news, item) for item in items]
+            from concurrent.futures import wait as futures_wait
+            done, _ = futures_wait(futures)
+            for future, item in zip(futures, items):
+                try:
+                    if future.result():
+                        processed_any = True
+                except Exception as e:
+                    logger.error(f"并发处理新闻失败: {e}")
 
         logger.info(
             "🆕 实时采样: 新增=%d 本轮处理=%d 待处理=%d",
@@ -637,23 +639,27 @@ class RealtimeNewsMonitor:
         logger.info(f"🚀 启动实时新闻监控 (轮询间隔: {self.poll_interval}秒)")
         
         iterations = 0
-        while True:
-            try:
-                triggered = self.run_once()
-                if triggered:
-                    logger.info("⏸️ 等待下一轮...")
-            except KeyboardInterrupt:
-                logger.info("🛑 用户中断")
-                break
-            except Exception as e:
-                logger.error(f"循环异常: {e}")
-            
-            iterations += 1
-            if max_iterations and iterations >= max_iterations:
-                logger.info(f"达到最大迭代次数: {max_iterations}")
-                break
-            
-            time.sleep(self.poll_interval)
+        try:
+            while True:
+                try:
+                    triggered = self.run_once()
+                    if triggered:
+                        logger.info("⏸️ 等待下一轮...")
+                except KeyboardInterrupt:
+                    logger.info("🛑 用户中断")
+                    break
+                except Exception as e:
+                    logger.error(f"循环异常: {e}")
+                
+                iterations += 1
+                if max_iterations and iterations >= max_iterations:
+                    logger.info(f"达到最大迭代次数: {max_iterations}")
+                    break
+                
+                time.sleep(self.poll_interval)
+    
+        finally:
+            self._executor.shutdown(wait=True)
 
     async def run_loop_async(self):
         """异步版本的持续运行"""

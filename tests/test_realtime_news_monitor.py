@@ -297,3 +297,38 @@ def test_run_once_queues_fresh_news_without_dropping(monkeypatch):
     assert monitor.run_once() is True
     assert processed_ids == ["N1", "N2"]
     assert len(monitor._pending_news) == 0
+
+
+def test_concurrent_fifo_order_preserved(monkeypatch):
+    """S6-R016: Concurrent dispatch dequeues _pending_news in FIFO order.
+    Test ID: S6-T016-01"""
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    monitor = _build_monitor(monkeypatch)
+    monitor.max_process_per_cycle = 3
+    monitor._glm_concurrency = 3
+    monitor._executor = ThreadPoolExecutor(max_workers=3)
+
+    dequeue_order = []
+    lock = threading.Lock()
+
+    def _fake_process(news):
+        with lock:
+            dequeue_order.append(news.get("event_id"))
+        return True
+
+    monitor._process_news = _fake_process
+    monitor._pending_news = [
+        {"event_id": "F1", "headline": "first", "metadata": {}},
+        {"event_id": "F2", "headline": "second", "metadata": {}},
+        {"event_id": "F3", "headline": "third", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: []
+    monitor._seen_signatures = {}
+
+    result = monitor.run_once()
+    assert result is True
+    # Items must be dequeued in FIFO order from _pending_news
+    assert dequeue_order == ["F1", "F2", "F3"], f"Expected FIFO dequeue, got {dequeue_order}"
+    assert len(monitor._pending_news) == 0
+

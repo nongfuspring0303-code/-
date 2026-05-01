@@ -717,12 +717,13 @@ runtime:
   hurt_to_short: false
   semantic:
     enabled: true
-    provider: openai
-    model: gpt-5.3-codex
+    provider: zai
+    model: glm-4-flash
     min_confidence: 70
-    timeout_ms: 10000
+    timeout_ms: 30000
     full_enable: true
     emergency_disable: false
+    api_key_env: ZAI_API_KEY
   c_module_stack:
     history_file: "logs/event_bus_history.jsonl"
     mock_producer:

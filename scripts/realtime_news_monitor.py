@@ -62,7 +62,7 @@ class RealtimeNewsMonitor:
         self._bootstrap_done = False
         self.batch_news_limit = 20
         self._pending_news: List[Dict[str, Any]] = []
-        self._glm_concurrency = max(1, int(os.getenv("EDT_GLM_CONCURRENCY", "3") or "3"))
+        self._glm_concurrency = max(1, int(os.getenv("EDT_GLM_CONCURRENCY", "5") or "5"))
         self.max_process_per_cycle = max(self._glm_concurrency, int(os.getenv("EDT_MAX_PROCESS_PER_CYCLE", str(self._glm_concurrency))))
         self._executor = ThreadPoolExecutor(max_workers=self._glm_concurrency)
         self.translator = Translator() if Translator else None

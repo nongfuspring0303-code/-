@@ -36,6 +36,9 @@ REQUIRED_FIELDS = [
     "mapping_acceptance_score",
     "b_overall_score",
     "b_signoff_ready",
+    "decision_price",
+    "decision_price_source",
+    "needs_price_refresh",
 ]
 
 
@@ -175,3 +178,91 @@ def test_stage5_b_signoff_ready_requires_all_quality_conditions():
     )
     assert bad["ticker_quality_score"] < 80
     assert bad["b_signoff_ready"] is False
+
+
+def test_stage5_b_decision_price_written_when_provided():
+    """S6-R014: decision_price passes through execution_in -> trace_scorecard.
+    Test ID: S6-T014-01"""
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_price": 271.35,
+            "decision_price_source": "live",
+            "needs_price_refresh": False,
+        }
+    )
+    assert row["decision_price"] == 271.35
+    assert row["decision_price_source"] == "live"
+    assert row["needs_price_refresh"] is False
+
+
+def test_stage5_b_decision_price_null_when_missing():
+    """S6-R014: decision_price defaults to None when missing,
+    decision_price_source normalizes to 'missing'.
+    Test ID: S6-T014-02"""
+    row = _build_contract_row()
+    assert row["decision_price"] is None
+    assert row["decision_price_source"] == "missing"
+    assert row["needs_price_refresh"] is None
+
+
+def test_stage5_b_decision_price_source_missing():
+    """S6-R014: decision_price_source='missing' preserved through chain.
+    Test ID: S6-T014-03"""
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_price": None,
+            "decision_price_source": "missing",
+            "needs_price_refresh": True,
+        }
+    )
+    assert row["decision_price"] is None
+    assert row["decision_price_source"] == "missing"
+    assert row["needs_price_refresh"] is True
+
+
+def test_stage5_b_decision_prices_by_symbol_propagated():
+    """S6-R014: decision_prices_by_symbol dict propagates to trace_scorecard.
+    Test ID: S6-T014-04"""
+    by_symbol = {
+        "AAPL": {
+            "decision_price": 271.35,
+            "decision_price_source": "live",
+            "needs_price_refresh": False,
+            "final_action": "EXECUTE",
+        }
+    }
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_prices_by_symbol": by_symbol,
+        }
+    )
+    assert "decision_prices_by_symbol" in row
+    assert row["decision_prices_by_symbol"] == by_symbol
+    assert row["decision_prices_by_symbol"]["AAPL"]["decision_price"] == 271.35
+
+
+def test_stage5_b_decision_prices_by_symbol_includes_missing_price_symbol():
+    """S6-R014: decision_prices_by_symbol preserves per-symbol missing context.
+    Test ID: S6-T014-05"""
+    by_symbol = {
+        "AAPL": {
+            "decision_price": 271.35,
+            "decision_price_source": "live",
+            "needs_price_refresh": False,
+            "final_action": "EXECUTE",
+        },
+        "TSLA": {
+            "decision_price": None,
+            "decision_price_source": "missing",
+            "needs_price_refresh": True,
+            "final_action": "WATCH",
+        },
+    }
+    row = _build_contract_row(
+        execution_in_override={
+            "decision_prices_by_symbol": by_symbol,
+        }
+    )
+    assert row["decision_prices_by_symbol"]["TSLA"]["decision_price"] is None
+    assert row["decision_prices_by_symbol"]["TSLA"]["decision_price_source"] == "missing"
+    assert row["decision_prices_by_symbol"]["TSLA"]["needs_price_refresh"] is True

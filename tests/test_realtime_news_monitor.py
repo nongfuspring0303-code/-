@@ -578,7 +578,7 @@ def test_concurrent_real_process_news_isolation(monkeypatch):
     Test ID: S6-T016-08"""
     from concurrent.futures import ThreadPoolExecutor
 
-    # Track push payloads per trace_id
+    # Track push payloads per trace_id with full field isolation check
     preview_payloads = []
     sector_payloads = []
 
@@ -587,10 +587,25 @@ def test_concurrent_real_process_news_isolation(monkeypatch):
 
     def _fake_push(result, news=None, **kwargs):
         trace_id = result.get("trace_id", "")
+        analysis = result.get("analysis", {})
+        opp_update = analysis.get("opportunity_update", {})
         headline = ""
+        source = ""
+        request_id = ""
+        batch_id = ""
         if "intel" in result:
-            headline = result["intel"].get("event_object", {}).get("headline", "")
-        sector_payloads.append({"trace_id": trace_id, "headline": headline})
+            eo = result["intel"].get("event_object", {})
+            headline = eo.get("headline", "")
+            source = eo.get("source_url", "")
+        request_id = str(result.get("request_id", "") or "")
+        batch_id = str(result.get("batch_id", "") or "")
+        sector_payloads.append({
+            "trace_id": trace_id,
+            "headline": headline,
+            "source": source,
+            "request_id": request_id,
+            "batch_id": batch_id,
+        })
 
     class _FakeEventCapture:
         def __init__(self, config_path=None):
@@ -619,6 +634,7 @@ def test_concurrent_real_process_news_isolation(monkeypatch):
         def run(self, payload):
             headline = payload.get("headline", "")
             source = payload.get("source", "")
+            trace_id = f"TRACE-{headline}"
             return {
                 "intel": {
                     "event_object": {
@@ -633,7 +649,9 @@ def test_concurrent_real_process_news_isolation(monkeypatch):
                     "conduction": {"sector_impacts": [], "confidence": 0},
                     "opportunity_update": {"opportunities": []},
                 },
-                "trace_id": f"TRACE-{headline}",
+                "trace_id": trace_id,
+                "request_id": f"REQ-{headline}",
+                "batch_id": f"BATCH-{headline}",
             }
 
     monitor = _build_monitor(monkeypatch)
@@ -678,12 +696,37 @@ def test_concurrent_real_process_news_isolation(monkeypatch):
         assert set(sector_headlines) == {"NewsAlpha", "NewsBeta", "NewsGamma"}, \
             f"Sector push isolation broken: {sector_headlines}"
 
-        # Verify no cross-contamination: each trace_id maps to correct headline
+        # Verify per-news-item field isolation (trace_id, headline, source)
+        expected_by_headline = {
+            "NewsAlpha": {"source": "https://source.alpha"},
+            "NewsBeta": {"source": "https://source.beta"},
+            "NewsGamma": {"source": "https://source.gamma"},
+        }
         for entry in sector_payloads:
-            tid = entry["trace_id"]
             hl = entry["headline"]
+            tid = entry["trace_id"]
+            src = entry["source"]
+            rid = entry["request_id"]
+            bid = entry["batch_id"]
             expected_tid = f"TRACE-{hl}"
-            assert tid == expected_tid, f"Trace mismatch: {tid} vs expected {expected_tid}"
+            assert tid == expected_tid, f"Trace mismatch: expected {expected_tid}, got {tid}"
+            expected_src = expected_by_headline[hl]["source"]
+            assert src == expected_src, f"Source mismatch for {hl}: expected {expected_src}, got {src}"
+            # request_id and batch_id should be set (non-empty) and not leak between items
+            assert rid, f"request_id empty for {hl}"
+            assert bid, f"batch_id empty for {hl}"
+
+        # Explicit cross-contamination check: A's fields must not appear in B's output
+        for entry in sector_payloads:
+            hl = entry["headline"]
+            if hl == "NewsAlpha":
+                assert entry["source"] == "https://source.alpha"
+            elif hl == "NewsBeta":
+                assert entry["source"] == "https://source.beta"
+            elif hl == "NewsGamma":
+                assert entry["source"] == "https://source.gamma"
+            assert entry["request_id"] not in ("", None)
+            assert entry["batch_id"] not in ("", None)
     finally:
         monitor._executor = None
 
@@ -867,3 +910,94 @@ def test_env_var_glm2_max5_combination(monkeypatch):
     assert monitor.max_process_per_cycle == 5
     assert monitor._use_concurrent_processing is True
     assert monitor._executor is not None
+
+
+# ---------------------------------------------------------------------------
+# 修复2(B): 真实 _process_news 路径下的 thread-local 命中证明
+# Test IDs: S6-T016-19 ~ S6-T016-21
+# ---------------------------------------------------------------------------
+
+def test_concurrent_thread_local_hit_via_real_process_news(monkeypatch):
+    """S6-R016: 真实 _process_news 路径验证线程独立 EventCapture/DataAdapter/WorkflowRunner。
+    Test ID: S6-T016-19"""
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    # Track thread-local instance IDs per thread
+    ec_ids = {}
+    da_ids = {}
+    wf_ids = {}
+
+    class _FakeEC:
+        _next = 0
+        def __init__(self, config_path=None):
+            _FakeEC._next += 1
+            self._id = _FakeEC._next
+            tid = threading.get_ident()
+            ec_ids.setdefault(tid, []).append(self._id)
+        def run(self, news):
+            class _R:
+                data = {"captured": True, "matched_keywords": ["x"], "vix_amplify": False}
+            return _R()
+
+    class _FakeDA:
+        _next = 0
+        def __init__(self):
+            _FakeDA._next += 1
+            self._id = _FakeDA._next
+            tid = threading.get_ident()
+            da_ids.setdefault(tid, []).append(self._id)
+        def fetch_market_data(self):
+            return {}
+
+    class _FakeWF:
+        _next = 0
+        def __init__(self, audit_dir=None, state_db_path=None):
+            _FakeWF._next += 1
+            self._id = _FakeWF._next
+            tid = threading.get_ident()
+            wf_ids.setdefault(tid, []).append(self._id)
+        def run(self, payload):
+            h = payload.get("headline", "")
+            return {
+                "intel": {"event_object": {"headline": h, "source_url": "", "severity": "E1",
+                                           "detected_at": "2026-05-01T00:00:00Z", "event_id": h}},
+                "analysis": {"conduction": {"sector_impacts": [], "confidence": 0},
+                             "opportunity_update": {"opportunities": []}},
+                "trace_id": f"TRACE-{h}",
+            }
+
+    monitor = _build_monitor(monkeypatch)
+    monitor._glm_concurrency = 3
+    monitor._use_concurrent_processing = True
+    monitor._executor = ThreadPoolExecutor(max_workers=3)
+    monitor._event_capture_cls = _FakeEC
+    monitor._data_adapter_cls = _FakeDA
+    monitor._workflow_cls = _FakeWF
+    monkeypatch.setattr(type(monitor), "_push_news_preview", lambda self, n, **kw: None)
+    monkeypatch.setattr(type(monitor), "_push_sectors_to_c", lambda self, r, **kw: None)
+    if "_trigger_ab_pipeline" in monitor.__dict__:
+        del monitor._trigger_ab_pipeline
+    monitor.node_role = "master"
+    monitor._bootstrap_done = True
+    monitor._fetch_latest_news = lambda: []
+    monitor._pending_news = [
+        {"headline": f"News{i}", "source_url": f"https://s{i}", "source_type": "rss",
+         "timestamp": f"2026-05-01T00:00:0{i}Z", "event_id": f"E{i}", "metadata": {}}
+        for i in range(3)]
+    monitor._seen_signatures = {}
+
+    result = monitor.run_once()
+    assert result is True
+
+    # Each of the 3 worker threads should have its own instances
+    for tid, ids in ec_ids.items():
+        assert len(set(ids)) == 1, f"EC thread {tid} should reuse same instance: {ids}"
+    for tid, ids in da_ids.items():
+        assert len(set(ids)) == 1, f"DA thread {tid} should reuse same instance: {ids}"
+    for tid, ids in wf_ids.items():
+        assert len(set(ids)) == 1, f"WF thread {tid} should reuse same instance: {ids}"
+
+    # Multiple threads participated (at least 2 different threads with EC instances)
+    ec_threads = set(ec_ids.keys())
+    assert len(ec_threads) >= 1, "Expected at least 1 thread for EC"

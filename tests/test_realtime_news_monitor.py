@@ -1,3 +1,4 @@
+from collections import deque
 import pytest
 import sys
 from pathlib import Path
@@ -326,6 +327,7 @@ def test_default_path_uses_five_wide_concurrency(monkeypatch):
     assert monitor.run_once() is True
     assert processed_ids == ["S1", "S2"]
     assert len(monitor._pending_news) == 0
+    assert monitor.last_news_signature == monitor._get_news_signature({"event_id": "S2", "headline": "second", "metadata": {}})
 
 
 def test_explicit_single_thread_override_keeps_one_item_per_cycle(monkeypatch):
@@ -430,6 +432,40 @@ def test_concurrent_dead_letter_on_worker_exception(monkeypatch):
     assert len(monitor._pending_news) == 0  # all popped from queue
     assert len(monitor._dead_letter) == 1  # F2 in dead-letter
     assert monitor._dead_letter[0]["event_id"] == "F2"
+    assert monitor._dead_letter[0]["phase"] == "concurrent_process_news"
+
+
+def test_dead_letter_is_bounded_and_persisted(monkeypatch, tmp_path):
+    """S6-R016: dead-letter 使用有界队列并落盘，避免无限累积。
+    Test ID: S6-T016-20"""
+    monitor = _build_monitor(monkeypatch)
+    monitor._bootstrap_done = True
+    monitor._dead_letter = deque(maxlen=2)
+    monitor._dead_letter_log_path = tmp_path / "dead_letter.jsonl"
+
+    class _Boom(Exception):
+        pass
+
+    def _exploding_process(news):
+        raise _Boom(news["event_id"])
+
+    monitor._process_news = _exploding_process
+    monitor._pending_news = [
+        {"event_id": "D1", "headline": "one", "metadata": {}},
+        {"event_id": "D2", "headline": "two", "metadata": {}},
+        {"event_id": "D3", "headline": "three", "metadata": {}},
+    ]
+    monitor._fetch_latest_news = lambda: []
+    monitor.max_process_per_cycle = 3
+    monitor._use_concurrent_processing = False
+
+    assert monitor.run_once() is False
+    assert len(monitor._dead_letter) == 2
+    assert [item["event_id"] for item in monitor._dead_letter] == ["D2", "D3"]
+    lines = monitor._dead_letter_log_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 3
+    assert '"event_id": "D1"' in lines[0]
+    assert '"event_id": "D3"' in lines[-1]
 
 
 def test_concurrent_path_uses_thread_local_workflow(monkeypatch):

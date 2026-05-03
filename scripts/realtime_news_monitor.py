@@ -13,6 +13,7 @@ Real-time News Monitor for EDT Project
 import argparse
 import asyncio
 import atexit
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -24,7 +25,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional
 import yaml
 
 try:
@@ -63,7 +64,9 @@ class RealtimeNewsMonitor:
         self._bootstrap_done = False
         self.batch_news_limit = 20
         self._pending_news: List[Dict[str, Any]] = []
-        self._dead_letter: List[Dict[str, Any]] = []
+        self._dead_letter_max_items = self._safe_parse_int("EDT_DEAD_LETTER_MAX_ITEMS", 1000)
+        self._dead_letter: Deque[Dict[str, Any]] = deque(maxlen=self._dead_letter_max_items)
+        self._dead_letter_log_path = ROOT / "logs" / "realtime_news_monitor_dead_letter.jsonl"
         self._glm_concurrency = self._safe_parse_int("EDT_GLM_CONCURRENCY", 5)
         self.max_process_per_cycle = self._safe_parse_int("EDT_MAX_PROCESS_PER_CYCLE", self._glm_concurrency)
         self._use_concurrent_processing = self._glm_concurrency > 1
@@ -97,6 +100,28 @@ class RealtimeNewsMonitor:
             executor.shutdown(wait=True)
         except Exception as exc:
             logger.warning("executor shutdown failed: %s", exc)
+
+    def _record_dead_letter(self, item: Dict[str, Any], error: Exception, phase: str) -> None:
+        record = {
+            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "phase": phase,
+            "error": str(error),
+            "event_id": item.get("event_id"),
+            "headline": item.get("headline"),
+            "source_url": item.get("source_url"),
+            "timestamp": item.get("timestamp"),
+            "metadata": item.get("metadata", {}),
+        }
+        maxlen = getattr(self._dead_letter, "maxlen", None)
+        if maxlen is not None and len(self._dead_letter) == maxlen:
+            logger.warning("☠️ dead-letter 已达上限 %d，最旧记录将被覆盖", maxlen)
+        self._dead_letter.append(record)
+        try:
+            self._dead_letter_log_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._dead_letter_log_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception as exc:
+            logger.warning("dead-letter 持久化失败: %s", exc)
 
     def _load_node_role(self) -> str:
         env_role = os.getenv("EDT_NODE_ROLE", "").strip().lower()
@@ -677,6 +702,8 @@ class RealtimeNewsMonitor:
         processed_any = False
         if process_count > 0:
             items = [self._pending_news.pop(0) for _ in range(process_count)]
+            last_item = items[-1]
+            self.last_news_signature = self._get_news_signature(last_item)
             use_concurrent = self._use_concurrent_processing and self._executor is not None
             if use_concurrent:
                 # Keep FIFO order: submit all, wait all, retrieve in input order.
@@ -689,7 +716,7 @@ class RealtimeNewsMonitor:
                             processed_any = True
                     except Exception as e:
                         logger.error(f"并发处理新闻失败: {e}")
-                        self._dead_letter.append(item)
+                        self._record_dead_letter(item, e, "concurrent_process_news")
             else:
                 for item in items:
                     try:
@@ -697,7 +724,7 @@ class RealtimeNewsMonitor:
                             processed_any = True
                     except Exception as e:
                         logger.error(f"处理新闻失败: {e}")
-                        self._dead_letter.append(item)
+                        self._record_dead_letter(item, e, "sequential_process_news")
 
         if self._dead_letter:
             logger.warning("☠️ 本轮 %d 条新闻进入 dead-letter", len(self._dead_letter))

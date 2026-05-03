@@ -696,11 +696,23 @@ def test_concurrent_real_process_news_isolation(monkeypatch):
         assert set(sector_headlines) == {"NewsAlpha", "NewsBeta", "NewsGamma"}, \
             f"Sector push isolation broken: {sector_headlines}"
 
-        # Verify per-news-item field isolation (trace_id, headline, source)
+        # Verify per-news-item field isolation (trace_id, headline, source, request_id, batch_id)
         expected_by_headline = {
-            "NewsAlpha": {"source": "https://source.alpha"},
-            "NewsBeta": {"source": "https://source.beta"},
-            "NewsGamma": {"source": "https://source.gamma"},
+            "NewsAlpha": {
+                "source": "https://source.alpha",
+                "request_id": "REQ-NewsAlpha",
+                "batch_id": "BATCH-NewsAlpha",
+            },
+            "NewsBeta": {
+                "source": "https://source.beta",
+                "request_id": "REQ-NewsBeta",
+                "batch_id": "BATCH-NewsBeta",
+            },
+            "NewsGamma": {
+                "source": "https://source.gamma",
+                "request_id": "REQ-NewsGamma",
+                "batch_id": "BATCH-NewsGamma",
+            },
         }
         for entry in sector_payloads:
             hl = entry["headline"]
@@ -710,23 +722,30 @@ def test_concurrent_real_process_news_isolation(monkeypatch):
             bid = entry["batch_id"]
             expected_tid = f"TRACE-{hl}"
             assert tid == expected_tid, f"Trace mismatch: expected {expected_tid}, got {tid}"
-            expected_src = expected_by_headline[hl]["source"]
-            assert src == expected_src, f"Source mismatch for {hl}: expected {expected_src}, got {src}"
-            # request_id and batch_id should be set (non-empty) and not leak between items
-            assert rid, f"request_id empty for {hl}"
-            assert bid, f"batch_id empty for {hl}"
+            expected = expected_by_headline[hl]
+            assert src == expected["source"], f"Source mismatch for {hl}: expected {expected['source']}, got {src}"
+            assert rid == expected["request_id"], (
+                f"request_id mismatch for {hl}: expected {expected['request_id']}, got {rid}"
+            )
+            assert bid == expected["batch_id"], (
+                f"batch_id mismatch for {hl}: expected {expected['batch_id']}, got {bid}"
+            )
 
         # Explicit cross-contamination check: A's fields must not appear in B's output
         for entry in sector_payloads:
             hl = entry["headline"]
             if hl == "NewsAlpha":
                 assert entry["source"] == "https://source.alpha"
+                assert entry["request_id"] == "REQ-NewsAlpha"
+                assert entry["batch_id"] == "BATCH-NewsAlpha"
             elif hl == "NewsBeta":
                 assert entry["source"] == "https://source.beta"
+                assert entry["request_id"] == "REQ-NewsBeta"
+                assert entry["batch_id"] == "BATCH-NewsBeta"
             elif hl == "NewsGamma":
                 assert entry["source"] == "https://source.gamma"
-            assert entry["request_id"] not in ("", None)
-            assert entry["batch_id"] not in ("", None)
+                assert entry["request_id"] == "REQ-NewsGamma"
+                assert entry["batch_id"] == "BATCH-NewsGamma"
     finally:
         monitor._executor = None
 
@@ -927,6 +946,7 @@ def test_concurrent_thread_local_hit_via_real_process_news(monkeypatch):
     ec_ids = {}
     da_ids = {}
     wf_ids = {}
+    barrier = threading.Barrier(3)
 
     class _FakeEC:
         _next = 0
@@ -936,6 +956,7 @@ def test_concurrent_thread_local_hit_via_real_process_news(monkeypatch):
             tid = threading.get_ident()
             ec_ids.setdefault(tid, []).append(self._id)
         def run(self, news):
+            barrier.wait(timeout=2)
             class _R:
                 data = {"captured": True, "matched_keywords": ["x"], "vix_amplify": False}
             return _R()
@@ -990,7 +1011,8 @@ def test_concurrent_thread_local_hit_via_real_process_news(monkeypatch):
     result = monitor.run_once()
     assert result is True
 
-    # Each of the 3 worker threads should have its own instances
+    # Real-path hit proof: each participating worker thread reuses its own instances,
+    # and different threads received different thread-local instances.
     for tid, ids in ec_ids.items():
         assert len(set(ids)) == 1, f"EC thread {tid} should reuse same instance: {ids}"
     for tid, ids in da_ids.items():
@@ -998,6 +1020,13 @@ def test_concurrent_thread_local_hit_via_real_process_news(monkeypatch):
     for tid, ids in wf_ids.items():
         assert len(set(ids)) == 1, f"WF thread {tid} should reuse same instance: {ids}"
 
-    # Multiple threads participated (at least 2 different threads with EC instances)
+    # Barrier-backed real-path execution should involve multiple worker threads.
     ec_threads = set(ec_ids.keys())
-    assert len(ec_threads) >= 1, "Expected at least 1 thread for EC"
+    da_threads = set(da_ids.keys())
+    wf_threads = set(wf_ids.keys())
+    assert len(ec_threads) >= 2, f"Expected at least 2 EC threads, got {ec_threads}"
+    assert len(da_threads) >= 2, f"Expected at least 2 DA threads, got {da_threads}"
+    assert len(wf_threads) >= 2, f"Expected at least 2 WF threads, got {wf_threads}"
+    assert len({ids[0] for ids in ec_ids.values()}) == len(ec_threads), f"EC instances not separated by thread: {ec_ids}"
+    assert len({ids[0] for ids in da_ids.values()}) == len(da_threads), f"DA instances not separated by thread: {da_ids}"
+    assert len({ids[0] for ids in wf_ids.values()}) == len(wf_threads), f"WF instances not separated by thread: {wf_ids}"

@@ -63,7 +63,7 @@ def test_market_validation_non_live_structure():
     assert isinstance(mv["evidence"], list)
     if mv["evidence"]:
         item = mv["evidence"][0]
-        assert set(item.keys()) == {"layer", "asset", "expected", "observed", "status", "weight"}
+        assert set(item.keys()) == {"layer", "asset", "expected", "observed", "status", "weight", "source"}
 
 
 def test_market_validation_contradicted_when_observed_opposite_expected():
@@ -106,3 +106,44 @@ def test_absolute_direction_not_derived_from_price_move():
     )
     # Absolute direction should be driven by causal mapping semantics, not directly by observed price sign.
     assert out.data["absolute_direction"] in {"positive", "negative", "neutral", "mixed", "unknown"}
+
+
+def test_market_validation_not_validated_with_only_sector_snapshot():
+    out = ConductionMapper().run(
+        {
+            "event_id": "ME-CC-NOVAL-001",
+            "category": "E",
+            "severity": "E2",
+            "headline": "Fed signals rate cuts ahead",
+            "summary": "Policy easing expected",
+            "lifecycle_state": "Active",
+            "sector_data": [
+                {"symbol": "XLK", "sector": "Technology", "industry": "Technology", "change_pct": 2.5},
+                {"symbol": "XLF", "sector": "Financial Services", "industry": "Financial Services", "change_pct": 1.8},
+            ],
+        }
+    )
+    assert out.data["market_validation"]["status"] != "validated"
+
+
+def test_dominant_driver_unknown_when_validation_insufficient(monkeypatch):
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic,
+        "analyze",
+        lambda h, s: {"event_type": "monetary", "confidence": 88, "sentiment": "neutral"},
+    )
+    out = mapper.run(
+        {
+            "event_id": "ME-CC-DRV-001",
+            "category": "E",
+            "severity": "E2",
+            "headline": "Fed remarks",
+            "summary": "",
+            "lifecycle_state": "Active",
+            "sector_data": [],
+        }
+    )
+    dd = out.data["dominant_driver"]
+    assert dd["primary"] == "unknown"
+    assert dd["driver_confidence"] == 0.0

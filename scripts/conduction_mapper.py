@@ -1040,6 +1040,7 @@ class ConductionMapper(EDTModule):
                         "observed": "missing",
                         "status": "not_confirmed",
                         "weight": 0.2,
+                        "source": "missing",
                     }
                 )
                 continue
@@ -1047,7 +1048,9 @@ class ConductionMapper(EDTModule):
             expected = expected_by_sector.get(sector, "unknown")
             observed = "up" if change_pct > 0 else ("down" if change_pct < 0 else "flat")
             if abs(change_pct) >= threshold:
-                if expected in {"up", "down"} and observed != expected:
+                if expected == "unknown":
+                    status = "partial"
+                elif expected in {"up", "down"} and observed != expected:
                     status = "contradicted"
                     contradicted += 1
                 else:
@@ -1065,13 +1068,17 @@ class ConductionMapper(EDTModule):
                     "observed": observed,
                     "status": status,
                     "weight": 0.8,
+                    "source": "sector_snapshot",
                 }
             )
         if not evidence:
             return "insufficient_data", []
+        # PR110 contract: sector snapshot alone cannot produce "validated".
+        # Without macro-asset evidence, cap top status at partial/unconfirmed/contradicted.
+        has_macro_asset = any(str(x.get("source", "")) == "macro_asset" for x in evidence)
         if contradicted > 0 and confirmed == 0:
             top_status = "contradicted"
-        elif confirmed == len(evidence):
+        elif confirmed == len(evidence) and has_macro_asset:
             top_status = "validated"
         elif confirmed > 0:
             top_status = "partial"
@@ -1079,8 +1086,16 @@ class ConductionMapper(EDTModule):
             top_status = "unconfirmed"
         return top_status, evidence
 
-    def _build_dominant_driver(self, semantic_event_type: str, mapping: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_dominant_driver(
+        self,
+        semantic_event_type: str,
+        mapping: Dict[str, Any],
+        market_validation_status: str,
+    ) -> Dict[str, Any]:
         cfg = self._pr110_contract_cfg().get("dominant_driver_by_event_type", {}) or {}
+        if market_validation_status in {"insufficient_data", "unconfirmed"}:
+            return {"primary": "unknown", "secondary": [], "driver_confidence": 0.0}
+
         dominant = str(cfg.get(semantic_event_type) or "").strip()
         if not dominant:
             macro = mapping.get("macro_factors", [])
@@ -1095,7 +1110,10 @@ class ConductionMapper(EDTModule):
                 name = str((factor or {}).get("factor", "")).strip()
                 if name and name != dominant and name not in secondary:
                     secondary.append(name)
-        return {"primary": dominant, "secondary": secondary}
+        driver_confidence = 0.8 if market_validation_status == "validated" else 0.6
+        if market_validation_status == "contradicted":
+            driver_confidence = 0.3
+        return {"primary": dominant, "secondary": secondary, "driver_confidence": driver_confidence}
 
     def _build_relative_absolute_direction_contract(
         self,
@@ -1435,7 +1453,7 @@ class ConductionMapper(EDTModule):
             sector_data,
             mapping.get("sector_impacts", []),
         )
-        dominant_driver = self._build_dominant_driver(semantic_event_type, mapping)
+        dominant_driver = self._build_dominant_driver(semantic_event_type, mapping, market_validation_status)
         relative_direction, absolute_direction, direction_contract = self._build_relative_absolute_direction_contract(
             semantic_event_type=semantic_event_type,
             sector_impacts=mapping.get("sector_impacts", []),

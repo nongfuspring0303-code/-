@@ -106,9 +106,6 @@ chain_templates:
           - name: "Utilities"
             direction: "benefit"
             impact_score: 0.65
-          - name: "Healthcare"
-            direction: "benefit"
-            impact_score: 0.60
       - level: "theme"
         name: "定价权"
         relation: "affects_below"
@@ -160,6 +157,53 @@ chain_templates:
           - name: "软件服务"
             direction: "benefit"
             impact_score: 0.78
+
+  - id: "energy_supply_chain"
+    name: "能源供给冲击传导链"
+    description: "油气供给扰动与能源价格冲击传导路径"
+    levels:
+      - level: "macro"
+        name: "能源供给冲击"
+        relation: "affects_above"
+        factors:
+          - factor: "inflation"
+            direction: "up"
+            strength: "high"
+          - factor: "risk_premium"
+            direction: "up"
+            strength: "medium"
+      - level: "sector"
+        name: "能源链条"
+        relation: "same"
+        sectors:
+          - name: "Energy"
+            direction: "benefit"
+            impact_score: 0.88
+          - name: "Industrials"
+            direction: "watch"
+            impact_score: 0.58
+
+  - id: "commodity_price_chain"
+    name: "大宗商品价格冲击链"
+    description: "黄金/白银/原油等大宗价格波动传导路径"
+    levels:
+      - level: "macro"
+        name: "商品价格冲击"
+        relation: "affects_above"
+        factors:
+          - factor: "inflation"
+            direction: "up"
+            strength: "medium"
+      - level: "sector"
+        name: "资源品与材料"
+        relation: "same"
+        sectors:
+          - name: "Energy"
+            direction: "benefit"
+            impact_score: 0.82
+          - name: "Materials"
+            direction: "benefit"
+            impact_score: 0.74
 
   - id: "trade_talks_chain"
     name: "贸易谈判传导链"
@@ -246,6 +290,12 @@ chain_templates:
           - name: "Energy"
             direction: "benefit"
             impact_score: 0.78
+          - name: "Industrials"
+            direction: "watch"
+            impact_score: 0.62
+          - name: "Financial Services"
+            direction: "watch"
+            impact_score: 0.56
 
   - id: "macro_data_chain"
     name: "宏观数据冲击传导链"
@@ -303,7 +353,7 @@ event_to_chain_mapping:
     chain_id: "public_health_chain"
     confidence: 0.86
 
-  - event_keywords: ["geopolitical", "军事冲突", "war escalation", "导弹袭击", "制裁升级"]
+  - event_keywords: ["geopolitical", "军事冲突", "war escalation", "导弹袭击", "制裁升级", "地缘", "停火", "停战", "护航联盟", "核谈判", "中东冲突", "海峡局势"]
     chain_id: "geo_risk_chain"
     confidence: 0.83
 
@@ -315,7 +365,7 @@ event_to_chain_mapping:
     chain_id: "market_structure_chain"
     confidence: 0.78
 
-  - event_keywords: ["降息", "利率下调", "货币政策宽松", "QE", "量化宽松"]
+  - event_keywords: ["降息", "利率下调", "货币政策宽松", "QE", "量化宽松", "fomc", "前瞻指引", "加息押注", "央行", "美联储", "国债收益率"]
     chain_id: "rate_cut_chain"
     confidence: 0.90
 
@@ -327,9 +377,13 @@ event_to_chain_mapping:
     chain_id: "tech_breakthrough_chain"
     confidence: 0.88
 
-  - event_keywords: ["原油", "能源价格", "大宗商品", "供应链中断"]
-    chain_id: "inflation_shock_chain"
-    confidence: 0.75
+  - event_keywords: ["原油", "wti", "brent", "天然气", "lng", "油轮", "opec", "能源价格", "航煤", "供给中断", "炼油", "石油"]
+    chain_id: "energy_supply_chain"
+    confidence: 0.86
+
+  - event_keywords: ["大宗商品", "黄金", "白银", "期金", "期银", "现货黄金", "现货白银", "commodity"]
+    chain_id: "commodity_price_chain"
+    confidence: 0.82
 
 # 传导链层级定义
 level_definitions:

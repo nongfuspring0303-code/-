@@ -1,218 +1,381 @@
 schema_version: v1.0
-version: "v1.0"
-updated_at: "2026-04-05T00:00:00Z"
-
+version: v1.0
+updated_at: '2026-04-05T00:00:00Z'
 selection_rules:
   min_roe_pct: 15
   min_market_cap_usd_billion: 50
   min_liquidity_score: 0.6
-
 filters:
   roe_min: 15.0
   market_cap_billion_min: 50.0
-  liquidity_score_min: 0.60
-
+  liquidity_score_min: 0.6
 price_source: reference_snapshot
-# stock-level last_price below is static reference only;
-# runtime scoring should prefer candidate realtime_price when available.
-
 runtime:
   stock_pool:
     dynamic_cache_dir: stock_cache
-
 opportunity_rules:
   watch_score_threshold: 0.55
-  execute_score_threshold: 0.70
+  execute_score_threshold: 0.7
   support_buffer_pct: 0.03
   resistance_buffer_pct: 0.03
   max_candidates_per_sector: 5
-
 stocks:
-  - symbol: NVDA
-    name: 英伟达
-    sector: 科技
-    roe_pct: 74.0
-    roe: 74.0
-    market_cap_usd_billion: 2200
-    market_cap_billion: 2200
-    liquidity_score: 0.95
-    last_price: 470.0
-
-  - symbol: MSFT
-    name: 微软
-    sector: 科技
-    roe_pct: 39.0
-    roe: 39.0
-    market_cap_usd_billion: 3000
-    market_cap_billion: 3000
-    liquidity_score: 0.94
-    last_price: 420.0
-
-  - symbol: AAPL
-    name: 苹果
-    sector: 科技
-    roe_pct: 160.0
-    roe: 160.0
-    market_cap_usd_billion: 2800
-    market_cap_billion: 2800
-    liquidity_score: 0.93
-    last_price: 190.0
-
-  - symbol: TSLA
-    name: 特斯拉
-    sector: 新能源
-    roe_pct: 18.4
-    roe: 18.4
-    market_cap_usd_billion: 560
-    market_cap_billion: 560
-    liquidity_score: 0.89
-
-  - symbol: META
-    name: Meta
-    sector: 科技
-    roe_pct: 33.0
-    roe: 33.0
-    market_cap_usd_billion: 1200
-    market_cap_billion: 1200
-    liquidity_score: 0.92
-    last_price: 490.0
-
-  - symbol: JPM
-    name: 摩根大通
-    sector: 金融
-    roe_pct: 18.0
-    roe: 18.0
-    market_cap_usd_billion: 799
-    market_cap_billion: 799
-    liquidity_score: 0.88
-    last_price: 190.0
-
-  - symbol: XOM
-    name: 埃克森美孚
-    sector: 能源
-    roe_pct: 26.0
-    roe: 26.0
-    market_cap_usd_billion: 520
-    market_cap_billion: 520
-    liquidity_score: 0.85
-    last_price: 118.0
-
-  - symbol: LLY
-    name: 礼来
-    sector: 医疗
-    roe_pct: 64.0
-    roe: 64.0
-    market_cap_usd_billion: 730
-    market_cap_billion: 730
-    liquidity_score: 0.82
-    last_price: 820.0
-
-  - symbol: CAT
-    name: 卡特彼勒
-    sector: 工业
-    roe_pct: 48.0
-    roe: 48.0
-    market_cap_usd_billion: 170
-    market_cap_billion: 170
-    liquidity_score: 0.84
-    last_price: 360.0
-
-  - symbol: AMZN
-    name: 亚马逊
-    sector: 消费
-    roe_pct: 20.0
-    roe: 20.0
-    market_cap_usd_billion: 1800
-    market_cap_billion: 1800
-    liquidity_score: 0.92
-    last_price: 185.0
-
-  - symbol: GOOGL
-    name: 谷歌
-    sector: 科技
-    roe_pct: 28.0
-    roe: 28.0
-    market_cap_usd_billion: 1900
-    market_cap_billion: 1900
-    liquidity_score: 0.91
-    last_price: 155.0
-
-  - symbol: BRK.B
-    name: 伯克希尔B
-    sector: 金融
-    roe_pct: 12.0
-    roe: 12.0
-    market_cap_usd_billion: 900
-    market_cap_billion: 900
-    liquidity_score: 0.78
-    last_price: 415.0
-
-  - symbol: UNH
-    name: 联合健康
-    sector: 医疗
-    roe_pct: 25.0
-    roe: 25.0
-    market_cap_usd_billion: 500
-    market_cap_billion: 500
-    liquidity_score: 0.80
-    last_price: 490.0
-
-  - symbol: AVGO
-    name: 博通
-    sector: 科技
-    roe_pct: 40.0
-    roe: 40.0
-    market_cap_usd_billion: 1100
-    market_cap_billion: 1100
-    liquidity_score: 0.83
-    last_price: 1250.0
-
-  - symbol: NEE
-    name: NextEra Energy
-    sector: 公用事业
-    roe_pct: 12.5
-    roe: 16.0
-    market_cap_usd_billion: 120
-    market_cap_billion: 120
-    liquidity_score: 0.79
-    last_price: 72.0
-
-  - symbol: AMT
-    name: American Tower
-    sector: 房地产
-    roe_pct: 22.0
-    roe: 22.0
-    market_cap_usd_billion: 95
-    market_cap_billion: 95
-    liquidity_score: 0.77
-    last_price: 198.0
-
-  - symbol: LIN
-    name: Linde
-    sector: 材料
-    roe_pct: 17.0
-    roe: 17.0
-    market_cap_usd_billion: 210
-    market_cap_billion: 210
-    liquidity_score: 0.78
-    last_price: 440.0
-
-  - symbol: KO
-    name: Coca-Cola
-    sector: 消费
-    roe_pct: 41.0
-    roe: 41.0
-    market_cap_usd_billion: 275
-    market_cap_billion: 275
-    liquidity_score: 0.82
-    last_price: 63.0
-
-  - symbol: NFLX
-    name: Netflix
-    sector: 通信服务
-    roe_pct: 27.0
-    roe: 27.0
-    market_cap_usd_billion: 260
-    market_cap_billion: 260
-    liquidity_score: 0.81
-    last_price: 625.0
+- symbol: NVDA
+  name: 英伟达
+  sector: 科技
+  roe_pct: 74.0
+  roe: 74.0
+  market_cap_usd_billion: 2200
+  market_cap_billion: 2200
+  liquidity_score: 0.95
+  last_price: 470.0
+- symbol: MSFT
+  name: 微软
+  sector: 科技
+  roe_pct: 39.0
+  roe: 39.0
+  market_cap_usd_billion: 3000
+  market_cap_billion: 3000
+  liquidity_score: 0.94
+  last_price: 420.0
+- symbol: AAPL
+  name: 苹果
+  sector: 科技
+  roe_pct: 160.0
+  roe: 160.0
+  market_cap_usd_billion: 2800
+  market_cap_billion: 2800
+  liquidity_score: 0.93
+  last_price: 190.0
+- symbol: TSLA
+  name: 特斯拉
+  sector: 新能源
+  roe_pct: 18.4
+  roe: 18.4
+  market_cap_usd_billion: 560
+  market_cap_billion: 560
+  liquidity_score: 0.89
+- symbol: META
+  name: Meta
+  sector: 科技
+  roe_pct: 33.0
+  roe: 33.0
+  market_cap_usd_billion: 1200
+  market_cap_billion: 1200
+  liquidity_score: 0.92
+  last_price: 490.0
+- symbol: JPM
+  name: 摩根大通
+  sector: 金融
+  roe_pct: 18.0
+  roe: 18.0
+  market_cap_usd_billion: 799
+  market_cap_billion: 799
+  liquidity_score: 0.88
+  last_price: 190.0
+- symbol: XOM
+  name: 埃克森美孚
+  sector: 能源
+  roe_pct: 26.0
+  roe: 26.0
+  market_cap_usd_billion: 520
+  market_cap_billion: 520
+  liquidity_score: 0.85
+  last_price: 118.0
+- symbol: LLY
+  name: 礼来
+  sector: 医疗
+  roe_pct: 64.0
+  roe: 64.0
+  market_cap_usd_billion: 730
+  market_cap_billion: 730
+  liquidity_score: 0.82
+  last_price: 820.0
+- symbol: CAT
+  name: 卡特彼勒
+  sector: 工业
+  roe_pct: 48.0
+  roe: 48.0
+  market_cap_usd_billion: 170
+  market_cap_billion: 170
+  liquidity_score: 0.84
+  last_price: 360.0
+- symbol: AMZN
+  name: 亚马逊
+  sector: 消费
+  roe_pct: 20.0
+  roe: 20.0
+  market_cap_usd_billion: 1800
+  market_cap_billion: 1800
+  liquidity_score: 0.92
+  last_price: 185.0
+- symbol: GOOGL
+  name: 谷歌
+  sector: 科技
+  roe_pct: 28.0
+  roe: 28.0
+  market_cap_usd_billion: 1900
+  market_cap_billion: 1900
+  liquidity_score: 0.91
+  last_price: 155.0
+- symbol: BRK.B
+  name: 伯克希尔B
+  sector: 金融
+  roe_pct: 12.0
+  roe: 12.0
+  market_cap_usd_billion: 900
+  market_cap_billion: 900
+  liquidity_score: 0.78
+  last_price: 415.0
+- symbol: UNH
+  name: 联合健康
+  sector: 医疗
+  roe_pct: 25.0
+  roe: 25.0
+  market_cap_usd_billion: 500
+  market_cap_billion: 500
+  liquidity_score: 0.8
+  last_price: 490.0
+- symbol: AVGO
+  name: 博通
+  sector: 科技
+  roe_pct: 40.0
+  roe: 40.0
+  market_cap_usd_billion: 1100
+  market_cap_billion: 1100
+  liquidity_score: 0.83
+  last_price: 1250.0
+- symbol: NEE
+  name: NextEra Energy
+  sector: 公用事业
+  roe_pct: 12.5
+  roe: 16.0
+  market_cap_usd_billion: 120
+  market_cap_billion: 120
+  liquidity_score: 0.79
+  last_price: 72.0
+- symbol: AMT
+  name: American Tower
+  sector: 房地产
+  roe_pct: 22.0
+  roe: 22.0
+  market_cap_usd_billion: 95
+  market_cap_billion: 95
+  liquidity_score: 0.77
+  last_price: 198.0
+- symbol: LIN
+  name: Linde
+  sector: 材料
+  roe_pct: 17.0
+  roe: 17.0
+  market_cap_usd_billion: 210
+  market_cap_billion: 210
+  liquidity_score: 0.78
+  last_price: 440.0
+- symbol: KO
+  name: Coca-Cola
+  sector: 消费
+  roe_pct: 41.0
+  roe: 41.0
+  market_cap_usd_billion: 275
+  market_cap_billion: 275
+  liquidity_score: 0.82
+  last_price: 63.0
+- symbol: NFLX
+  name: Netflix
+  sector: 通信服务
+  roe_pct: 27.0
+  roe: 27.0
+  market_cap_usd_billion: 260
+  market_cap_billion: 260
+  liquidity_score: 0.81
+  last_price: 625.0
+- symbol: CVX
+  name: 雪佛龙
+  sector: 能源
+  roe_pct: 18.0
+  market_cap_usd_billion: 310
+  liquidity_score: 0.93
+  last_price: 165.0
+- symbol: SLB
+  name: 斯伦贝谢
+  sector: 能源
+  roe_pct: 25.0
+  market_cap_usd_billion: 75
+  liquidity_score: 0.9
+  last_price: 55.0
+- symbol: HAL
+  name: 哈里伯顿
+  sector: 能源
+  roe_pct: 28.0
+  market_cap_usd_billion: 35
+  liquidity_score: 0.85
+  last_price: 38.0
+- symbol: BKR
+  name: 贝克休斯
+  sector: 能源
+  roe_pct: 12.0
+  market_cap_usd_billion: 32
+  liquidity_score: 0.82
+  last_price: 32.0
+- symbol: LNG
+  name: Cheniere Energy
+  sector: 能源
+  roe_pct: 40.0
+  market_cap_usd_billion: 45
+  liquidity_score: 0.8
+  last_price: 190.0
+- symbol: COP
+  name: 康菲石油
+  sector: 能源
+  roe_pct: 30.0
+  market_cap_usd_billion: 140
+  liquidity_score: 0.88
+  last_price: 120.0
+- symbol: EOG
+  name: EOG Resources
+  sector: 能源
+  roe_pct: 25.0
+  market_cap_usd_billion: 70
+  liquidity_score: 0.85
+  last_price: 130.0
+- symbol: OXY
+  name: 西方石油
+  sector: 能源
+  roe_pct: 20.0
+  market_cap_usd_billion: 55
+  liquidity_score: 0.82
+  last_price: 62.0
+- symbol: VLO
+  name: 瓦莱罗能源
+  sector: 能源
+  roe_pct: 30.0
+  market_cap_usd_billion: 50
+  liquidity_score: 0.85
+  last_price: 145.0
+- symbol: MPC
+  name: Marathon Petroleum
+  sector: 能源
+  roe_pct: 28.0
+  market_cap_usd_billion: 60
+  liquidity_score: 0.85
+  last_price: 175.0
+- symbol: LMT
+  name: 洛克希德马丁
+  sector: 工业
+  roe_pct: 55.0
+  market_cap_usd_billion: 130
+  liquidity_score: 0.9
+  last_price: 480.0
+- symbol: RTX
+  name: 雷神技术
+  sector: 工业
+  roe_pct: 12.0
+  market_cap_usd_billion: 140
+  liquidity_score: 0.88
+  last_price: 100.0
+- symbol: NOC
+  name: 诺斯罗普格鲁曼
+  sector: 工业
+  roe_pct: 18.0
+  market_cap_usd_billion: 70
+  liquidity_score: 0.85
+  last_price: 470.0
+- symbol: GD
+  name: 通用动力
+  sector: 工业
+  roe_pct: 18.0
+  market_cap_usd_billion: 75
+  liquidity_score: 0.85
+  last_price: 280.0
+- symbol: LHX
+  name: L3Harris
+  sector: 工业
+  roe_pct: 16.0
+  market_cap_usd_billion: 40
+  liquidity_score: 0.8
+  last_price: 220.0
+- symbol: FCX
+  name: 自由港麦克莫兰
+  sector: 原材料
+  roe_pct: 20.0
+  market_cap_usd_billion: 65
+  liquidity_score: 0.85
+  last_price: 45.0
+- symbol: SCCO
+  name: 南方铜业
+  sector: 原材料
+  roe_pct: 25.0
+  market_cap_usd_billion: 85
+  liquidity_score: 0.82
+  last_price: 105.0
+- symbol: NEM
+  name: 纽蒙特矿业
+  sector: 原材料
+  roe_pct: 12.0
+  market_cap_usd_billion: 45
+  liquidity_score: 0.8
+  last_price: 42.0
+- symbol: GOLD
+  name: 巴里克黄金
+  sector: 原材料
+  roe_pct: 15.0
+  market_cap_usd_billion: 35
+  liquidity_score: 0.8
+  last_price: 20.0
+- symbol: AEM
+  name: Agnico Eagle
+  sector: 原材料
+  roe_pct: 18.0
+  market_cap_usd_billion: 30
+  liquidity_score: 0.78
+  last_price: 68.0
+- symbol: BAC
+  name: 美国银行
+  sector: 金融
+  roe_pct: 12.0
+  market_cap_usd_billion: 280
+  liquidity_score: 0.95
+  last_price: 38.0
+- symbol: C
+  name: 花旗集团
+  sector: 金融
+  roe_pct: 8.0
+  market_cap_usd_billion: 100
+  liquidity_score: 0.9
+  last_price: 58.0
+- symbol: WFC
+  name: 富国银行
+  sector: 金融
+  roe_pct: 10.0
+  market_cap_usd_billion: 180
+  liquidity_score: 0.92
+  last_price: 52.0
+- symbol: GS
+  name: 高盛
+  sector: 金融
+  roe_pct: 14.0
+  market_cap_usd_billion: 130
+  liquidity_score: 0.9
+  last_price: 390.0
+- symbol: AMD
+  name: 超威半导体
+  sector: 科技
+  roe_pct: 15.0
+  market_cap_usd_billion: 250
+  liquidity_score: 0.92
+  last_price: 155.0
+- symbol: INTC
+  name: 英特尔
+  sector: 科技
+  roe_pct: 8.0
+  market_cap_usd_billion: 130
+  liquidity_score: 0.88
+  last_price: 32.0
+- symbol: QCOM
+  name: 高通
+  sector: 科技
+  roe_pct: 25.0
+  market_cap_usd_billion: 190
+  liquidity_score: 0.9
+  last_price: 170.0

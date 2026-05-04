@@ -1,0 +1,112 @@
+schema_version: "v1.0"
+policy_name: "ai_mapping_regression_eval"
+owner: "member-b"
+
+datasets:
+  benchmark:
+    id: "benchmark_171_fixed"
+    locked: true
+    sample_count: 171
+    source: "logs/trace_scorecard.jsonl"
+    labels_file: "data/benchmarks/benchmark_171_labels.yaml"
+    usage: "release_gate"
+  validation:
+    id: "validation_incremental"
+    locked: false
+    labels_file: "data/benchmarks/validation_labels.yaml"
+    usage: "anti_overfit_gate"
+  live:
+    id: "live_stream_observe"
+    locked: false
+    source: "logs/trace_scorecard.jsonl"
+    usage: "observability_only"
+
+tier_mapping:
+  tier1:
+    - geo_political
+    - energy
+    - commodity
+    - monetary
+  tier2:
+    - earnings
+    - merger
+    - regulatory
+    - tech
+    - industrial
+  tier3:
+    - other
+    - natural_disaster
+    - shipping
+    - healthcare
+
+metrics:
+  semantic:
+    - ai_semantic_accuracy
+    - ai_confidence_mean
+  conduction:
+    - conduction_mapping_accuracy
+    - sector_recall
+    - sector_quality_mean
+    - empty_mapping_rate
+    - wrong_mapping_rate
+    - healthcare_misroute_count
+    - mapping_acceptance_mean
+  stock:
+    - stock_recommendation_rate
+    - effective_recommended_rate
+    - watchlist_rate
+    - stock_quality_mean
+    - ticker_hit_rate
+    - ticker_false_positive_rate
+
+gates:
+  hard:
+    empty_mapping_rate:
+      op: "<"
+      value: 0.05
+    healthcare_misroute_count:
+      op: "="
+      value: 0
+    ticker_false_positive_rate:
+      op: "<="
+      value: 0.05
+  target:
+    sector_recall:
+      op: ">="
+      value: 0.60
+    tier1_sector_recall:
+      op: ">="
+      value: 0.60
+    effective_recommended_rate:
+      op: ">="
+      value: 0.20
+    stock_quality_mean:
+      op: ">="
+      value: 40.0
+
+comparison:
+  baseline_version_key: "v_prev"
+  candidate_version_key: "v_new"
+  min_improvement_delta:
+    ratio_metric: 0.01
+    score_metric: 1.0
+  flat_band:
+    ratio_metric: 0.005
+    score_metric: 0.5
+  status_labels:
+    improved: "improved"
+    flat: "flat"
+    regressed: "regressed"
+
+report:
+  required_sections:
+    - summary
+    - overall_metrics_delta
+    - tier_metrics_delta
+    - error_buckets
+    - gate_decision
+  error_buckets:
+    - empty_mapping_topn
+    - wrong_mapping_topn
+    - healthcare_misroute_cases
+    - ticker_false_positive_cases

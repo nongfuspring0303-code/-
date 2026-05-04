@@ -1,0 +1,203 @@
+schema_version: v1.0
+version: "0.1.0"
+updated_at: "2026-05-04T00:00:00Z"
+description: "Tier1 event mapping rules: sector weights, subtype boosts, ticker pools"
+
+tier1_event_types:
+  - geo_political
+  - energy
+  - commodity
+  - monetary
+  - tariff
+  - tech
+  - earnings
+  - regulatory
+  - industrial
+  - merger
+
+base_sector_weights:
+  geo_political:
+    Energy: 0.45
+    Industrials: 0.25
+    Materials: 0.15
+    Financial Services: 0.15
+  energy:
+    Energy: 0.65
+    Industrials: 0.15
+    Materials: 0.10
+    Utilities: 0.10
+  commodity:
+    Materials: 0.55
+    Energy: 0.25
+    Industrials: 0.10
+    Consumer Staples: 0.10
+  monetary:
+    Financial Services: 0.33
+    Real Estate: 0.15
+    Utilities: 0.12
+    Technology: 0.22
+    Consumer Cyclical: 0.18
+  tariff:
+    Industrials: 0.50
+    Materials: 0.20
+    Consumer Staples: 0.15
+    Consumer Cyclical: 0.15
+  tech:
+    Technology: 0.70
+    Communication Services: 0.30
+  earnings:
+    Technology: 0.45
+    Financial Services: 0.30
+    Consumer Cyclical: 0.25
+  regulatory:
+    Financial Services: 0.50
+    Utilities: 0.30
+    Technology: 0.20
+  industrial:
+    Industrials: 0.60
+    Materials: 0.25
+    Technology: 0.15
+  merger:
+    Financial Services: 0.55
+    Technology: 0.45
+
+subtype_rules:
+  geo_political:
+    - subtype: oil_supply_disruption
+      keywords: ["oil supply", "opec", "pipeline", "ship attack", "strait", "supply disruption", "原油供给", "油气中断", "霍尔木兹"]
+      boost:
+        Energy: 0.30
+        Industrials: 0.10
+      required_sectors: ["Energy"]
+      primary_sector: "Energy"
+    - subtype: military_conflict
+      keywords: ["missile", "strike", "military", "war", "troops", "conflict", "导弹", "冲突", "战事", "军演"]
+      boost:
+        Industrials: 0.35
+        Energy: 0.10
+      suppress:
+        Financial Services: 0.15
+      required_sectors: ["Industrials"]
+      primary_sector: "Industrials"
+    - subtype: civilian_attack
+      keywords: ["ramming", "冲撞", "袭击", "attack", "terror", "shooting", "knife", "stab", "vehicle attack", "暴恐"]
+      boost:
+        Industrials: 0.40
+        Consumer Staples: 0.10
+      suppress:
+        Energy: 0.45
+      primary_sector: "Industrials"
+    - subtype: sanctions
+      keywords: ["sanction", "embargo", "asset freeze", "出口管制", "制裁", "禁运"]
+      boost:
+        Energy: 0.20
+        Materials: 0.20
+        Financial Services: 0.10
+      primary_sector: "Energy"
+    - subtype: diplomacy
+      keywords: ["talks", "negotiation", "ceasefire", "truce", "会谈", "谈判", "停火"]
+      boost:
+        Financial Services: 0.20
+        Industrials: 0.10
+      primary_sector: "Financial Services"
+  energy:
+    - subtype: crude_oil
+      keywords: ["wti", "brent", "crude", "oil price", "原油", "油价"]
+      boost:
+        Energy: 0.25
+      required_sectors: ["Energy"]
+    - subtype: natural_gas_lng
+      keywords: ["natural gas", "lng", "gas storage", "天然气", "液化天然气"]
+      boost:
+        Energy: 0.25
+        Utilities: 0.10
+    - subtype: refinery_margin
+      keywords: ["refinery", "crack spread", "margin", "炼油", "裂解价差"]
+      boost:
+        Energy: 0.20
+        Industrials: 0.10
+  commodity:
+    - subtype: gold
+      keywords: ["gold", "xau", "bullion", "黄金", "金价"]
+      boost:
+        Materials: 0.25
+    - subtype: copper
+      keywords: ["copper", "铜", "铜价"]
+      boost:
+        Materials: 0.30
+        Industrials: 0.15
+    - subtype: agriculture
+      keywords: ["corn", "wheat", "soybean", "fertilizer", "粮食", "小麦", "玉米", "大豆", "化肥"]
+      boost:
+        Consumer Staples: 0.25
+        Materials: 0.10
+  monetary:
+    - subtype: rate_hike
+      keywords: ["rate hike", "hawkish", "tightening", "higher for longer", "加息", "鹰派"]
+      boost:
+        Financial Services: 0.25
+        Real Estate: 0.05
+        Utilities: 0.10
+      suppress:
+        Real Estate: 0.10
+      primary_sector: "Financial Services"
+    - subtype: rate_cut
+      keywords: ["rate cut", "dovish", "easing", "降息", "宽松", "鸽派"]
+      boost:
+        Technology: 0.30
+        Real Estate: 0.15
+        Consumer Cyclical: 0.20
+      primary_sector: "Technology"
+    - subtype: inflation_surprise
+      keywords: ["inflation surprise", "cpi surprise", "sticky inflation", "通胀超预期", "核心cpi"]
+      boost:
+        Energy: 0.20
+        Materials: 0.20
+        Financial Services: 0.10
+      primary_sector: "Energy"
+
+ticker_pool:
+  Energy:
+    integrated_oil: ["XOM", "CVX"]
+    oil_services: ["SLB", "HAL", "BKR"]
+    exploration_production: ["COP", "EOG", "OXY"]
+    refinery: ["VLO", "MPC", "PSX"]
+    lng: ["LNG"]
+  Industrials:
+    defense_primes: ["LMT", "RTX", "NOC", "GD", "LHX", "HII"]
+    airlines: ["DAL", "UAL", "AAL", "LUV"]
+    machinery: ["CAT", "DE"]
+    transportation: ["UNP", "UPS", "FDX"]
+  Materials:
+    copper: ["FCX", "SCCO"]
+    gold_miners: ["NEM", "GOLD", "AEM"]
+    diversified_mining: ["BHP", "RIO"]
+  Financial Services:
+    money_center_banks: ["JPM", "BAC", "WFC", "C"]
+    investment_banks: ["GS", "MS"]
+    brokers_exchanges: ["SCHW", "CME", "ICE"]
+  Technology:
+    semiconductors: ["NVDA", "AMD", "AVGO", "INTC", "QCOM", "MU"]
+    software: ["MSFT", "ORCL", "CRM"]
+    cybersecurity: ["CRWD", "PANW", "FTNT", "ZS"]
+  Utilities:
+    regulated_utilities: ["NEE", "DUK", "SO", "AEP"]
+  Real Estate:
+    reits: ["PLD", "AMT", "EQIX", "SPG"]
+  Consumer Cyclical:
+    autos: ["TSLA", "GM", "F"]
+    travel: ["BKNG", "EXPE"]
+    retail: ["AMZN", "HD", "LOW"]
+  Consumer Staples:
+    agriculture_food: ["ADM", "BG", "MOS", "CF"]
+    staples: ["PG", "KO", "PEP", "WMT", "COST"]
+
+recommendation_rules:
+  max_recommended_high_conf: 5
+  max_recommended_mid_conf: 3
+  max_recommended_low_conf: 1
+  min_confidence_floor: 0.48
+  min_confidence_high: 0.75
+  min_confidence_mid: 0.60
+  direct_mention_bonus: 0.25
+  inferred_penalty: 0.08

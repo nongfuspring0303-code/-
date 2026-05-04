@@ -997,11 +997,33 @@ class ConductionMapper(EDTModule):
             "reason": reason,
         }
 
-    def _build_market_validation_evidence(self, sector_data: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]]]:
+    @staticmethod
+    def _expected_from_relative(direction: str) -> str:
+        val = str(direction or "").strip().lower()
+        if val in {"benefit", "long", "outperform", "up"}:
+            return "up"
+        if val in {"hurt", "short", "underperform", "down"}:
+            return "down"
+        if val in {"watch", "neutral", "flat"}:
+            return "flat"
+        return "unknown"
+
+    def _build_market_validation_evidence(
+        self,
+        sector_data: List[Dict[str, Any]],
+        sector_impacts: List[Dict[str, Any]],
+    ) -> Tuple[str, List[Dict[str, Any]]]:
         cfg = self._pr110_contract_cfg().get("market_validation", {}) or {}
         threshold = self._safe_float(cfg.get("change_pct_confirm_threshold"), 0.10)
         max_items = max(1, int(self._safe_float(cfg.get("max_evidence_items"), 5)))
         evidence: List[Dict[str, Any]] = []
+        expected_by_sector: Dict[str, str] = {}
+        for impact in sector_impacts:
+            sector_name = self._normalize_sector_name(impact.get("sector", ""))
+            if not sector_name:
+                continue
+            expected_by_sector[sector_name] = self._expected_from_relative(str(impact.get("direction", "")))
+
         confirmed = 0
         contradicted = 0
         for item in sector_data[:max_items]:
@@ -1014,7 +1036,7 @@ class ConductionMapper(EDTModule):
                     {
                         "layer": "sector",
                         "asset": sector,
-                        "expected": "unknown",
+                        "expected": expected_by_sector.get(sector, "unknown"),
                         "observed": "missing",
                         "status": "not_confirmed",
                         "weight": 0.2,
@@ -1022,9 +1044,15 @@ class ConductionMapper(EDTModule):
                 )
                 continue
             change_pct = self._safe_float(raw_change, 0.0)
+            expected = expected_by_sector.get(sector, "unknown")
+            observed = "up" if change_pct > 0 else ("down" if change_pct < 0 else "flat")
             if abs(change_pct) >= threshold:
-                status = "confirmed"
-                confirmed += 1
+                if expected in {"up", "down"} and observed != expected:
+                    status = "contradicted"
+                    contradicted += 1
+                else:
+                    status = "confirmed"
+                    confirmed += 1
             elif abs(change_pct) == 0:
                 status = "not_confirmed"
             else:
@@ -1033,20 +1061,20 @@ class ConductionMapper(EDTModule):
                 {
                     "layer": "sector",
                     "asset": sector,
-                    "expected": "up",
-                    "observed": "up" if change_pct > 0 else ("down" if change_pct < 0 else "flat"),
+                    "expected": expected,
+                    "observed": observed,
                     "status": status,
                     "weight": 0.8,
                 }
             )
         if not evidence:
             return "insufficient_data", []
-        if confirmed == len(evidence):
+        if contradicted > 0 and confirmed == 0:
+            top_status = "contradicted"
+        elif confirmed == len(evidence):
             top_status = "validated"
         elif confirmed > 0:
             top_status = "partial"
-        elif contradicted > 0:
-            top_status = "contradicted"
         else:
             top_status = "unconfirmed"
         return top_status, evidence
@@ -1088,24 +1116,16 @@ class ConductionMapper(EDTModule):
             if raw_relative in {"benefit", "long", "up"}:
                 relative = "outperform"
                 rel_counts["outperform"] += 1
+                absolute = abs_positive
+                abs_counts["positive"] += 1
             elif raw_relative in {"hurt", "short", "down"}:
                 relative = "underperform"
                 rel_counts["underperform"] += 1
+                absolute = abs_negative
+                abs_counts["negative"] += 1
             else:
                 relative = "neutral"
-            change_pct = impact.get("change_pct")
-            if change_pct is None:
                 absolute = "unknown" if abs_flat == "uncertain" else abs_flat
-            else:
-                value = self._safe_float(change_pct, 0.0)
-                if value > 0:
-                    absolute = abs_positive
-                    abs_counts["positive"] += 1
-                elif value < 0:
-                    absolute = abs_negative
-                    abs_counts["negative"] += 1
-                else:
-                    absolute = "neutral" if abs_flat == "uncertain" else abs_flat
             mapped.append(
                 {
                     "sector": sector,
@@ -1411,7 +1431,10 @@ class ConductionMapper(EDTModule):
 
         needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"] and mapping["stock_candidates"])
         expectation_gap_contract = self._build_expectation_gap_contract(semantic_out if isinstance(semantic_out, dict) else {})
-        market_validation_status, market_validation_evidence = self._build_market_validation_evidence(sector_data)
+        market_validation_status, market_validation_evidence = self._build_market_validation_evidence(
+            sector_data,
+            mapping.get("sector_impacts", []),
+        )
         dominant_driver = self._build_dominant_driver(semantic_event_type, mapping)
         relative_direction, absolute_direction, direction_contract = self._build_relative_absolute_direction_contract(
             semantic_event_type=semantic_event_type,

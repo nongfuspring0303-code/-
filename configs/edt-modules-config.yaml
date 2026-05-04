@@ -559,24 +559,24 @@ modules:
         mcp_url: "https://mcp.jin10.com/mcp"
         token_env: "JIN10_MCP_TOKEN"
       sources:
-        # - "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"  # 慢，禁用
-        # - "https://www.reuters.com/markets/rss"  # HTTP 401 需认证，禁用
-        # - "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en"  # 慢，禁用
-        # - "https://www.cnbc.com/id/10000664/device/rss/rss.html"  # HTTP 403 被拦截，禁用
-        - "https://www.marketwatch.com/rss/topstories"  # ✅ 快
-        # - "https://feeds.apnews.com/rss/business"  # 连接失败，禁用
-        - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"  # ✅ WSJ
-        # - "https://seekingalpha.com/market_currents.xml"  # 高频低价值，禁用
-        # - "https://www.finra.org/rss.xml"  # 慢，禁用
-        # - "https://www.nasdaq.com/feed/rssoutbound?category=Markets"  # 连接失败，禁用
-        # - "https://www.federalreserve.gov/feeds/press_all.xml"  # 慢，禁用
-        # - "https://www.federalreserve.gov/feeds/speeches.xml"  # 慢，禁用
-        # - "https://ustr.gov/rss.xml"  # 慢，禁用
-        # - "https://www.sec.gov/news/pressreleases.rss"  # 披露信息滞后，禁用
-        # - "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&output=atom"  # 噪声高，禁用
-        # - "https://www.ft.com/rss/home"  # 慢，禁用
-        # - "https://www.barrons.com/xml/rss/3_7202.xml"  # HTTP 403 被拦截，禁用
-        # - "https://www.economist.com/rss.xml"  # HTTP 404 失效，禁用
+        - "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+        - "https://www.reuters.com/markets/rss"
+        - "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en"
+        - "https://www.cnbc.com/id/10000664/device/rss/rss.html"
+        - "https://www.marketwatch.com/rss/topstories"
+        - "https://feeds.apnews.com/rss/business"
+        - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+        - "https://seekingalpha.com/market_currents.xml"
+        - "https://www.finra.org/rss.xml"
+        - "https://www.nasdaq.com/feed/rssoutbound?category=Markets"
+        - "https://www.federalreserve.gov/feeds/press_all.xml"
+        - "https://www.federalreserve.gov/feeds/speeches.xml"
+        - "https://ustr.gov/rss.xml"
+        - "https://www.sec.gov/news/pressreleases.rss"
+        - "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&output=atom"
+        - "https://www.ft.com/rss/home"
+        - "https://www.barrons.com/xml/rss/3_7202.xml"
+        - "https://www.economist.com/rss.xml"
 
   EventEvidenceScorer:
     enabled: true
@@ -717,13 +717,12 @@ runtime:
   hurt_to_short: false
   semantic:
     enabled: true
-    provider: deepseek
-    model: deepseek-chat
+    provider: openai
+    model: gpt-5.3-codex
     min_confidence: 70
-    timeout_ms: 30000
+    timeout_ms: 10000
     full_enable: true
     emergency_disable: false
-    api_key_env: DEEPSEEK_API_KEY
   c_module_stack:
     history_file: "logs/event_bus_history.jsonl"
     mock_producer:

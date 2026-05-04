@@ -15,7 +15,6 @@ import requests
 from config_center import ConfigCenter
 
 ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 
 class SemanticAnalyzer:
@@ -492,9 +491,6 @@ class SemanticAnalyzer:
         if provider_lower in ("glm_4", "glm-4.7-flash", "glm-4.7", "glm-4-flash", "gemini_flash_lite") or "glm" in model.lower():
             return self._call_glm_api(text, timeout_ms, model=model)
 
-        if provider_lower in ("deepseek",) or "deepseek" in model.lower():
-            return self._call_deepseek_api(text, timeout_ms, model=model)
-
         text_lower = text.lower()
         if any(k in text_lower for k in ["trade meeting", "trade talks", "贸易会议", "贸易谈判", "谈判"]):
             return {
@@ -923,100 +919,6 @@ News text:
                 "confidence": 50,
                 "recommended_chain": "",
                 "recommended_stocks": [],
-                "reason": f"{self.model_name} error: {str(e)[:100]}",
-            }
-
-    def _call_deepseek_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
-        prompt = self._get_prompt(text)
-        api_key = self._api_key()
-        if not api_key:
-            return self._abstain_response(
-                fallback_reason="api_key_missing",
-                provider=self._provider_name(),
-                model=model or self.model_name,
-            )
-
-        try:
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            }
-            payload = {
-                "model": model or self.model_name,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.1,
-                "max_tokens": 1000,
-            }
-            timeout_seconds = max(5.0, timeout_ms / 1000.0)
-            response = requests.post(
-                f"{DEEPSEEK_BASE_URL}/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=timeout_seconds,
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            if "choices" in result and len(result["choices"]) > 0:
-                content = result["choices"][0]["message"]["content"]
-                content = content.strip()
-                if content.startswith("```json"):
-                    content = content[7:]
-                if content.endswith("```"):
-                    content = content[:-3]
-                if content.startswith("```"):
-                    content = content[3:]
-                content = content.strip()
-                try:
-                    parsed = json.loads(content)
-                    return {
-                        "event_type": self._normalize_event_type(parsed.get("event_type", "other")),
-                        "sentiment": parsed.get("sentiment", "neutral"),
-                        "confidence": parsed.get("confidence", 50),
-                        "recommended_chain": parsed.get("recommended_chain", ""),
-                        "recommended_stocks": parsed.get("recommended_stocks", []),
-                        "a0_event_strength": parsed.get("a0_event_strength", parsed.get("confidence", 50)),
-                        "expectation_gap": parsed.get("expectation_gap", 0),
-                        "event_state": parsed.get("event_state", parsed.get("narrative_stage", "Initial")),
-                        "narrative_vs_fact": parsed.get("narrative_vs_fact", "mixed"),
-                        "event_scope": parsed.get("event_scope", "Sector"),
-                        "novelty_score": parsed.get("novelty_score", 0.0),
-                        "entities": parsed.get("entities", []),
-                        "transmission_path": parsed.get("transmission_path", []),
-                        "transmission_candidates": parsed.get("transmission_candidates", []),
-                        "evidence_spans": parsed.get("evidence_spans", []),
-                        "risk_flags": parsed.get("risk_flags", []),
-                        "reason": parsed.get("reason", f"{self.model_name} api response"),
-                    }
-                except json.JSONDecodeError:
-                    return {
-                        "event_type": "other", "sentiment": "neutral", "confidence": 50,
-                        "recommended_chain": "", "recommended_stocks": [],
-                        "reason": f"{self.model_name} response parsing failed: {content[:200]}",
-                    }
-
-            return {
-                "event_type": "other", "sentiment": "neutral", "confidence": 50,
-                "recommended_chain": "", "recommended_stocks": [],
-                "reason": f"{self.model_name} no choices returned",
-            }
-
-        except requests.exceptions.Timeout:
-            return {
-                "event_type": "other", "sentiment": "neutral", "confidence": 50,
-                "recommended_chain": "", "recommended_stocks": [],
-                "reason": f"{self.model_name} timeout",
-            }
-        except requests.exceptions.RequestException as e:
-            return {
-                "event_type": "other", "sentiment": "neutral", "confidence": 50,
-                "recommended_chain": "", "recommended_stocks": [],
-                "reason": f"{self.model_name} API error: {str(e)[:100]}",
-            }
-        except Exception as e:
-            return {
-                "event_type": "other", "sentiment": "neutral", "confidence": 50,
-                "recommended_chain": "", "recommended_stocks": [],
                 "reason": f"{self.model_name} error: {str(e)[:100]}",
             }
 

@@ -10,7 +10,7 @@ rule.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 import sys
 import yaml
@@ -970,25 +970,40 @@ class ConductionMapper(EDTModule):
         cfg = self._pr110_contract_cfg().get("expectation_gap", {}) or {}
         high = int(self._safe_float(cfg.get("high_threshold"), 25))
         medium = int(self._safe_float(cfg.get("medium_threshold"), 10))
-        raw_gap = int(self._safe_float(semantic_out.get("expectation_gap"), 0))
+        if "expectation_gap" not in semantic_out:
+            return {"value": "unknown", "raw_score": None, "reason": "missing_input"}
+
+        raw_value = semantic_out.get("expectation_gap")
+        try:
+            raw_gap = int(float(raw_value))
+        except (TypeError, ValueError):
+            return {"value": "conflict", "raw_score": None, "reason": "invalid_value"}
+
         abs_gap = abs(raw_gap)
-        if abs_gap >= high:
-            level = "high"
-        elif abs_gap >= medium:
-            level = "medium"
+        if raw_gap >= medium:
+            value = "positive_surprise"
+            reason = "surprise_up"
+        elif raw_gap <= -medium:
+            value = "negative_surprise"
+            reason = "surprise_down"
         else:
-            level = "low"
+            value = "in_line"
+            reason = "priced_in"
+        if abs_gap >= high:
+            reason = f"{reason}_high"
         return {
-            "gap_score": raw_gap,
-            "gap_level": level,
-            "consensus_state": "surprise" if abs_gap >= medium else "priced_in",
+            "value": value,
+            "raw_score": raw_gap,
+            "reason": reason,
         }
 
-    def _build_market_validation_evidence(self, sector_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _build_market_validation_evidence(self, sector_data: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]]]:
         cfg = self._pr110_contract_cfg().get("market_validation", {}) or {}
         threshold = self._safe_float(cfg.get("change_pct_confirm_threshold"), 0.10)
         max_items = max(1, int(self._safe_float(cfg.get("max_evidence_items"), 5)))
         evidence: List[Dict[str, Any]] = []
+        confirmed = 0
+        contradicted = 0
         for item in sector_data[:max_items]:
             raw_change = item.get("change_pct")
             sector = self._normalize_sector_name(self._resolve_sector_snapshot_name(item))
@@ -997,25 +1012,44 @@ class ConductionMapper(EDTModule):
             if raw_change is None:
                 evidence.append(
                     {
-                        "sector": sector,
-                        "signal": "change_pct_missing",
-                        "confirmed": False,
-                        "value": None,
-                        "threshold": threshold,
+                        "layer": "sector",
+                        "asset": sector,
+                        "expected": "unknown",
+                        "observed": "missing",
+                        "status": "not_confirmed",
+                        "weight": 0.2,
                     }
                 )
                 continue
             change_pct = self._safe_float(raw_change, 0.0)
+            if abs(change_pct) >= threshold:
+                status = "confirmed"
+                confirmed += 1
+            elif abs(change_pct) == 0:
+                status = "not_confirmed"
+            else:
+                status = "partial"
             evidence.append(
                 {
-                    "sector": sector,
-                    "signal": "change_pct",
-                    "confirmed": abs(change_pct) >= threshold,
-                    "value": round(change_pct, 4),
-                    "threshold": threshold,
+                    "layer": "sector",
+                    "asset": sector,
+                    "expected": "up",
+                    "observed": "up" if change_pct > 0 else ("down" if change_pct < 0 else "flat"),
+                    "status": status,
+                    "weight": 0.8,
                 }
             )
-        return evidence
+        if not evidence:
+            return "insufficient_data", []
+        if confirmed == len(evidence):
+            top_status = "validated"
+        elif confirmed > 0:
+            top_status = "partial"
+        elif contradicted > 0:
+            top_status = "contradicted"
+        else:
+            top_status = "unconfirmed"
+        return top_status, evidence
 
     def _build_dominant_driver(self, semantic_event_type: str, mapping: Dict[str, Any]) -> Dict[str, Any]:
         cfg = self._pr110_contract_cfg().get("dominant_driver_by_event_type", {}) or {}
@@ -1033,33 +1067,45 @@ class ConductionMapper(EDTModule):
                 name = str((factor or {}).get("factor", "")).strip()
                 if name and name != dominant and name not in secondary:
                     secondary.append(name)
-        return {"dominant": dominant, "secondary": secondary}
+        return {"primary": dominant, "secondary": secondary}
 
     def _build_relative_absolute_direction_contract(
         self,
         semantic_event_type: str,
         sector_impacts: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+    ) -> Tuple[str, str, Dict[str, Any]]:
         cfg = self._pr110_contract_cfg().get("direction_contract", {}) or {}
         absolute_cfg = cfg.get("absolute_from_change_pct", {}) if isinstance(cfg, dict) else {}
-        abs_positive = str(absolute_cfg.get("positive", "benefit"))
-        abs_negative = str(absolute_cfg.get("negative", "hurt"))
+        abs_positive = str(absolute_cfg.get("positive", "positive"))
+        abs_negative = str(absolute_cfg.get("negative", "negative"))
         abs_flat = str(absolute_cfg.get("flat", cfg.get("default_absolute", "uncertain")))
         mapped: List[Dict[str, Any]] = []
+        rel_counts = {"outperform": 0, "underperform": 0}
+        abs_counts = {"positive": 0, "negative": 0}
         for impact in sector_impacts:
             sector = self._normalize_sector_name(impact.get("sector", ""))
-            relative = str(impact.get("direction", "watch")).strip() or "watch"
+            raw_relative = str(impact.get("direction", "watch")).strip().lower()
+            if raw_relative in {"benefit", "long", "up"}:
+                relative = "outperform"
+                rel_counts["outperform"] += 1
+            elif raw_relative in {"hurt", "short", "down"}:
+                relative = "underperform"
+                rel_counts["underperform"] += 1
+            else:
+                relative = "neutral"
             change_pct = impact.get("change_pct")
             if change_pct is None:
-                absolute = abs_flat
+                absolute = "unknown" if abs_flat == "uncertain" else abs_flat
             else:
                 value = self._safe_float(change_pct, 0.0)
                 if value > 0:
                     absolute = abs_positive
+                    abs_counts["positive"] += 1
                 elif value < 0:
                     absolute = abs_negative
+                    abs_counts["negative"] += 1
                 else:
-                    absolute = abs_flat
+                    absolute = "neutral" if abs_flat == "uncertain" else abs_flat
             mapped.append(
                 {
                     "sector": sector,
@@ -1067,7 +1113,23 @@ class ConductionMapper(EDTModule):
                     "absolute": absolute,
                 }
             )
-        return {
+        if rel_counts["outperform"] > rel_counts["underperform"]:
+            relative_top = "outperform"
+        elif rel_counts["underperform"] > rel_counts["outperform"]:
+            relative_top = "underperform"
+        else:
+            relative_top = "neutral" if mapped else "unknown"
+
+        if abs_counts["positive"] > 0 and abs_counts["negative"] > 0:
+            absolute_top = "mixed"
+        elif abs_counts["positive"] > 0:
+            absolute_top = "positive"
+        elif abs_counts["negative"] > 0:
+            absolute_top = "negative"
+        else:
+            absolute_top = "unknown"
+
+        return relative_top, absolute_top, {
             "event_type": semantic_event_type,
             "sectors": mapped,
         }
@@ -1349,12 +1411,43 @@ class ConductionMapper(EDTModule):
 
         needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"] and mapping["stock_candidates"])
         expectation_gap_contract = self._build_expectation_gap_contract(semantic_out if isinstance(semantic_out, dict) else {})
-        market_validation_evidence = self._build_market_validation_evidence(sector_data)
+        market_validation_status, market_validation_evidence = self._build_market_validation_evidence(sector_data)
         dominant_driver = self._build_dominant_driver(semantic_event_type, mapping)
-        direction_contract = self._build_relative_absolute_direction_contract(
+        relative_direction, absolute_direction, direction_contract = self._build_relative_absolute_direction_contract(
             semantic_event_type=semantic_event_type,
             sector_impacts=mapping.get("sector_impacts", []),
         )
+        macro_factors = mapping.get("macro_factors", [])
+        macro_factor = {}
+        if isinstance(macro_factors, list) and macro_factors:
+            primary_macro = macro_factors[0] or {}
+            macro_factor = {
+                "factor": str(primary_macro.get("factor", "")).strip() or "unknown",
+                "direction": str(primary_macro.get("direction", "")).strip() or "unknown",
+                "strength": str(primary_macro.get("strength", "")).strip() or "unknown",
+            }
+        else:
+            macro_factor = {"factor": "unknown", "direction": "unknown", "strength": "unknown"}
+
+        impact_layers = ["macro", "sector", "ticker"] if mapping.get("stock_candidates") else ["macro", "sector"]
+        validation_confidence = min(1.0, max(0.0, len([x for x in market_validation_evidence if x.get("status") == "confirmed"]) / 3.0))
+        causal_confidence = max(0.0, min(1.0, float(mapping.get("confidence", 0.0)) / 100.0))
+        causal_contract = {
+            "expectation_gap": expectation_gap_contract,
+            "macro_factor": macro_factor,
+            "market_validation": {
+                "status": market_validation_status,
+                "evidence": market_validation_evidence,
+            },
+            "dominant_driver": dominant_driver,
+            "relative_direction": relative_direction,
+            "absolute_direction": absolute_direction,
+            "impact_layers": impact_layers,
+            "confidence": {
+                "causal_confidence": round(causal_confidence, 4),
+                "validation_confidence": round(validation_confidence, 4),
+            },
+        }
 
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,
@@ -1391,6 +1484,18 @@ class ConductionMapper(EDTModule):
                 "confidence": mapping["confidence"],
                 "needs_manual_review": needs_manual_review,
                 "mapping_source": mapping.get("mapping_source", "rule"),
+                "causal_contract": causal_contract,
+                "expectation_gap": expectation_gap_contract,
+                "macro_factor": macro_factor,
+                "market_validation": {
+                    "status": market_validation_status,
+                    "evidence": market_validation_evidence,
+                },
+                "dominant_driver": dominant_driver,
+                "relative_direction": relative_direction,
+                "absolute_direction": absolute_direction,
+                "impact_layers": impact_layers,
+                "confidence_contract": causal_contract["confidence"],
                 "expectation_gap_contract": expectation_gap_contract,
                 "market_validation_evidence": market_validation_evidence,
                 "dominant_driver": dominant_driver,

@@ -1,0 +1,28 @@
+schema_version: stage6.causal_contract_policy.v1
+version: "1.0.0"
+
+expectation_gap:
+  allowed_values: [positive_surprise, negative_surprise, in_line, unknown, conflict]
+  high_threshold: 25
+  medium_threshold: 10
+
+market_validation:
+  allowed_status: [validated, partial, unconfirmed, contradicted, insufficient_data]
+  evidence:
+    expected_values: [up, down, flat, unknown]
+    observed_values: [up, down, flat, missing]
+    layer_values: [macro, sector, theme, ticker, liquidity]
+  change_pct_confirm_threshold: 0.10
+  max_evidence_items: 5
+
+relative_direction:
+  allowed_values: [outperform, underperform, neutral, unknown]
+
+absolute_direction:
+  allowed_values: [positive, negative, neutral, mixed, unknown]
+
+dominant_driver:
+  allowed_values: [oil, rates, growth, inflation, risk_regime, commodity_price, unknown]
+
+impact_layers:
+  allowed_values: [macro, sector, theme, ticker, liquidity]

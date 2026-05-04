@@ -46,6 +46,10 @@ jobs:
         run: |
           python -m pytest tests/test_tier1_mapping_rules_contract.py tests/test_ai_mapping_regression_policy_contract.py tests/test_tier1_guardrails_config_runtime.py -q
 
+      - name: Run PR110 causal contract tests
+        run: |
+          python -m pytest tests/test_causal_contract_schema.py tests/test_causal_contract_fields.py tests/test_causal_contract_consumer_boundary.py -q
+
       - name: Run healthcheck
         run: |
           python scripts/system_healthcheck.py --mode dev

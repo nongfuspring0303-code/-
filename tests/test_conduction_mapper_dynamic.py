@@ -684,8 +684,8 @@ def test_pr110_market_validation_evidence_uses_threshold_and_missing_source():
     )
     evidence = out.data.get("market_validation_evidence", [])
     assert isinstance(evidence, list) and len(evidence) >= 2
-    assert any(item.get("signal") == "change_pct" and item.get("confirmed") is True for item in evidence)
-    assert any(item.get("signal") == "change_pct_missing" and item.get("confirmed") is False for item in evidence)
+    assert any(item.get("status") == "confirmed" and item.get("observed") in {"up", "down"} for item in evidence)
+    assert any(item.get("observed") == "missing" and item.get("status") == "not_confirmed" for item in evidence)
 
 
 def test_non_us_market_context_blocks_cat_proxy(monkeypatch):

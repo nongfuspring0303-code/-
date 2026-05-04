@@ -509,7 +509,8 @@ def test_tech_event_defaults_to_watchlist_without_direct_mention(monkeypatch):
         }
     )
     buckets = out.data.get("stock_recommendation_buckets", {})
-    assert len(buckets.get("recommended", [])) == 0
+    # Tech is now Tier1 — it should recommend even without direct mention
+    assert len(buckets.get("recommended", [])) > 0, "Tier1 tech should recommend stocks"
 
 
 def test_sector_impacts_deduplicated(monkeypatch):
@@ -723,3 +724,94 @@ def test_non_us_market_context_does_not_leak_us_tech_fin_proxies(monkeypatch):
     assert "NVDA" not in symbols
     assert "MSFT" not in symbols
     assert "JPM" not in symbols
+
+
+def test_tier1_monetary_sector_impacts_non_empty(monkeypatch):
+    """monetary 事件必须产生非空 sector_impacts（regression: S6-R017）。"""
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic, "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "rate_cut_chain", "confidence": 85,
+            "event_type": "monetary", "sentiment": "positive",
+        },
+    )
+    out = mapper.run({
+        "event_id": "ME-T1-MON-001", "category": "E", "severity": "E2",
+        "headline": "Fed signals rate cuts in September", "summary": "",
+        "lifecycle_state": "Active",
+        "sector_data": [{"sector": "Technology", "industry": "Technology"}],
+    })
+    assert out.status.value == "success"
+    assert out.data.get("sector_impacts"), "monetary sector_impacts should not be empty"
+    assert len(out.data["sector_impacts"]) > 0
+
+
+def test_tier1_rate_hike_direction_not_uniform_benefit(monkeypatch):
+    """rate_hike 场景不能被 uniform benefit 覆盖（regression: S6-R018）。"""
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic, "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "rate_cut_chain", "confidence": 85,
+            "event_type": "monetary", "sentiment": "negative",
+        },
+    )
+    out = mapper.run({
+        "event_id": "ME-T1-RH-001", "category": "E", "severity": "E2",
+        "headline": "Fed rate hike delivers hawkish surprise", "summary": "",
+        "lifecycle_state": "Active",
+        "sector_data": [{"sector": "Financial Services", "industry": "Financial Services"}],
+    })
+    directions = {imp.get("direction", "") for imp in out.data.get("sector_impacts", []) if imp.get("sector")}
+    # At least one sector should not be "benefit" (carry original template direction, or watch)
+    assert "watch" in directions or len(directions) > 1, \
+        f"rate_hike directions should not all be benefit: {directions}"
+
+
+def test_tier1_non_us_direct_mention_not_mistakenly_killed(monkeypatch):
+    """non-US + direct mention 场景的 ticker 不被误杀（regression: S6-R019）。"""
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic, "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "rate_cut_chain", "confidence": 85,
+            "event_type": "monetary", "sentiment": "positive",
+        },
+    )
+    out = mapper.run({
+        "event_id": "ME-T1-NONUS-001", "category": "E", "severity": "E2",
+        "headline": "欧洲央行称经济增长面临短期逆风 提及会关注MSFT", "summary": "",
+        "lifecycle_state": "Active",
+        "sector_data": [
+            {"symbol": "MSFT", "sector": "Technology", "industry": "Technology", "change_pct": 0.5},
+        ],
+    })
+    symbols = {str(x.get("symbol", "")).upper() for x in out.data.get("stock_candidates", [])}
+    assert "MSFT" in symbols, "MSFT (direct mention in non-US context) should not be killed"
+
+
+def test_tier1_regulatory_tech_no_conflict(monkeypatch):
+    """regulatory/tech 不应同时出现在 Tier1 与 no-recommend 中（regression: S6-R020）。"""
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic, "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "", "confidence": 80,
+            "event_type": "regulatory", "sentiment": "neutral",
+        },
+    )
+    out = mapper.run({
+        "event_id": "ME-T1-REG-001", "category": "E", "severity": "E2",
+        "headline": "SEC proposes new disclosure rules for ESG funds", "summary": "",
+        "lifecycle_state": "Active",
+        "sector_data": [{"sector": "Financial Services", "industry": "Financial Services"}],
+    })
+    assert out.status.value == "success"
+    assert out.data.get("sector_impacts"), "regulatory sector_impacts should not be empty (Tier1 should cover it)"
+    # Verify primary_sector is set (not rejected by no-recommend)
+    assert out.data.get("primary_sector"), "regulatory should have primary_sector"
+    # Verify stock recommendations are present (not blocked by watchlist)
+    stock_buckets = out.data.get("stock_recommendation_buckets", {}) or {}
+    has_candidates = bool(stock_buckets.get("candidates") or stock_buckets.get("recommended"))
+    assert has_candidates, "regulatory should have stock candidates (not blocked by watchlist)"

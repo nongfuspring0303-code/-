@@ -40,6 +40,16 @@
 - PR112: execution_suggestion only (human review assist, no auto execution)
 - PR113: path-quality / validation-quality eval layer
 
+## Remaining Cleanup (Deferred, Non-Blocking for PR110)
+- `canonical.causal_contract` and legacy packager fields are currently emitted in parallel for compatibility.
+- This is treated as a compatibility layer output and does not change the canonical consumer boundary for PR110.
+- Cleanup will be handled in a dedicated follow-up PR (do not expand PR110 scope).
+
+### Hard Constraints Until Cleanup PR Lands
+- **canonical-only for new fields**: any new causal field must be added only under `causal_contract`.
+- **legacy-freeze**: legacy fields are compatibility passthrough only; no new semantics are allowed.
+- **deprecation window**: target removal of duplicated legacy packager fields within one minor version after downstream consumers migrate.
+
 ## Out of Scope
 - fatigue_score / lifecycle_state / time_scale / decay_profile
 - execution_suggestion and any execution auto-action logic

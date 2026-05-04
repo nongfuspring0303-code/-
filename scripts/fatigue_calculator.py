@@ -40,6 +40,18 @@ class FatigueCalculator(EDTModule):
             self.dead_event_reset_days = self.config.get("dead_event_reset_days", 30)
             self.take_profit_penalty_factor = self.config.get("take_profit_penalty_factor", 0.5)
 
+    @staticmethod
+    def _fatigue_bucket(score: int) -> str:
+        if score >= 85:
+            return "critical"
+        if score >= 70:
+            return "high"
+        if score >= 40:
+            return "medium"
+        if score > 0:
+            return "low"
+        return "none"
+
     def _get_active_counts_from_db(self, category: Optional[str] = None,
                                    narrative_tags: Optional[list] = None) -> tuple[int, Dict[str, int]]:
         """
@@ -160,6 +172,7 @@ class FatigueCalculator(EDTModule):
             reset_eligible = False
 
         fatigue_final = max(fatigue_category, fatigue_tag)
+        fatigue_bucket = self._fatigue_bucket(fatigue_final)
         watch_mode = fatigue_final > self.watch_mode_threshold
 
         if fatigue_final > self.fatigue_discount_threshold:
@@ -176,6 +189,8 @@ class FatigueCalculator(EDTModule):
                 "fatigue_category": fatigue_category,
                 "fatigue_tag": fatigue_tag,
                 "fatigue_final": fatigue_final,
+                "fatigue_score": fatigue_final,
+                "fatigue_bucket": fatigue_bucket,
                 "watch_mode": watch_mode,
                 "a_minus_1_discount_factor": discount,
                 "take_profit_penalty": take_profit_penalty,
@@ -184,7 +199,7 @@ class FatigueCalculator(EDTModule):
                 "audit": {
                     "module": self.name,
                     "rule_version": "fatigue_v2",
-                    "decision_trace": [fatigue_category, fatigue_tag, fatigue_final, watch_mode],
+                    "decision_trace": [fatigue_category, fatigue_tag, fatigue_final, fatigue_bucket, watch_mode],
                 },
             },
         )

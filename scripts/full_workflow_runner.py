@@ -942,6 +942,14 @@ class FullWorkflowRunner:
             "event_object_contract": event_contract,
             "path_adjudication": path_out,
             "signal": signal_out,
+            "lifecycle_fatigue_contract": {
+                "schema_version": "stage6.lifecycle_fatigue.v1",
+                "lifecycle_state": lifecycle_out.get("lifecycle_state"),
+                "time_scale": lifecycle_out.get("time_scale"),
+                "decay_profile": lifecycle_out.get("decay_profile"),
+                "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final")),
+                "fatigue_bucket": fatigue_out.get("fatigue_bucket"),
+            },
         }
 
         sectors = []

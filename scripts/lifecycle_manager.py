@@ -48,6 +48,20 @@ class LifecycleManager(EDTModule):
         "dead",
     }
 
+    TIME_SCALE_BY_HORIZON = {
+        "intraday": "intraday",
+        "overnight": "overnight",
+        "multiweek": "multiweek",
+        "none": "none",
+    }
+
+    DECAY_BY_CATALYST = {
+        "first_impulse": "fast",
+        "continuation": "slow",
+        "exhaustion": "exhausted",
+        "dead": "none",
+    }
+
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("LifecycleManager", "1.1.0", config_path)
 
@@ -177,6 +191,9 @@ class LifecycleManager(EDTModule):
             trade_eligibility = "watch"
             holding_horizon = "intraday"
 
+        time_scale = self.TIME_SCALE_BY_HORIZON.get(holding_horizon, "none")
+        decay_profile = self.DECAY_BY_CATALYST.get(catalyst_state, "none")
+
         next_review_at = (
             datetime.now(timezone.utc) + timedelta(hours=1 if legacy_state in {"Detected", "Verified"} else 4)
         ).isoformat()
@@ -191,6 +208,8 @@ class LifecycleManager(EDTModule):
                 "catalyst_state": catalyst_state,
                 "trade_eligibility": trade_eligibility,
                 "holding_horizon": holding_horizon,
+                "time_scale": time_scale,
+                "decay_profile": decay_profile,
                 "transition_reason": reason,
                 "next_review_at": next_review_at,
                 "needs_manual_review": False,
@@ -204,7 +223,7 @@ class LifecycleManager(EDTModule):
                 "audit": {
                     "module": self.name,
                     "rule_version": "lifecycle_v1.1",
-                    "decision_trace": [internal_state, legacy_state, catalyst_state, trade_eligibility],
+                    "decision_trace": [internal_state, legacy_state, catalyst_state, trade_eligibility, time_scale, decay_profile],
                 },
             },
         )

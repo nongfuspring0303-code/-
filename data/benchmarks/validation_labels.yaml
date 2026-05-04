@@ -1,0 +1,15 @@
+schema_version: "v1.0"
+dataset_id: "validation_incremental"
+locked: false
+description: "Incremental validation set to detect overfitting against benchmark_171_fixed."
+
+fields:
+  - sample_id
+  - trace_id
+  - event_type_expected
+  - sectors_expected
+  - tickers_expected
+  - tier
+
+samples: []
+

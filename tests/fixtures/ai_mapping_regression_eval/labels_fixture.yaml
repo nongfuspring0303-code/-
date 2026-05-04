@@ -1,0 +1,29 @@
+
+schema_version: "1.0"
+dataset_id: "test_smoke"
+locked: false
+description: "Minimal fixture for smoke test"
+sample_count: 2
+fields:
+  - trace_id
+  - event_hash
+  - logged_at
+samples:
+  - sample_id: "sample-001"
+    trace_id: "trace-001"
+    event_hash: "hash-001"
+    logged_at: "2026-05-04T00:00:00Z"
+    headline: "test energy"
+    event_type_expected: "energy"
+    sectors_expected: ["Energy"]
+    tickers_expected: ["XOM"]
+    tier: "tier1"
+  - sample_id: "sample-002"
+    trace_id: "trace-002"
+    event_hash: "hash-002"
+    logged_at: "2026-05-04T00:01:00Z"
+    headline: "test geo"
+    event_type_expected: "geo_political"
+    sectors_expected: ["Energy"]
+    tickers_expected: ["XOM"]
+    tier: "tier1"

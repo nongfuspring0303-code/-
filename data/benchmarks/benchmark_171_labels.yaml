@@ -1,0 +1,2050 @@
+schema_version: v1.0
+dataset_id: benchmark_171_fixed
+locked: true
+description: Bootstrapped labels; must be manually reviewed before strict truth assertions.
+sample_count: 171
+fields:
+- sample_id
+- trace_id
+- event_hash
+- logged_at
+- event_type_expected
+- sectors_expected
+- tickers_expected
+- tier
+- label_source
+- label_confidence
+samples:
+- sample_id: BM-001-5091072A
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: 5091072A12F532A6
+  logged_at: '2026-04-26T02:00:05.141937Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-002-5A4671ED
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: 5A4671ED238350D8
+  logged_at: '2026-04-26T02:00:05.740206Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-003-5A4671ED
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: 5A4671ED238350D8
+  logged_at: '2026-04-26T02:00:05.762469Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-004-9559F127
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: 9559F12720B7DA32
+  logged_at: '2026-04-26T02:33:24.975851Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-005-A98EF476
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: A98EF4761798942F
+  logged_at: '2026-04-26T02:33:25.580307Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-006-A98EF476
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: A98EF4761798942F
+  logged_at: '2026-04-26T02:33:25.605497Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-007-05A43AEB
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: 05A43AEB1DA79D1B
+  logged_at: '2026-04-26T14:32:45.276749Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-008-D996003A
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: D996003AE1E303E0
+  logged_at: '2026-04-26T14:32:45.893527Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-009-D996003A
+  trace_id: ME-C-20260426-001.V1.0
+  event_hash: D996003AE1E303E0
+  logged_at: '2026-04-26T14:32:45.925081Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-010-FA02E79C
+  trace_id: ME-C-20260429-001.V1.0
+  event_hash: FA02E79CAF1F96B5
+  logged_at: '2026-04-29T18:00:08.782070Z'
+  event_type_expected: other
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-011-1A2EB685
+  trace_id: ME-E-20260430-001.V1.0
+  event_hash: 1A2EB685C2FC92F8
+  logged_at: '2026-04-30T22:03:55.164642Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-012-B3C4CAE1
+  trace_id: ME-E-20260430-001.V1.0
+  event_hash: B3C4CAE18BF4C243
+  logged_at: '2026-04-30T22:10:21.035059Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-013-82D2C5DF
+  trace_id: ME-E-20260430-001.V1.0
+  event_hash: 82D2C5DFDBBF1EFF
+  logged_at: '2026-04-30T22:13:47.595995Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-014-E34B4328
+  trace_id: ME-E-20260430-001.V1.0
+  event_hash: E34B43284F9CBBFC
+  logged_at: '2026-04-30T22:38:30.022311Z'
+  event_type_expected: industrial
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-015-4BEF44CC
+  trace_id: ME-E-20260430-001.V1.0
+  event_hash: 4BEF44CC1B6DD2CC
+  logged_at: '2026-04-30T22:53:50.359998Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-016-A5513C6E
+  trace_id: ME-E-20260430-001.V1.0
+  event_hash: A5513C6E1726B125
+  logged_at: '2026-04-30T23:02:58.725312Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-017-F7E7A242
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: F7E7A242F691FB89
+  logged_at: '2026-05-01T00:36:53.650322Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-018-0ACC3139
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 0ACC3139DD3D02B0
+  logged_at: '2026-05-01T01:17:04.486468Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-019-8777FB0D
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 8777FB0D3E195D78
+  logged_at: '2026-05-01T01:25:22.620865Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-020-67184173
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 671841735836504B
+  logged_at: '2026-05-01T01:32:58.161078Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-021-ADE9A72A
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: ADE9A72AC5A6BE5C
+  logged_at: '2026-05-01T01:38:00.133798Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-022-99A12C3A
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 99A12C3A019DF9E1
+  logged_at: '2026-05-01T02:17:17.697005Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-023-0E4A68B1
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 0E4A68B1B2316336
+  logged_at: '2026-05-01T03:28:27.867839Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-024-B4CB5588
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: B4CB5588CE0E2D58
+  logged_at: '2026-05-01T05:56:48.595109Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-025-13D2CAC2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 13D2CAC2D5EA920D
+  logged_at: '2026-05-01T06:08:16.935525Z'
+  event_type_expected: merger
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-026-C7510FB6
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: C7510FB66C9E019E
+  logged_at: '2026-05-01T06:10:21.245550Z'
+  event_type_expected: merger
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-027-4A49652C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 4A49652C5F58EA41
+  logged_at: '2026-05-01T06:12:32.123580Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-028-C09BF1B2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: C09BF1B27FA454A6
+  logged_at: '2026-05-01T06:14:32.408023Z'
+  event_type_expected: earnings
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-029-234602B4
+  trace_id: ME-D-20260501-001.V1.0
+  event_hash: 234602B401AB3B33
+  logged_at: '2026-05-01T06:22:51.854969Z'
+  event_type_expected: other
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-030-786FF765
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 786FF7650885DCA4
+  logged_at: '2026-05-01T07:45:47.128478Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-031-E96F7DA6
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E96F7DA69DA0019D
+  logged_at: '2026-05-01T07:52:26.396705Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-032-CE1E4AA5
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: CE1E4AA5523223C7
+  logged_at: '2026-05-01T08:23:02.515204Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-033-064A2E1C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 064A2E1C545C8157
+  logged_at: '2026-05-01T11:49:48.215301Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-034-405B829E
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 405B829E8C45AD95
+  logged_at: '2026-05-01T12:54:13.597244Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-035-661F6C72
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 661F6C729F82821A
+  logged_at: '2026-05-01T12:56:46.041502Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: TC能源表示，哥伦比亚燃气系统需求已上涨近50%，预计到2035年将新增约40亿立方英尺/日的负荷。
+- sample_id: BM-036-7D9019FE
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 7D9019FE46C01C45
+  logged_at: '2026-05-01T13:01:05.257470Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 半岛电视台分社负责人援引消息人士说法：伊朗已通过巴基斯坦递交新提案，核谈判恐难达成成果，各方焦点或转向结束战事。
+- sample_id: BM-037-9B6CED9C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 9B6CED9C7C326E59
+  logged_at: '2026-05-01T13:03:44.359394Z'
+  event_type_expected: natural_disaster
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-038-94F5CE1F
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 94F5CE1F0B999572
+  logged_at: '2026-05-01T13:06:32.825059Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-039-C363F8B4
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: C363F8B43B7A8EFF
+  logged_at: '2026-05-01T13:12:04.013355Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-040-FD4C2817
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: FD4C2817D48AB67D
+  logged_at: '2026-05-01T13:14:08.275557Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-041-5671A107
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 5671A10715DF9F68
+  logged_at: '2026-05-01T13:16:37.457568Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 【德国2025年右翼动机暴力事件创2016年以来新高】德国联邦刑事警察局的2025年统计数据显示，这一年收到各州报告带有右翼动机的暴力犯罪事件达到1598起，为2016年以来最多。据德国方面5月1日消息，这一数字在2023年和2024年分别为1270起和1488起。2025年，大部分带有右翼动机的暴力犯罪事件涉嫌造成人身伤害。（央视）
+- sample_id: BM-042-BFEE585D
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: BFEE585DC0350BD5
+  logged_at: '2026-05-01T13:23:14.012466Z'
+  event_type_expected: merger
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-043-D1D7D76F
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: D1D7D76FF27D9B4D
+  logged_at: '2026-05-01T13:27:17.596816Z'
+  event_type_expected: merger
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-044-7491014C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 7491014CD48EA4F8
+  logged_at: '2026-05-01T13:36:20.041096Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-045-FAEFBFE2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: FAEFBFE220F6DBA8
+  logged_at: '2026-05-01T13:39:50.062156Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-046-E4C6AAD1
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E4C6AAD1765427F7
+  logged_at: '2026-05-01T13:44:45.297744Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-047-A650A1F8
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: A650A1F857723B7B
+  logged_at: '2026-05-01T13:46:40.248785Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 纽约期银日内涨3%，现报76.25美元/盎司。
+- sample_id: BM-048-CDDD48D2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: CDDD48D2221AC6E3
+  logged_at: '2026-05-01T13:46:40.684601Z'
+  event_type_expected: industrial
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-049-914865FF
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 914865FF238099F0
+  logged_at: '2026-05-01T13:48:30.732607Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-050-F5B92A49
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: F5B92A496A5AF497
+  logged_at: '2026-05-01T13:50:30.810916Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-051-83916F3F
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 83916F3F10F0C09A
+  logged_at: '2026-05-01T13:50:32.296377Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 伊朗最高领袖穆杰塔巴・哈梅内伊： 美国那些纸老虎军事基地连自身都难保，更保护不了地区内那些依附、追捧美国的势力。
+- sample_id: BM-052-45E28811
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 45E28811D901FD3E
+  logged_at: '2026-05-01T13:50:43.807433Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-053-AD5A40BB
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: AD5A40BB1B0C45BC
+  logged_at: '2026-05-01T13:52:27.031852Z'
+  event_type_expected: natural_disaster
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-054-7C6827D4
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 7C6827D4CDC365E1
+  logged_at: '2026-05-01T13:52:31.491497Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 埃克森美孚首席执行官表示，一旦海峡重新开放，中东目前停产的产能可以相对较快地恢复生产，但受损的卡塔尔液化天然气生产线恢复则需要更长时间。
+- sample_id: BM-055-FC015487
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: FC015487321ED713
+  logged_at: '2026-05-01T13:52:32.794766Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【美欧要各自组建霍尔木兹海峡护航联盟？法国外长这样说】法国外交部长巴罗5月1日说，美国打算组建的霍尔木兹海峡国际联盟与欧洲国家先前提出的护航方案“不是竞争关系”。被问及法国是否打算加入美方牵头的所谓“联盟”时，巴罗回复，目前“无法置评”。（新华社）
+- sample_id: BM-056-E7E3A4D6
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E7E3A4D61D6D2BB0
+  logged_at: '2026-05-01T13:54:16.084174Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-057-6ABE51DD
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 6ABE51DD3DF79BAF
+  logged_at: '2026-05-01T13:54:18.704428Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-058-DE27D663
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: DE27D663AF15BE99
+  logged_at: '2026-05-01T13:56:16.712524Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 现货白银日内涨3%，现报75.95美元/盎司。
+- sample_id: BM-059-F0AE1EAF
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: F0AE1EAF518B3E24
+  logged_at: '2026-05-01T13:58:07.295275Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 伊朗外长向多国同僚通报伊朗停战立场。
+- sample_id: BM-060-46DD613C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 46DD613C6359F802
+  logged_at: '2026-05-01T13:58:08.716663Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 现货白银突破76美元/盎司，日内涨3.22%。
+- sample_id: BM-061-9AAC7ED9
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 9AAC7ED9D8F7F2F0
+  logged_at: '2026-05-01T13:58:09.949298Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-062-0EB96D24
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 0EB96D245A59B042
+  logged_at: '2026-05-01T14:02:03.272123Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-063-7344AB62
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 7344AB6202586CEA
+  logged_at: '2026-05-01T14:02:07.539324Z'
+  event_type_expected: healthcare
+  sectors_expected:
+  - Healthcare
+  tickers_expected:
+  - LLY
+  - UNH
+  tier: tier3
+  label_source: rule.healthcare_event_type
+  label_confidence: 0.85
+- sample_id: BM-064-5C0AC900
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 5C0AC9001E30867B
+  logged_at: '2026-05-01T14:03:44.685029Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 纽约期银日内涨4%，现报76.99美元/盎司。
+- sample_id: BM-065-DFA084F8
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: DFA084F8DA0AB437
+  logged_at: '2026-05-01T14:03:44.752050Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 巴西国家石油公司将航空煤油价格上调18%。
+- sample_id: BM-066-C10B45AB
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: C10B45AB6DCBA872
+  logged_at: '2026-05-01T14:05:23.765687Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-067-9F453ABA
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 9F453ABA28D762F7
+  logged_at: '2026-05-01T14:05:26.365438Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 纽约期金突破4650美元/盎司，日内涨0.45%。
+- sample_id: BM-068-C52E65DE
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: C52E65DE299F286C
+  logged_at: '2026-05-01T14:05:28.012327Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  - Real Estate
+  tickers_expected:
+  - NVDA
+  - AMT
+  tier: tier1
+  label_source: tier1_rule.monetary.dovish
+  label_confidence: 0.88
+  label_headline_snapshot: 美联储洛根：我对暗示下一步调整大概率为降息的表述持异议。前瞻指引是重要的政策工具。
+- sample_id: BM-069-BF4D9B70
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: BF4D9B70BF3B5C7D
+  logged_at: '2026-05-01T14:07:08.561446Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 现货黄金突破4640美元/盎司，日内涨0.41%。
+- sample_id: BM-070-9AB6FD14
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 9AB6FD142E97CB7B
+  logged_at: '2026-05-01T14:07:09.452670Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  - Utilities
+  tickers_expected:
+  - JPM
+  - NEE
+  tier: tier1
+  label_source: tier1_rule.monetary.hawkish
+  label_confidence: 0.82
+  label_headline_snapshot: 英国国债价格上涨，交易员减少对英国央行2026年加息的押注。
+- sample_id: BM-071-8678B8D3
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 8678B8D3A6BB6F01
+  logged_at: '2026-05-01T14:07:09.944643Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 纽约期银突破77美元/盎司，日内涨4.06%。
+- sample_id: BM-072-B6091706
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: B60917062AD0D5BC
+  logged_at: '2026-05-01T14:08:41.585424Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 美联储洛根：战事或将引发供应链长期中断风险。
+- sample_id: BM-073-09DEE2B6
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 09DEE2B6DB765BBD
+  logged_at: '2026-05-01T14:08:42.357748Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  - Real Estate
+  tickers_expected:
+  - NVDA
+  - AMT
+  tier: tier1
+  label_source: tier1_rule.monetary.dovish
+  label_confidence: 0.88
+  label_headline_snapshot: 洛根：美联储的下一步行动可能是加息或降息。
+- sample_id: BM-074-19CC00BA
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 19CC00BAAB96BAE7
+  logged_at: '2026-05-01T14:08:44.504152Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-075-18F1FFCE
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 18F1FFCEE8777400
+  logged_at: '2026-05-01T14:10:24.449366Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  tickers_expected:
+  - JPM
+  tier: tier1
+  label_source: tier1_rule.monetary.default
+  label_confidence: 0.68
+  label_headline_snapshot: 彭博美元现货指数在ISM不及格后跌至盘中低点。
+- sample_id: BM-076-0CEC83C2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 0CEC83C24CA05954
+  logged_at: '2026-05-01T14:10:26.604777Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 美国议员内部通告：一名古巴移民于4月28日在佐治亚州的美国移民羁押期间死亡。通告显示，美国移民与海关执法局正就死亡事件展开调查，但初步怀疑为自杀。
+- sample_id: BM-077-414F03F9
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 414F03F9BF77AD25
+  logged_at: '2026-05-01T14:13:31.518374Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 现货黄金转涨，最新上涨0.4%，报每盎司4638.14美元。
+- sample_id: BM-078-D5373CEA
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: D5373CEAB5C0ACD5
+  logged_at: '2026-05-01T14:13:34.237717Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 市场消息：德黑兰同意通过技术专业委员会磋商核议题，承诺长期冻结铀浓缩活动，并将导弹及军备相关议题延后至后续阶段再谈判。
+- sample_id: BM-079-E5024D77
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E5024D77EFD67F8B
+  logged_at: '2026-05-01T14:13:41.598936Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  - Real Estate
+  tickers_expected:
+  - NVDA
+  - AMT
+  tier: tier1
+  label_source: tier1_rule.monetary.dovish
+  label_confidence: 0.88
+  label_headline_snapshot: 【美联储洛根：通胀担忧引发对前瞻指引的异议】达拉斯联储行长洛里・洛根表示，她对通胀回落至美联储2%目标水平所需时长的担忧日益加剧，并解释了自己为何对最新政策声明中的措辞持异议——该措辞暗示美联储下一步政策调整大概率会是降息。
+    她称：“中东局势冲突可能导致供应链中断持续发酵或反复出现，进而催生更多通胀上行压力。” 在杰罗姆・鲍威尔担任美联储主席的最后一次议息会议上，有三名官员对央行最新政策声明投下反对票，理由是声明立场过于鸽派。他们反对在美联储政策声明中保留倾向宽松的表述，另外
+- sample_id: BM-080-DF75F878
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: DF75F87862CADB04
+  logged_at: '2026-05-01T14:15:18.939761Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-081-B7B1DFA9
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: B7B1DFA9876EE476
+  logged_at: '2026-05-01T14:16:39.849361Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 埃克森美孚 CEO：伊朗局势并未改变公司对其液化天然气资产组合的看法。
+- sample_id: BM-082-B0040E84
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: B0040E846B8FAD04
+  logged_at: '2026-05-01T14:16:48.367259Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 埃克森美孚首席执行官表示，金帕斯项目第三列液化天然气装卸列车预计将于明年第二季度完工。
+- sample_id: BM-083-B0592584
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: B05925841105809E
+  logged_at: '2026-05-01T14:16:51.126172Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【伊朗足协主席：国家队是否赴美参加世界杯仍需与国际足联沟通协调】总台记者当地时间5月1日获悉，伊朗足协主席塔杰表示，伊朗国家队是否前往美国参加世界杯相关赛事，仍需与国际足联官员进行进一步沟通协调。塔杰指出，如果伊朗队参赛，必须确保不会为球队制造任何场外争议或不利因素。（央视新闻）
+- sample_id: BM-084-13FF63E3
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 13FF63E3D452D650
+  logged_at: '2026-05-01T14:18:18.646242Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 纽约期金突破4660美元/盎司，日内涨0.66%。
+- sample_id: BM-085-D70FBBB6
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: D70FBBB69DE667F3
+  logged_at: '2026-05-01T14:18:22.283576Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-086-E3DD3E82
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E3DD3E8256A5FD9B
+  logged_at: '2026-05-01T14:18:24.691107Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-087-7BD7FB4A
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 7BD7FB4A923C6753
+  logged_at: '2026-05-01T14:19:49.630057Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 现货黄金突破4650美元/盎司，日内涨0.63%。
+- sample_id: BM-088-F03F20E6
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: F03F20E60F9B3867
+  logged_at: '2026-05-01T14:19:51.201179Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-089-77F1A58C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 77F1A58C7E4C2373
+  logged_at: '2026-05-01T14:19:51.726959Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-090-5D9C45F0
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 5D9C45F00E3BD318
+  logged_at: '2026-05-01T14:21:18.253948Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 纽约期金突破4670美元/盎司，日内涨0.88%。
+- sample_id: BM-091-42F249C9
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 42F249C910E5FEAA
+  logged_at: '2026-05-01T14:21:18.501704Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected:
+  - LIN
+  tier: tier1
+  label_source: tier1_rule.commodity.precious_metals
+  label_confidence: 0.86
+  label_headline_snapshot: 现货白银日内涨4%，现报76.67美元/盎司。
+- sample_id: BM-092-374C2E17
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 374C2E1756B87796
+  logged_at: '2026-05-01T14:21:22.432316Z'
+  event_type_expected: commodity
+  sectors_expected:
+  - Materials
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-093-F506B905
+  trace_id: ME-D-20260501-001.V1.0
+  event_hash: F506B905BC0C0FA4
+  logged_at: '2026-05-01T14:22:48.516988Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-094-6517C0F4
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 6517C0F4B4757A80
+  logged_at: '2026-05-01T14:22:56.273281Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 埃克森美孚首席执行官称，公司计划参与阿联酋油气增产项目。
+- sample_id: BM-095-4E6C8C3A
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 4E6C8C3AF96F16FF
+  logged_at: '2026-05-01T14:24:30.458616Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 航运数据显示，委内瑞拉4月石油出口升至每日123万桶。
+- sample_id: BM-096-E96E9416
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E96E941641D32E66
+  logged_at: '2026-05-01T14:24:32.291079Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 航运数据显示，委内瑞拉对印度的石油出口增至每日约37.4万桶。
+- sample_id: BM-097-7E30A1F3
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 7E30A1F3455F3B1B
+  logged_at: '2026-05-01T14:24:34.498345Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 航运数据显示，美国雪佛龙、贸易商托克和维多，以及印度信实工业成为4月份委内瑞拉石油的最大接收方。
+- sample_id: BM-098-F809A1B2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: F809A1B262E51424
+  logged_at: '2026-05-01T14:26:10.787432Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-099-F73B5880
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: F73B5880F7FE30DA
+  logged_at: '2026-05-01T14:26:10.866494Z'
+  event_type_expected: earnings
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-100-A5F50BD4
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: A5F50BD47842BFB1
+  logged_at: '2026-05-01T14:26:13.533791Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 航运数据显示，委内瑞拉对美石油出口增至约每日44.5万桶。
+- sample_id: BM-101-4E06B628
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 4E06B6285D9B2EDA
+  logged_at: '2026-05-01T14:27:46.847099Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  tickers_expected:
+  - JPM
+  tier: tier1
+  label_source: tier1_rule.monetary.default
+  label_confidence: 0.68
+  label_headline_snapshot: 美国10年期国债最新收益率报4.35%.
+- sample_id: BM-102-858E4717
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 858E471766B6FFC6
+  logged_at: '2026-05-01T14:27:51.523939Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【报道：以色列评估战事结束后伊朗政权仍有能力迅速重启推进核计划 】在美国与伊朗持续谈判之际，以色列国防军内部认为：美方对伊朗的军事打击目标虽已达成，但只要伊朗核计划不撤出本土、铀浓缩活动不停止，此前所有军事行动都将沦为彻底失败。
+    以色列军方高层评估，即便伊朗的导弹设施、指挥总部及军方指挥官遭到打击，战事结束后，伊朗政权仍有能力迅速重启推进核计划。
+- sample_id: BM-103-0451BFD9
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 0451BFD93104017F
+  logged_at: '2026-05-01T14:27:56.778129Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-104-19BE5AD2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 19BE5AD273FA5529
+  logged_at: '2026-05-01T14:29:28.054764Z'
+  event_type_expected: earnings
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-105-E3E899C1
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E3E899C155AECF33
+  logged_at: '2026-05-01T14:29:31.752828Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-106-27D36100
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 27D361009F5039AD
+  logged_at: '2026-05-01T14:29:32.474640Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 一名美国官员周五表示，杰拉尔德・R・福特号航空母舰在参与针对伊朗的军事行动后，已撤离中东地区。
+- sample_id: BM-107-AA65E962
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: AA65E962384E6CB9
+  logged_at: '2026-05-01T14:31:01.244763Z'
+  event_type_expected: earnings
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-108-2391AE10
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 2391AE1071751137
+  logged_at: '2026-05-01T14:31:04.389845Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 乌克兰外交部长表示，俄罗斯5月9日的停火提议是莫斯科又一次试图讨好美国的举动。
+- sample_id: BM-109-261BBF2D
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 261BBF2D79CAEA8E
+  logged_at: '2026-05-01T14:31:11.734128Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-110-A52A319E
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: A52A319E78AE8F03
+  logged_at: '2026-05-01T14:32:41.384053Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 埃克森美孚与卡塔尔仍在评估拉斯拉凡港修复工程的时间进度。
+- sample_id: BM-111-680932D5
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 680932D50C169F02
+  logged_at: '2026-05-01T14:32:42.431899Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【伊朗谈判方案已被转交美国】据美国媒体今天（5月1日）报道，巴基斯坦官员称，伊朗提出的最新谈判方案已转交给美国官员。目前这一新方案的具体内容还未透露。（CCTV国际时讯）
+- sample_id: BM-112-556845E1
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 556845E10730A496
+  logged_at: '2026-05-01T14:32:42.820862Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-113-82CE1698
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 82CE1698058A6FA9
+  logged_at: '2026-05-01T14:37:23.119272Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-114-96F204FE
+  trace_id: ME-D-20260501-001.V1.0
+  event_hash: 96F204FE9D0B1C5B
+  logged_at: '2026-05-01T14:51:49.321649Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-115-26F4AC64
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 26F4AC640091D274
+  logged_at: '2026-05-01T14:54:52.292203Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-116-D9858300
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: D9858300DD723CC7
+  logged_at: '2026-05-01T14:56:38.149978Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-117-4B4330C5
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 4B4330C54A851D4C
+  logged_at: '2026-05-01T14:56:42.418406Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-118-C0D89D52
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: C0D89D52EFBFA8E5
+  logged_at: '2026-05-01T14:58:20.150289Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-119-9128AF99
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 9128AF99AA2ADF31
+  logged_at: '2026-05-01T14:58:23.337987Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 美国能源部长：总统有意全力扩建美国能源基础设施，并且十分积极地希望联合盟友共同推进。 作为特朗普和平管道计划的一部分，中东欧地区正在商讨多个管道项目，旨在带动区域繁荣、强化安全格局。
+- sample_id: BM-120-3595D92E
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 3595D92E9CF6106D
+  logged_at: '2026-05-01T15:00:03.957320Z'
+  event_type_expected: earnings
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-121-1E522CCF
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 1E522CCF84874713
+  logged_at: '2026-05-01T15:00:05.528980Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-122-49580782
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 495807825381A7EB
+  logged_at: '2026-05-01T15:00:07.506777Z'
+  event_type_expected: earnings
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-123-EC8ED03C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: EC8ED03C1AC6B10A
+  logged_at: '2026-05-01T15:29:52.426938Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-124-3679DEB6
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 3679DEB69EC99BDA
+  logged_at: '2026-05-01T15:35:46.759156Z'
+  event_type_expected: industrial
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-125-8772D220
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 8772D220F1F7A88C
+  logged_at: '2026-05-01T15:37:32.515514Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 美国财政部长贝森特：封锁将持续，直到恢复2月27日之前的航行自由。
+- sample_id: BM-126-5980539F
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 5980539FCDEDEC7E
+  logged_at: '2026-05-01T15:37:34.549161Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: '美国财长贝森特：伊朗很难知晓外界正在发生什么，给身处蒙昧中的伊朗领导层点明几点现实情况：
+
+    1. 美国已完全掌控霍尔木兹海峡；
+
+    2. 美元等硬通货出现短缺；
+
+    3. 食品与汽油已实施配给制；
+
+    4. 整个国际社会都已与你们对立；
+
+    5. 封锁行动将持续推进，直至恢复2月27日前的航行自由状态。'
+- sample_id: BM-127-A4B68473
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: A4B68473BBC3EC61
+  logged_at: '2026-05-01T15:39:14.931010Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 雪佛龙首席执行官：CPC管道正在满负荷运转，TCO工厂在今年剩余时间内将“完全可用”。
+- sample_id: BM-128-9F4B7BF2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 9F4B7BF2CBDA4070
+  logged_at: '2026-05-01T15:39:17.072081Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-129-37DEABF7
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 37DEABF78C912FCA
+  logged_at: '2026-05-01T15:42:24.123352Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 市场消息：雪佛龙已将巴肯油田钻井平台数量从4座缩减至3座。
+- sample_id: BM-130-36E21175
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 36E21175E68975EB
+  logged_at: '2026-05-01T15:42:28.220203Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 阿拉比亚电视台记者：美国总统特朗普倾向于采取长期围困策略，因为此举将拖垮伊朗经济及石油行业基础设施。有消息透露，潜在军事打击的目标包括发电厂、桥梁以及伊朗军政高层核心人员。
+- sample_id: BM-131-707E9BCD
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 707E9BCD06B1CA93
+  logged_at: '2026-05-01T15:44:06.005903Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 雪佛龙首席执行官：公司不急于出售巴肯页岩资产，目前正测试技术以提高采收率。
+- sample_id: BM-132-55CB2AF9
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 55CB2AF935D28462
+  logged_at: '2026-05-01T15:44:06.446936Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 英国洲际交易所6月天然气期货结算价为每热量单位112.10便士。
+- sample_id: BM-133-0D28E65D
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 0D28E65DDB9E81A0
+  logged_at: '2026-05-01T15:44:07.773695Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-134-D93E34F1
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: D93E34F1607908DC
+  logged_at: '2026-05-01T15:45:52.893201Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-135-CBAE3BF2
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: CBAE3BF2E75BA38C
+  logged_at: '2026-05-01T15:47:36.482047Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 雪佛龙首席执行官：战略石油储备投放以及《琼斯法案》豁免措施均产生了积极效果。
+- sample_id: BM-136-36685A44
+  trace_id: ME-D-20260501-001.V1.0
+  event_hash: 36685A44EB67941B
+  logged_at: '2026-05-01T15:47:41.985945Z'
+  event_type_expected: other
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-137-2A27DE65
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 2A27DE65F0A68C42
+  logged_at: '2026-05-01T15:49:22.893040Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 伊朗塔斯尼姆通讯社：与白宫毫无根据的说法相反，目前仍没有储存空间即将耗尽的迹象。
+- sample_id: BM-138-91382B4B
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 91382B4B68FDE051
+  logged_at: '2026-05-01T15:49:23.216135Z'
+  event_type_expected: other
+  sectors_expected:
+  - Healthcare
+  tickers_expected:
+  - LLY
+  - UNH
+  tier: tier3
+  label_source: manual_fix.ge_healthcare_disclosure
+  label_confidence: 0.9
+- sample_id: BM-139-E59F55EC
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: E59F55EC321FF67C
+  logged_at: '2026-05-01T15:49:29.373254Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 【美国国防部与7家人工智能公司达成合作协议】美国国防部5月1日宣布与7家领先的人工智能公司达成协议，旨在将这些公司先进的人工智能技术部署至国防部的机密网络中，用于合法的作战行动。五角大楼当天发表声明说，国防部已与太空探索技术公司（SpaceX）、开放人工智能研究中心（OpenAI）、谷歌、英伟达等7家前沿人工智能公司达成协议。“这些协议加快了美国军队向以人工智能优先的作战力量转型的步伐，并将增强作战人员在所有作战领域保持决策优势的能力。”该声明并未提及美国另一家主要人工智能企
+- sample_id: BM-140-AFA8AC6C
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: AFA8AC6C6C255BCF
+  logged_at: '2026-05-01T15:51:22.044775Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-141-FEB6A230
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: FEB6A2301B0473BD
+  logged_at: '2026-05-01T15:51:22.585603Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-142-6DE381E5
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 6DE381E574F5A0DF
+  logged_at: '2026-05-01T15:51:24.557162Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 伊朗塔斯尼姆通讯社：与白宫毫无根据的说法相反，目前伊朗石油仍没有储存空间即将耗尽的迹象。
+- sample_id: BM-143-EB86DF10
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: EB86DF1039E5060B
+  logged_at: '2026-05-01T15:53:22.480185Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-144-71397799
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: 71397799F93A843B
+  logged_at: '2026-05-01T15:53:23.818337Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-145-9633C1F8
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: 9633C1F877D97099
+  logged_at: '2026-05-01T15:53:23.833414Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-146-A58DA83D
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: A58DA83D2A3F10EE
+  logged_at: '2026-05-01T15:53:23.874510Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-147-56F943E6
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: 56F943E6D700D300
+  logged_at: '2026-05-01T15:53:25.462161Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-148-6372BBD1
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: 6372BBD1CE92B50F
+  logged_at: '2026-05-01T15:55:16.824307Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-149-3DB4A7D6
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: 3DB4A7D666120F5C
+  logged_at: '2026-05-01T15:57:17.164789Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-150-09EFE178
+  trace_id: ME-C-20260501-001.V1.0
+  event_hash: 09EFE178D1998DFF
+  logged_at: '2026-05-01T15:59:07.482278Z'
+  event_type_expected: tariff
+  sectors_expected:
+  - Industrials
+  tickers_expected:
+  - CAT
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-151-B527ADE3
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: B527ADE3E9138FFA
+  logged_at: '2026-05-01T15:59:07.871246Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【以军将能否移除伊朗浓缩铀视为战事“成败关键”】据以色列媒体5月1日报道，以色列国防军军官声称，如果不能移除伊朗的浓缩铀材料，伊朗战事将是一场“巨大的失败”。
+    《以色列时报》当天援引一名以军军官的话报道，“如果伊朗拥有的400公斤丰度为60%的浓缩铀材料不能被移出伊朗”，对伊朗的军事行动将被视为一场“巨大的失败”。这批浓缩铀材料“足以制造11枚核弹”。
+    这名军官表示，如果美国和伊朗之间的谈判未能达成移除伊朗浓缩铀库存、停止伊朗铀浓缩活动的协议内容，那么以方在军事行动期间所取得
+- sample_id: BM-152-DCAB4851
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: DCAB48518987C649
+  logged_at: '2026-05-01T16:00:58.231299Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-153-3540A9CF
+  trace_id: ME-E-20260501-001.V1.0
+  event_hash: 3540A9CF861175B8
+  logged_at: '2026-05-01T16:02:35.381097Z'
+  event_type_expected: other
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-154-F0B368E3
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: F0B368E38EB672C7
+  logged_at: '2026-05-03T07:37:55.180863Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 市场消息：以色列国防军表示，已拦截从黎巴嫩向以色列发射的多枚弹体中的一枚。目前正在核查是否还有更多发射行动。
+- sample_id: BM-155-A4263E1D
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: A4263E1DC1581C9A
+  logged_at: '2026-05-03T07:40:53.577509Z'
+  event_type_expected: industrial
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-156-D87FBC54
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: D87FBC54440461ED
+  logged_at: '2026-05-03T07:40:55.241923Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 【以军称以北部遭来自黎巴嫩火箭弹袭击】当地时间3日，以色列国防军发布声明表示，当天稍早时在以色列北部阿维维姆地区响起警报。以军监测到有多枚火箭弹从黎巴嫩方向射向以色列境内。以色列空军拦截了其中一枚火箭弹，其余火箭弹的拦截结果仍在核实中。以色列方面称，此次事件系黎巴嫩真主党方面再次违反停火协议。黎巴嫩方面目前对此暂无回应。（央视新闻）
+- sample_id: BM-157-B20301EA
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: B20301EAD1310EB5
+  logged_at: '2026-05-03T07:41:58.089321Z'
+  event_type_expected: monetary
+  sectors_expected:
+  - Financial Services
+  tickers_expected:
+  - JPM
+  tier: tier1
+  label_source: tier1_rule.monetary.default
+  label_confidence: 0.68
+  label_headline_snapshot: 【国家开发银行：一季度发放285.4亿元转贷款 支持外贸小微企业】记者从国家开发银行了解到，今年一季度，国开行立足机构特点，统筹专项资源，广泛开展同业合作，共发放稳外贸专项转贷款285.4亿元，支持外贸小微企业6500余户（次），用款人加权平均利率低于全国同期新发放普惠小微贷款利率，有效帮助相关企业缓解融资难、融资贵，稳订单、拓市场、稳就业。据介绍，转贷款是指政策性金融机构以提供批发资金的形式与中小银行合作，由后者进行转贷，专门用于支持小微企业。这种业务模式将政策性金融机构的
+- sample_id: BM-158-FE87583E
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: FE87583E7645AF1E
+  logged_at: '2026-05-03T07:44:32.116461Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【加沙地带政府媒体办公室：262名媒体工作者在以军行动中遇难】巴勒斯坦加沙地带政府媒体办公室3日发表声明说，自2023年10月新一轮巴以冲突爆发以来，已有262名巴勒斯坦记者和媒体工作者在以军行动中遇难。声明说，除262名记者遇难外，另有50名记者被捕，3名记者下落不明，超过420名记者遭受不同程度的伤害，其中一些人落下残疾或被迫截肢。声明强烈谴责以军在加沙地带针对新闻工作者的系统性攻击。声明说，以军这些行为公然违反国际人道主义法，特别是违反了《日内瓦公约》中关于保护平民的相
+- sample_id: BM-159-1E820EED
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 1E820EED58839D71
+  logged_at: '2026-05-03T07:45:35.647046Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 【以色列批准从美国采购新型战机计划】当地时间3日，以色列国防部发布声明表示，已最终批准一项采购计划，将从美国洛克希德·马丁公司和波音公司购买F-35战机和F-15IA战机，交易金额达数百亿谢克尔。（央视新闻）
+- sample_id: BM-160-235AC05A
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 235AC05AB8B0379F
+  logged_at: '2026-05-03T08:00:44.618390Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【伊朗强化外交斡旋 与日本、意大利就地区局势与停火努力进行沟通】据伊朗伊斯兰共和国通讯社（IRNA）报道，伊朗外长阿巴斯·阿拉格奇周六分别与日本和意大利外长进行了电话会谈，阐述了伊朗为结束美以侵略战争所作的外交努力，并强调国际社会需采取负责任的行动。在与日本外相茂木敏充的通话中，阿拉格奇讨论了双边关系、地区局势以及伊朗为结束战争、缓和紧张局势而持续开展的外交举措。伊朗外长还与意大利外长安东尼奥·塔亚尼通了电话，双方重点讨论了地区最新局势、停火努力及外交行动。阿拉格奇对一些欧洲
+- sample_id: BM-161-CAB9396E
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: CAB9396E31360C9D
+  logged_at: '2026-05-03T08:05:04.160583Z'
+  event_type_expected: regulatory
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-162-EC8ED1CE
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: EC8ED1CEE80D1631
+  logged_at: '2026-05-03T08:08:06.851946Z'
+  event_type_expected: shipping
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier3
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-163-C6B6FF55
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: C6B6FF5587A91AC8
+  logged_at: '2026-05-03T08:11:46.995357Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【泽连斯基称乌军袭击了两艘俄油轮】乌克兰总统泽连斯基3日称，乌军再次对俄罗斯“影子船队”实施制裁，在新罗西斯克港口附近水域袭击了两艘俄“影子船队”油轮。（新华社）
+- sample_id: BM-164-E32D8731
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: E32D8731F251163D
+  logged_at: '2026-05-03T08:12:51.641439Z'
+  event_type_expected: industrial
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-165-46FE0DD8
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 46FE0DD84D92D4A6
+  logged_at: '2026-05-03T08:42:20.893983Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 挪威天然气公司Gassco：阿斯加德气田5 月 3 日至 5 月 4 日突发非计划停产，日均气量减少500 万立方米。
+- sample_id: BM-166-731C9930
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 731C99307EB320F2
+  logged_at: '2026-05-03T08:42:29.658463Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected: []
+  tier: tier1
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-167-38A7E875
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 38A7E875B1816291
+  logged_at: '2026-05-03T08:46:06.824977Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.default
+  label_confidence: 0.7
+  label_headline_snapshot: 【波兰总理图斯克：目前没有迹象表明驻德美军会进行重新部署】波兰总理图斯克周日表示，波兰未收到任何迹象，表明美国从德国撤出的驻军会转而重新部署至其他地区，而非撤回美国本土。当被问及美方是否暗示这批驻军可能调往北约东翼、而非返回美国时，图斯克称：“目前我们没有收到任何此类信号。”
+- sample_id: BM-168-3D033A15
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 3D033A1564260127
+  logged_at: '2026-05-03T08:48:26.356443Z'
+  event_type_expected: tech
+  sectors_expected: []
+  tickers_expected: []
+  tier: tier2
+  label_source: bootstrap_scorecard
+  label_confidence: 0.4
+- sample_id: BM-169-824BFC40
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 824BFC40634CFF25
+  logged_at: '2026-05-03T08:52:37.738193Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 根据声明草案，石油输出国组织与伙伴国（OPEC+）将自6月起将石油产量目标每日上调18.8万桶。
+- sample_id: BM-170-46568AAE
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 46568AAE6BB5F663
+  logged_at: '2026-05-03T08:55:00.853802Z'
+  event_type_expected: energy
+  sectors_expected:
+  - Energy
+  tickers_expected:
+  - XOM
+  tier: tier1
+  label_source: tier1_rule.energy
+  label_confidence: 0.92
+  label_headline_snapshot: 市场消息：随着航空燃油价格飙升，英国政府计划允许航空公司合并航班。
+- sample_id: BM-171-21D46EB1
+  trace_id: ME-E-20260503-001.V1.0
+  event_hash: 21D46EB10FACF40D
+  logged_at: '2026-05-03T08:55:04.637773Z'
+  event_type_expected: geo_political
+  sectors_expected:
+  - Energy
+  - Industrials
+  tickers_expected:
+  - XOM
+  - CAT
+  tier: tier1
+  label_source: tier1_rule.geo.energy_risk
+  label_confidence: 0.84
+  label_headline_snapshot: 【伊朗驻巴基斯坦大使：伊美谈判新方案已经巴方转交美方】当地时间5月3日，伊朗驻巴基斯坦大使穆加达姆在接受采访时表示，伊朗为结束美以伊冲突而制定的新谈判方案已提交给巴基斯坦，巴基斯坦作为当前进程的主要调解方，已将新谈判方案转交给美方。伊朗方面没有更换调解方的迹象。穆加达姆强调，伊朗在采取必要措施捍卫国家和民族的同时，仍然坚定地走外交道路。但一切都取决于美国，如果美国想在谈判中寻求突破，就必须改变他们的行为。穆加达姆补充，对伊朗人民来说至关重要的是，美国停止咄咄逼人的做法，并尊重

@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from pathlib import Path
 import sys
 import yaml
+import logging
 
 # Ensure top-level packages (e.g. transmission_engine) are importable when
 # this module is loaded from script entrypoints under scripts/ in CI.
@@ -28,12 +29,39 @@ from config_center import ConfigCenter
 from transmission_engine.core.shock_classifier import ShockClassifier
 from transmission_engine.core.factor_vectorizer import FactorVectorizer
 
+logger = logging.getLogger(__name__)
+
 
 class ConductionMapper(EDTModule):
     """Structured event conduction mapper."""
 
     _SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
     _INVALID_SYMBOLS = {"N/A", "NA", "NONE", "NULL", "UNKNOWN", "UNDEFINED", "TBD"}
+    _TIER1_EVENT_TYPES: set[str] = set()
+    _NO_RECOMMEND_TIER3_EVENT_TYPES: set[str] = {"other", "natural_disaster", "shipping", "healthcare"}
+    _NO_RECOMMEND_EVENT_TYPES: set[str] = {"other", "natural_disaster"}
+    _WATCHLIST_DEFAULT_EVENT_TYPES: set[str] = set()
+    _RECOMMENDED_MIN_CONFIDENCE = 1.01
+    _WATCHLIST_MIN_CONFIDENCE = 0.50
+    _ENERGY_TICKERS: set[str] = set()
+    _NON_US_BLOCK_PROXY_TICKERS: set[str] = set()
+    _US_TECH_FIN_PROXY_TICKERS: set[str] = set()
+    _HEALTHCARE_HINTS = (
+        "healthcare",
+        "hospital",
+        "drug",
+        "pharma",
+        "biotech",
+        "vaccine",
+        "medical",
+        "医药",
+        "医疗",
+        "疫苗",
+        "制药",
+    )
+    _ASIA_TECH_HINTS = ("东京电子", "台积电", "tsmc", "asml", "三星", "semiconductor", "chip")
+    _NON_US_MARKET_HINTS: tuple[str, ...] = tuple()
+    _GEO_ENERGY_ALLOWED_HINTS: tuple[str, ...] = tuple()
 
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("ConductionMapper", "1.0.0", config_path)
@@ -45,6 +73,7 @@ class ConductionMapper(EDTModule):
         self.gate_policy_path = base / "configs" / "gate_policy.yaml"
         self.metric_dictionary_path = base / "configs" / "metric_dictionary.yaml"
         self.backtest_protocol_path = base / "configs" / "backtest_protocol.yaml"
+        self.tier1_mapping_rules_path = base / "configs" / "tier1_mapping_rules.yaml"
 
         self.config_center = ConfigCenter(config_path=config_path)
         self.config_center.register("conduction_chain", self.chain_config_path)
@@ -54,6 +83,7 @@ class ConductionMapper(EDTModule):
         self.config_center.register("gate_policy", self.gate_policy_path)
         self.config_center.register("metric_dictionary", self.metric_dictionary_path)
         self.config_center.register("backtest_protocol", self.backtest_protocol_path)
+        self.config_center.register("tier1_mapping_rules", self.tier1_mapping_rules_path)
 
         self.semantic = SemanticAnalyzer(config_path=config_path)
         self.selector = AIConductionSelector()
@@ -61,6 +91,90 @@ class ConductionMapper(EDTModule):
         self.factor_vectorizer = FactorVectorizer(config_dir=base / "configs")
         self._sector_mapping = self._load_sector_mapping()
         self._sector_whitelist = self._load_sector_whitelist()
+        self._tier1_guardrails = self._load_tier1_rules_guardrails()
+        self._apply_guardrails_config()
+
+    def _set_safe_guardrails_fallback(self, reason: str) -> None:
+        self._TIER1_EVENT_TYPES = set()
+        self._NO_RECOMMEND_TIER3_EVENT_TYPES = {"other", "natural_disaster", "shipping", "healthcare"}
+        self._NO_RECOMMEND_EVENT_TYPES = {"other", "natural_disaster"}
+        self._WATCHLIST_DEFAULT_EVENT_TYPES = set()
+        self._RECOMMENDED_MIN_CONFIDENCE = 1.01
+        self._WATCHLIST_MIN_CONFIDENCE = 0.50
+        self._ENERGY_TICKERS = set()
+        self._NON_US_BLOCK_PROXY_TICKERS = set()
+        self._US_TECH_FIN_PROXY_TICKERS = set()
+        self._NON_US_MARKET_HINTS = tuple()
+        self._GEO_ENERGY_ALLOWED_HINTS = tuple()
+        logger.warning("tier1 guardrails missing/invalid; entering safe fallback mode: %s", reason)
+
+    def _apply_guardrails_config(self) -> None:
+        """Override class-level defaults with values from tier1_mapping_rules.yaml recommendation_guardrails."""
+        gr = self._tier1_guardrails
+        if not gr:
+            self._set_safe_guardrails_fallback("recommendation_guardrails absent")
+            return
+
+        # Tier1 event types
+        raw_t1 = gr.get("tier1_event_types")
+        if isinstance(raw_t1, list) and raw_t1:
+            self._TIER1_EVENT_TYPES = {str(x).strip() for x in raw_t1 if str(x).strip()}
+
+        # Tier3 no-recommend types
+        raw_t3 = gr.get("no_recommend_tier3_event_types")
+        if isinstance(raw_t3, list):
+            self._NO_RECOMMEND_TIER3_EVENT_TYPES = {str(x).strip() for x in raw_t3 if str(x).strip()}
+
+        # Non-recommend and watchlist default event types
+        raw_no_recommend = gr.get("no_recommend_event_types")
+        if isinstance(raw_no_recommend, list):
+            self._NO_RECOMMEND_EVENT_TYPES = {str(x).strip() for x in raw_no_recommend if str(x).strip()}
+        raw_watchlist_default = gr.get("watchlist_default_event_types")
+        if isinstance(raw_watchlist_default, list):
+            self._WATCHLIST_DEFAULT_EVENT_TYPES = {str(x).strip() for x in raw_watchlist_default if str(x).strip()}
+
+        # Thresholds
+        thresholds = gr.get("recommendation_thresholds", {}) or {}
+        if isinstance(thresholds, dict):
+            self._RECOMMENDED_MIN_CONFIDENCE = float(thresholds.get("recommended_min_confidence", 0.70))
+            self._WATCHLIST_MIN_CONFIDENCE = float(thresholds.get("watchlist_min_confidence", 0.50))
+        else:
+            self._RECOMMENDED_MIN_CONFIDENCE = 1.01
+            self._WATCHLIST_MIN_CONFIDENCE = 0.50
+
+        # Proxy blocklists
+        bl = gr.get("proxy_blocklists", {}) or {}
+        if isinstance(bl, dict):
+            raw_et = bl.get("energy_tickers")
+            if isinstance(raw_et, list):
+                self._ENERGY_TICKERS = {str(x).strip().upper() for x in raw_et if str(x).strip()}
+            raw_nu = bl.get("non_us_block_proxy_tickers")
+            if isinstance(raw_nu, list):
+                self._NON_US_BLOCK_PROXY_TICKERS = {str(x).strip().upper() for x in raw_nu if str(x).strip()}
+            raw_utf = bl.get("us_tech_fin_proxy_tickers")
+            if isinstance(raw_utf, list):
+                self._US_TECH_FIN_PROXY_TICKERS = {str(x).strip().upper() for x in raw_utf if str(x).strip()}
+
+        # Market hints
+        mh = gr.get("market_hints", {}) or {}
+        if isinstance(mh, dict):
+            raw_nu_h = mh.get("non_us")
+            if isinstance(raw_nu_h, list):
+                self._NON_US_MARKET_HINTS = tuple(str(x).strip() for x in raw_nu_h if str(x).strip())
+            raw_ge = mh.get("geo_energy_allowed")
+            if isinstance(raw_ge, list):
+                self._GEO_ENERGY_ALLOWED_HINTS = tuple(str(x).strip() for x in raw_ge if str(x).strip())
+
+    def _load_tier1_rules_guardrails(self) -> dict:
+        """Load guardrails from tier1_mapping_rules.yaml; return empty dict on failure."""
+        try:
+            cfg = yaml.safe_load(self.tier1_mapping_rules_path.read_text(encoding="utf-8")) or {}
+            gr = cfg.get("recommendation_guardrails", {}) or {}
+            if isinstance(gr, dict):
+                return gr
+        except Exception as exc:
+            logger.warning("failed to load tier1 guardrails: %s", exc)
+        return {}
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["event_id", "category", "severity", "lifecycle_state"]
@@ -102,6 +216,23 @@ class ConductionMapper(EDTModule):
                     if sector_name:
                         whitelist.add(sector_name)
 
+        tier1_rules = self._load_tier1_rules()
+        base_weights = tier1_rules.get("base_sector_weights", {}) if isinstance(tier1_rules, dict) else {}
+        if isinstance(base_weights, dict):
+            for sectors in base_weights.values():
+                if not isinstance(sectors, dict):
+                    continue
+                for sector in sectors.keys():
+                    sector_name = str(sector or "").strip()
+                    if sector_name:
+                        whitelist.add(sector_name)
+        ticker_pool = tier1_rules.get("ticker_pool", {}) if isinstance(tier1_rules, dict) else {}
+        if isinstance(ticker_pool, dict):
+            for sector in ticker_pool.keys():
+                sector_name = str(sector or "").strip()
+                if sector_name:
+                    whitelist.add(sector_name)
+
         return whitelist
 
     def _normalize_sector_name(self, sector: Any) -> str:
@@ -134,6 +265,10 @@ class ConductionMapper(EDTModule):
 
     def _load_chain_config(self) -> Dict[str, Any]:
         payload = self.config_center.get_registered("conduction_chain", {})
+        return payload if isinstance(payload, dict) else {}
+
+    def _load_tier1_rules(self) -> Dict[str, Any]:
+        payload = self.config_center.get_registered("tier1_mapping_rules", {})
         return payload if isinstance(payload, dict) else {}
 
     @staticmethod
@@ -192,7 +327,9 @@ class ConductionMapper(EDTModule):
         semantic_out = semantic_output if isinstance(semantic_output, dict) else self.semantic.analyze(headline, summary)
         chosen = self.selector.choose_chain(semantic_out, selected_chain_id)
         semantic_selected = str(chosen.get("chain_id") or "")
-        if semantic_selected in templates:
+        # Keep deterministic rule hit precedence: semantic chain should not
+        # override an explicit keyword-matched chain.
+        if selected_strength == 0 and semantic_selected in templates:
             selected_chain_id = semantic_selected
 
         category_defaults = {
@@ -204,6 +341,20 @@ class ConductionMapper(EDTModule):
             "F": "macro_data_chain",
             "G": "market_structure_chain",
         }
+        semantic_type_defaults = {
+            "geo_political": "geo_risk_chain",
+            "energy": "energy_supply_chain",
+            "commodity": "commodity_price_chain",
+            "monetary": "rate_cut_chain",
+            "inflation": "inflation_shock_chain",
+            "pandemic": "public_health_chain",
+        }
+        if not selected_chain_id:
+            semantic_event_type = str(semantic_out.get("event_type", "")).strip().lower()
+            semantic_chain = semantic_type_defaults.get(semantic_event_type)
+            if semantic_chain in templates:
+                selected_chain_id = semantic_chain
+
         if not selected_chain_id:
             default_chain = category_defaults.get(str(category).upper())
             if default_chain in templates:
@@ -351,6 +502,317 @@ class ConductionMapper(EDTModule):
                 }
             )
         return candidates
+
+    def _extract_subtype(self, semantic_event_type: str, headline: str, summary: str, semantic_output: Optional[Dict[str, Any]]) -> str:
+        rules = self._load_tier1_rules().get("subtype_rules", {})
+        candidates = rules.get(semantic_event_type, []) if isinstance(rules, dict) else []
+        if not isinstance(candidates, list):
+            return ""
+        text = self._normalize_text(headline, summary)
+        if isinstance(semantic_output, dict):
+            transmissions = semantic_output.get("transmission_candidates", [])
+            if isinstance(transmissions, list):
+                text = f"{text} {' '.join(str(x or '') for x in transmissions)}".strip()
+        for rule in candidates:
+            if not isinstance(rule, dict):
+                continue
+            keywords = rule.get("keywords", [])
+            if isinstance(keywords, list) and self._matches_any(text, [str(x) for x in keywords]):
+                return str(rule.get("subtype", "")).strip()
+        return ""
+
+    def _build_sector_weight_view(
+        self,
+        semantic_event_type: str,
+        subtype: str,
+        headline: str,
+        summary: str,
+        semantic_output: Optional[Dict[str, Any]],
+        sector_impacts: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        rules = self._load_tier1_rules()
+        base = rules.get("base_sector_weights", {}) if isinstance(rules, dict) else {}
+        raw = base.get(semantic_event_type, {}) if isinstance(base, dict) else {}
+        weights: Dict[str, float] = {}
+        for k, v in (raw.items() if isinstance(raw, dict) else []):
+            sector_name = self._normalize_sector_name(k)
+            score = self._safe_float(v, 0.0)
+            if sector_name and score > 0:
+                weights[sector_name] = score
+
+        if not weights:
+            for impact in sector_impacts:
+                sector_name = self._normalize_sector_name(impact.get("sector", ""))
+                impact_score = self._safe_float(impact.get("impact_score"), 0.0)
+                if sector_name and impact_score > 0:
+                    weights[sector_name] = max(weights.get(sector_name, 0.0), impact_score)
+
+        subtype_rules = rules.get("subtype_rules", {}) if isinstance(rules, dict) else {}
+        event_rules = subtype_rules.get(semantic_event_type, []) if isinstance(subtype_rules, dict) else []
+        text = self._normalize_text(headline, summary)
+        if isinstance(semantic_output, dict):
+            transmissions = semantic_output.get("transmission_candidates", [])
+            if isinstance(transmissions, list):
+                text = f"{text} {' '.join(str(x or '') for x in transmissions)}".strip()
+        preferred_primary = ""
+        for rule in event_rules if isinstance(event_rules, list) else []:
+            if not isinstance(rule, dict):
+                continue
+            if subtype and str(rule.get("subtype", "")).strip() != subtype:
+                continue
+            keywords = rule.get("keywords", [])
+            if subtype or (isinstance(keywords, list) and self._matches_any(text, [str(x) for x in keywords])):
+                boosts = rule.get("boost", {})
+                if isinstance(boosts, dict):
+                    for k, v in boosts.items():
+                        sector_name = self._normalize_sector_name(k)
+                        if not sector_name:
+                            continue
+                        weights[sector_name] = weights.get(sector_name, 0.0) + self._safe_float(v, 0.0)
+                suppress = rule.get("suppress", {})
+                if isinstance(suppress, dict):
+                    for k, v in suppress.items():
+                        sector_name = self._normalize_sector_name(k)
+                        if not sector_name:
+                            continue
+                        weights[sector_name] = max(0.0, weights.get(sector_name, 0.0) - self._safe_float(v, 0.0))
+                required = rule.get("required_sectors", [])
+                if isinstance(required, list):
+                    for sector in required:
+                        sector_name = self._normalize_sector_name(sector)
+                        if sector_name:
+                            weights[sector_name] = max(weights.get(sector_name, 0.0), 0.01)
+                candidate_primary = self._normalize_sector_name(rule.get("primary_sector", ""))
+                if candidate_primary:
+                    preferred_primary = candidate_primary
+                break
+
+        cleaned: Dict[str, float] = {}
+        for sector_name, score in weights.items():
+            if sector_name and score > 0:
+                cleaned[sector_name] = score
+        total = sum(cleaned.values())
+        if total <= 0:
+            return {"sector_weights": {}, "primary_sector": "", "secondary_sectors": [], "weight_quality_score": 0.0}
+
+        normalized = {k: round(v / total, 4) for k, v in cleaned.items()}
+        ranked = sorted(normalized.items(), key=lambda kv: (-kv[1], kv[0]))
+        top_ranked = ranked[:3]
+        if top_ranked:
+            top_total = sum(v for _, v in top_ranked)
+            normalized = {k: round(v / top_total, 4) for k, v in top_ranked}
+            ranked = sorted(normalized.items(), key=lambda kv: (-kv[1], kv[0]))
+        primary = ranked[0][0] if ranked else ""
+        if preferred_primary and preferred_primary in normalized:
+            primary = preferred_primary
+        secondaries = [k for k, _ in ranked if k != primary][:2]
+        quality = max(0.0, 100.0 - abs(1.0 - sum(normalized.values())) * 100.0)
+        return {
+            "sector_weights": normalized,
+            "primary_sector": primary,
+            "secondary_sectors": secondaries,
+            "weight_quality_score": round(quality, 2),
+        }
+
+    def _build_ticker_pool_candidates(
+        self,
+        semantic_output: Optional[Dict[str, Any]],
+        subtype: str,
+        sector_weight_view: Dict[str, Any],
+        sector_impacts: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        rules = self._load_tier1_rules()
+        ticker_pool = rules.get("ticker_pool", {}) if isinstance(rules, dict) else {}
+        rec_rules = rules.get("recommendation_rules", {}) if isinstance(rules, dict) else {}
+        if not isinstance(ticker_pool, dict):
+            return []
+
+        direct = set(self._normalize_recommended_stocks(semantic_output)) | set(self._normalize_entity_stocks(semantic_output))
+        event_strength = self._safe_float((semantic_output or {}).get("confidence"), 0.0) / 100.0
+        event_strength = max(0.0, min(1.0, event_strength))
+        direct_bonus = self._safe_float(rec_rules.get("direct_mention_bonus"), 0.25)
+        inferred_penalty = self._safe_float(rec_rules.get("inferred_penalty"), 0.08)
+        floor = self._safe_float(rec_rules.get("min_confidence_floor"), 0.45)
+        high = self._safe_float(rec_rules.get("min_confidence_high"), 0.75)
+        mid = self._safe_float(rec_rules.get("min_confidence_mid"), 0.60)
+        max_high = int(self._safe_float(rec_rules.get("max_recommended_high_conf"), 5))
+        max_mid = int(self._safe_float(rec_rules.get("max_recommended_mid_conf"), 3))
+        max_low = int(self._safe_float(rec_rules.get("max_recommended_low_conf"), 1))
+
+        sector_to_direction: Dict[str, str] = {}
+        for impact in sector_impacts:
+            sector_name = self._normalize_sector_name(impact.get("sector", ""))
+            if sector_name and sector_name not in sector_to_direction:
+                sector_to_direction[sector_name] = str(impact.get("direction", "watch"))
+
+        rows: List[Dict[str, Any]] = []
+        for sector_name, weight in (sector_weight_view.get("sector_weights", {}) or {}).items():
+            themes = ticker_pool.get(sector_name, {})
+            if not isinstance(themes, dict):
+                continue
+            for theme, tickers in themes.items():
+                if not isinstance(tickers, list):
+                    continue
+                for ticker in tickers:
+                    symbol = str(ticker or "").strip().upper()
+                    if not self._is_valid_symbol(symbol):
+                        continue
+                    direct_mentioned = symbol in direct
+                    subtype_match = bool(theme and subtype and (subtype in str(theme).lower() or str(theme).lower() in subtype))
+                    subtype_bonus = 0.08 if subtype_match else 0.0
+                    score = float(weight) + subtype_bonus + (direct_bonus if direct_mentioned else -inferred_penalty) + 0.2 * event_strength
+                    if score < floor:
+                        continue
+                    if not direct_mentioned and float(weight) < 0.18:
+                        continue
+                    rows.append(
+                        {
+                            "symbol": symbol,
+                            "sector": sector_name,
+                            "direction": sector_to_direction.get(sector_name, "watch"),
+                            "event_beta": round(max(0.3, min(1.5, score)), 2),
+                            "reason": f"sector_weight={weight:.2f}, theme={theme}, subtype_match={subtype_match}, direct={direct_mentioned}",
+                            "source": "tier1_ticker_pool",
+                            "source_sector": sector_name,
+                            "source_theme": str(theme),
+                            "confidence": round(max(0.0, min(1.0, score)), 2),
+                            "whether_direct_ticker_mentioned": direct_mentioned,
+                        }
+                    )
+
+        if not rows:
+            return []
+        rows.sort(key=lambda x: (x.get("confidence", 0.0), x.get("whether_direct_ticker_mentioned", False)), reverse=True)
+        if event_strength >= high:
+            limit = max_high
+        elif event_strength >= mid:
+            limit = max_mid
+        else:
+            limit = max_low
+        return rows[: max(0, limit)]
+
+    def _split_recommendation_buckets(
+        self,
+        semantic_event_type: str,
+        headline: str,
+        candidates: List[Dict[str, Any]],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        text = self._normalize_text(headline)
+        out = {"candidates": list(candidates), "recommended": [], "watchlist": [], "rejected": []}
+        non_us_hint = any(h in text for h in self._NON_US_MARKET_HINTS)
+        geo_energy_allowed = any(h in text for h in self._GEO_ENERGY_ALLOWED_HINTS)
+        for cand in candidates:
+            symbol = str(cand.get("symbol", "")).strip().upper()
+            confidence = self._safe_float(cand.get("confidence"), 0.0)
+            reason = str(cand.get("reason", ""))
+            penalties = []
+            # Semantic mismatch guard: Asia-tech headlines should not prioritize US energy tickers.
+            if any(h in text for h in self._ASIA_TECH_HINTS) and symbol in self._ENERGY_TICKERS:
+                c = dict(cand)
+                c["rejection_reason"] = "semantic_mismatch_asia_tech_vs_energy"
+                out["rejected"].append(c)
+                continue
+            if non_us_hint and symbol in self._ENERGY_TICKERS and not geo_energy_allowed:
+                confidence -= 0.30
+                penalties.append("non_us_energy_penalty")
+            # Tier3: no recommendation by default unless directly mentioned.
+            if semantic_event_type in self._NO_RECOMMEND_TIER3_EVENT_TYPES and not bool(cand.get("whether_direct_ticker_mentioned", False)):
+                c = dict(cand)
+                c["confidence"] = round(max(0.0, confidence), 2)
+                c["rejection_reason"] = "tier3_no_recommend"
+                out["rejected"].append(c)
+                continue
+            # Tier2: watchlist-first unless directly mentioned.
+            if semantic_event_type in self._WATCHLIST_DEFAULT_EVENT_TYPES and not bool(cand.get("whether_direct_ticker_mentioned", False)):
+                c = dict(cand)
+                c["confidence"] = round(max(0.0, confidence), 2)
+                c["rejection_reason"] = "tier2_watchlist_default"
+                out["watchlist"].append(c)
+                continue
+            # Strong negative rule: low-signal event types default to watchlist unless direct mention.
+            if semantic_event_type in self._NO_RECOMMEND_EVENT_TYPES and not bool(cand.get("whether_direct_ticker_mentioned", False)):
+                if non_us_hint and symbol in self._US_TECH_FIN_PROXY_TICKERS:
+                    confidence -= 0.25
+                    penalties.append("non_us_tech_fin_penalty")
+                c = dict(cand)
+                c["confidence"] = round(max(0.0, confidence), 2)
+                if penalties:
+                    c["penalties"] = penalties
+                c["rejection_reason"] = "other_event_watch_only"
+                out["watchlist"].append(c)
+                continue
+            confidence = max(0.0, min(1.0, confidence))
+            c_view = dict(cand)
+            c_view["confidence"] = round(confidence, 2)
+            if penalties:
+                c_view["penalties"] = penalties
+            if confidence >= self._RECOMMENDED_MIN_CONFIDENCE:
+                out["recommended"].append(c_view)
+            elif confidence >= self._WATCHLIST_MIN_CONFIDENCE:
+                out["watchlist"].append(c_view)
+            else:
+                c_view["rejection_reason"] = "low_confidence"
+                out["rejected"].append(c_view)
+        return out
+
+    @staticmethod
+    def _dedup_sector_impacts(sector_impacts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        best_by_sector: Dict[str, Dict[str, Any]] = {}
+        for impact in sector_impacts:
+            if not isinstance(impact, dict):
+                continue
+            sector = str(impact.get("sector", "")).strip()
+            if not sector:
+                continue
+            score = 0.0
+            try:
+                score = float(impact.get("impact_score", 0.0))
+            except (TypeError, ValueError):
+                score = 0.0
+            prev = best_by_sector.get(sector)
+            if prev is None:
+                best_by_sector[sector] = impact
+                continue
+            try:
+                prev_score = float(prev.get("impact_score", 0.0))
+            except (TypeError, ValueError):
+                prev_score = 0.0
+            if score > prev_score:
+                best_by_sector[sector] = impact
+        return list(best_by_sector.values())
+
+    def _passes_reason_gate(self, candidate: Dict[str, Any], semantic_event_type: str, headline: str) -> bool:
+        symbol = str(candidate.get("symbol", "")).strip().upper()
+        reason = str(candidate.get("reason", "")).strip().lower()
+        if not reason:
+            return False
+        if symbol not in {"XOM", "CAT"}:
+            return True
+        if bool(candidate.get("whether_direct_ticker_mentioned", False)):
+            return True
+        text = self._normalize_text(headline, reason)
+        required = ("oil", "原油", "energy", "能源", "opec", "lng", "tariff", "关税", "冲突", "制裁", "shipping", "航运")
+        if semantic_event_type in {"energy", "commodity", "geo_political", "monetary"} and any(k in text for k in required):
+            return True
+        return False
+
+    def _allows_healthcare_in_tier1(self, semantic_output: Optional[Dict[str, Any]], headline: str, summary: str) -> bool:
+        text = self._normalize_text(headline, summary)
+        if any(hint in text for hint in self._HEALTHCARE_HINTS):
+            return True
+        if not isinstance(semantic_output, dict):
+            return False
+        candidates = semantic_output.get("transmission_candidates", [])
+        if isinstance(candidates, list):
+                merged = ",".join(str(x).lower() for x in candidates)
+                if any(hint in merged for hint in self._HEALTHCARE_HINTS):
+                    return True
+        return False
+
+    def _allows_healthcare_for_event(self, semantic_output: Optional[Dict[str, Any]], headline: str, summary: str) -> bool:
+        # Use content-driven allowlist only. Event-type labels can be noisy and
+        # should not by themselves route to Healthcare.
+        return self._allows_healthcare_in_tier1(semantic_output, headline, summary)
 
     def _build_template_mapping(self, template: Dict[str, Any], sector_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         levels = template.get("levels", []) or []
@@ -649,13 +1111,47 @@ class ConductionMapper(EDTModule):
 
         self._apply_sector_mapping(mapping["sector_impacts"], sector_data)
 
+        semantic_event_type = str(semantic_out.get("event_type", "")).strip().lower()
+        semantic_subtype = self._extract_subtype(semantic_event_type, headline, summary, semantic_out)
+        sector_weight_view = self._build_sector_weight_view(
+            semantic_event_type=semantic_event_type,
+            subtype=semantic_subtype,
+            headline=headline,
+            summary=summary,
+            semantic_output=semantic_out,
+            sector_impacts=mapping.get("sector_impacts", []),
+        )
+        healthcare_allowed = self._allows_healthcare_for_event(semantic_out, headline, summary)
+        if not healthcare_allowed:
+            mapping["sector_impacts"] = [
+                impact for impact in mapping.get("sector_impacts", [])
+                if self._normalize_sector_name(impact.get("sector", "")).lower() != "healthcare"
+            ]
+
+        if semantic_event_type in self._TIER1_EVENT_TYPES and not self._allows_healthcare_in_tier1(semantic_out, headline, summary):
+            mapping["sector_impacts"] = [
+                impact for impact in mapping.get("sector_impacts", [])
+                if self._normalize_sector_name(impact.get("sector", "")).lower() != "healthcare"
+            ]
+
         semantic_stock_candidates = self._build_semantic_stock_candidates(
             semantic_output=semantic_out,
             sector_impacts=mapping.get("sector_impacts", []),
         )
+        pool_stock_candidates = self._build_ticker_pool_candidates(
+            semantic_output=semantic_out,
+            subtype=semantic_subtype,
+            sector_weight_view=sector_weight_view,
+            sector_impacts=mapping.get("sector_impacts", []),
+        )
+        recommendation_buckets = self._split_recommendation_buckets(
+            semantic_event_type=semantic_event_type,
+            headline=headline,
+            candidates=pool_stock_candidates,
+        )
         mapping["stock_candidates"] = self._merge_stock_candidates(
             base_candidates=list(mapping.get("stock_candidates", [])),
-            semantic_candidates=semantic_stock_candidates,
+            semantic_candidates=semantic_stock_candidates + recommendation_buckets.get("recommended", []) + recommendation_buckets.get("watchlist", []),
         )
 
         mapping["sector_impacts"] = [
@@ -665,15 +1161,80 @@ class ConductionMapper(EDTModule):
         ]
         for impact in mapping["sector_impacts"]:
             impact["sector"] = self._normalize_sector_name(impact.get("sector", ""))
+        mapping["sector_impacts"] = self._dedup_sector_impacts(mapping.get("sector_impacts", []))
+
+        # Tier1: override sector_impacts from computed sector_weight_view so that
+        # sector_candidates in trace_scorecard reflects the Tier1-weighted sectors.
+        # Direction inherits from original template impact if available; default watch.
+        if semantic_event_type in self._TIER1_EVENT_TYPES and sector_weight_view.get("sector_weights"):
+            orig_directions = {}
+            for imp in mapping.get("sector_impacts", []):
+                s = self._normalize_sector_name(imp.get("sector", ""))
+                if s:
+                    orig_directions[s] = imp.get("direction", "watch")
+            tier1_impacts = []
+            for sector_name, weight in sector_weight_view["sector_weights"].items():
+                ns = self._normalize_sector_name(sector_name)
+                direction = orig_directions.get(ns, "watch")
+                tier1_impacts.append({
+                    "sector": sector_name,
+                    "direction": direction,
+                    "driver_type": "tier1_weight",
+                    "impact_score": weight,
+                    "reason": f"Tier1 weight {weight:.2f}",
+                })
+            mapping["sector_impacts"] = tier1_impacts
 
         mapping["stock_candidates"] = [
             cand
             for cand in mapping.get("stock_candidates", [])
             if self._is_valid_symbol(cand.get("symbol")) and self._normalize_sector_name(cand.get("sector", "")) in self._sector_whitelist
         ]
+        if semantic_event_type in self._TIER1_EVENT_TYPES and not self._allows_healthcare_in_tier1(semantic_out, headline, summary):
+            mapping["stock_candidates"] = [
+                cand for cand in mapping.get("stock_candidates", [])
+                if self._normalize_sector_name(cand.get("sector", "")).lower() != "healthcare"
+            ]
+        if not healthcare_allowed:
+            mapping["stock_candidates"] = [
+                cand for cand in mapping.get("stock_candidates", [])
+                if self._normalize_sector_name(cand.get("sector", "")).lower() != "healthcare"
+            ]
         for cand in mapping["stock_candidates"]:
             cand["symbol"] = str(cand.get("symbol", "")).strip().upper()
             cand["sector"] = self._normalize_sector_name(cand.get("sector", ""))
+        title_text = self._normalize_text(headline)
+        if any(h in title_text for h in self._ASIA_TECH_HINTS):
+            mapping["stock_candidates"] = [
+                cand
+                for cand in mapping.get("stock_candidates", [])
+                if str(cand.get("symbol", "")).strip().upper() not in self._ENERGY_TICKERS
+            ]
+        non_us_hint = any(h in title_text for h in self._NON_US_MARKET_HINTS)
+        geo_energy_allowed = any(h in title_text for h in self._GEO_ENERGY_ALLOWED_HINTS)
+        if non_us_hint and not geo_energy_allowed:
+            mapping["stock_candidates"] = [
+                cand
+                for cand in mapping.get("stock_candidates", [])
+                if str(cand.get("symbol", "")).strip().upper() not in self._ENERGY_TICKERS
+            ]
+        if non_us_hint:
+            mapping["stock_candidates"] = [
+                cand
+                for cand in mapping.get("stock_candidates", [])
+                if str(cand.get("symbol", "")).strip().upper() not in self._NON_US_BLOCK_PROXY_TICKERS
+            ]
+        if non_us_hint and semantic_event_type == "other":
+            mapping["stock_candidates"] = [
+                cand
+                for cand in mapping.get("stock_candidates", [])
+                if str(cand.get("symbol", "")).strip().upper() not in self._US_TECH_FIN_PROXY_TICKERS
+            ]
+        mapping["stock_candidates"] = [
+            cand
+            for cand in mapping.get("stock_candidates", [])
+            if self._passes_reason_gate(cand, semantic_event_type, headline)
+        ]
 
         needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"] and mapping["stock_candidates"])
 
@@ -696,6 +1257,13 @@ class ConductionMapper(EDTModule):
                 "ai_recommended_stocks": ai_recommended_stocks,
                 "ai_recommendation_chain": semantic_out.get("recommended_chain", ""),
                 "ai_recommendation_confidence": semantic_out.get("confidence", 0),
+                "semantic_event_type": semantic_event_type,
+                "semantic_subtype": semantic_subtype,
+                "sector_weights": sector_weight_view.get("sector_weights", {}),
+                "primary_sector": sector_weight_view.get("primary_sector", ""),
+                "secondary_sectors": sector_weight_view.get("secondary_sectors", []),
+                "sector_weight_quality_score": sector_weight_view.get("weight_quality_score", 0.0),
+                "stock_recommendation_buckets": recommendation_buckets,
                 "time_horizons": {
                     "intraday": "headline冲击主导",
                     "overnight": "等待二次验证",

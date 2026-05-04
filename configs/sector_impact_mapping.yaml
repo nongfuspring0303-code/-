@@ -48,3 +48,13 @@ mapping:
     - "Healthcare"
   domestic:
     - "Consumer Cyclical"
+  materials:
+    - "Materials"
+  consumer_staples:
+    - "Consumer Staples"
+  utilities:
+    - "Utilities"
+  communication_services:
+    - "Communication Services"
+  real_estate:
+    - "Real Estate"

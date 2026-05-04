@@ -1,0 +1,2 @@
+{"trace_id": "prev-001", "semantic_event_type": "energy", "sector_candidates": ["Energy"], "sector_quality_score": 100, "ticker_quality_score": 100, "ai_confidence": 80}
+{"trace_id": "prev-002", "semantic_event_type": "geo_political", "sector_candidates": ["Energy"], "sector_quality_score": 100, "ticker_quality_score": 100, "ai_confidence": 80}

@@ -1,0 +1,21 @@
+
+schema_version: "1.0"
+dataset_id: "test_smoke"
+locked: false
+description: "Minimal fixture for smoke test"
+sample_count: 2
+fields:
+  - trace_id
+samples:
+  - sample_id: "prev-001"
+    headline: "test energy"
+    event_type_expected: "energy"
+    sectors_expected: ["Energy"]
+    tickers_expected: ["XOM"]
+    tier: "tier1"
+  - sample_id: "prev-002"
+    headline: "test geo"
+    event_type_expected: "geo_political"
+    sectors_expected: ["Energy"]
+    tickers_expected: ["XOM"]
+    tier: "tier1"

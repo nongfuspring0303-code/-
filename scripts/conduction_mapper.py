@@ -35,6 +35,16 @@ class ConductionMapper(EDTModule):
     _SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
     _INVALID_SYMBOLS = {"N/A", "NA", "NONE", "NULL", "UNKNOWN", "UNDEFINED", "TBD"}
     _TIER1_EVENT_TYPES = {"geo_political", "energy", "commodity", "monetary", "tariff", "tech", "earnings", "regulatory", "industrial", "merger"}
+    _NO_RECOMMEND_TIER3_EVENT_TYPES = {"other", "natural_disaster", "shipping", "healthcare"}
+    _RECOMMENDED_MIN_CONFIDENCE = 0.70
+    _WATCHLIST_MIN_CONFIDENCE = 0.50
+    _ENERGY_TICKERS = {"XOM", "CVX", "SLB", "HAL", "BKR", "COP", "EOG", "OXY", "LNG", "VLO", "MPC", "PSX"}
+    _NON_US_BLOCK_PROXY_TICKERS = {"XOM", "CAT", "CVX", "SLB", "HAL", "BKR"}
+    _US_TECH_FIN_PROXY_TICKERS = {
+        "NVDA", "MSFT", "AAPL", "GOOGL", "META", "AVGO", "JPM", "BAC", "WFC", "C", "GS",
+    }
+    # Default config fallback paths
+    _TIER1_RULES_CFG_PATH = "configs/tier1_mapping_rules.yaml"
     _HEALTHCARE_HINTS = (
         "healthcare",
         "hospital",
@@ -118,6 +128,67 @@ class ConductionMapper(EDTModule):
         self.factor_vectorizer = FactorVectorizer(config_dir=base / "configs")
         self._sector_mapping = self._load_sector_mapping()
         self._sector_whitelist = self._load_sector_whitelist()
+        self._tier1_guardrails = self._load_tier1_rules_guardrails()
+        self._apply_guardrails_config()
+
+    def _apply_guardrails_config(self) -> None:
+        """Override class-level defaults with values from tier1_mapping_rules.yaml recommendation_guardrails."""
+        gr = self._tier1_guardrails
+        if not gr:
+            return
+
+        # Tier1 event types
+        raw_t1 = gr.get("tier1_event_types")
+        if isinstance(raw_t1, list) and raw_t1:
+            self._TIER1_EVENT_TYPES = {str(x).strip() for x in raw_t1 if str(x).strip()}
+
+        # Tier3 no-recommend types
+        raw_t3 = gr.get("no_recommend_tier3_event_types")
+        if isinstance(raw_t3, list):
+            self._NO_RECOMMEND_TIER3_EVENT_TYPES = {str(x).strip() for x in raw_t3 if str(x).strip()}
+
+        # Thresholds
+        thresholds = gr.get("recommendation_thresholds", {}) or {}
+        if isinstance(thresholds, dict):
+            self._RECOMMENDED_MIN_CONFIDENCE = float(thresholds.get("recommended_min_confidence", 0.70))
+            self._WATCHLIST_MIN_CONFIDENCE = float(thresholds.get("watchlist_min_confidence", 0.50))
+        else:
+            self._RECOMMENDED_MIN_CONFIDENCE = 0.70
+            self._WATCHLIST_MIN_CONFIDENCE = 0.50
+
+        # Proxy blocklists
+        bl = gr.get("proxy_blocklists", {}) or {}
+        if isinstance(bl, dict):
+            raw_et = bl.get("energy_tickers")
+            if isinstance(raw_et, list):
+                self._ENERGY_TICKERS = {str(x).strip().upper() for x in raw_et if str(x).strip()}
+            raw_nu = bl.get("non_us_block_proxy_tickers")
+            if isinstance(raw_nu, list):
+                self._NON_US_BLOCK_PROXY_TICKERS = {str(x).strip().upper() for x in raw_nu if str(x).strip()}
+            raw_utf = bl.get("us_tech_fin_proxy_tickers")
+            if isinstance(raw_utf, list):
+                self._US_TECH_FIN_PROXY_TICKERS = {str(x).strip().upper() for x in raw_utf if str(x).strip()}
+
+        # Market hints
+        mh = gr.get("market_hints", {}) or {}
+        if isinstance(mh, dict):
+            raw_nu_h = mh.get("non_us")
+            if isinstance(raw_nu_h, list):
+                self._NON_US_MARKET_HINTS = tuple(str(x).strip() for x in raw_nu_h if str(x).strip())
+            raw_ge = mh.get("geo_energy_allowed")
+            if isinstance(raw_ge, list):
+                self._GEO_ENERGY_ALLOWED_HINTS = tuple(str(x).strip() for x in raw_ge if str(x).strip())
+
+    def _load_tier1_rules_guardrails(self) -> dict:
+        """Load guardrails from tier1_mapping_rules.yaml; return empty dict on failure."""
+        try:
+            cfg = yaml.safe_load(self.tier1_mapping_rules_path.read_text(encoding="utf-8")) or {}
+            gr = cfg.get("recommendation_guardrails", {}) or {}
+            if isinstance(gr, dict):
+                return gr
+        except Exception:
+            pass
+        return {}
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["event_id", "category", "severity", "lifecycle_state"]
@@ -689,9 +760,9 @@ class ConductionMapper(EDTModule):
             c_view["confidence"] = round(confidence, 2)
             if penalties:
                 c_view["penalties"] = penalties
-            if confidence >= 0.7:
+            if confidence >= self._RECOMMENDED_MIN_CONFIDENCE:
                 out["recommended"].append(c_view)
-            elif confidence >= 0.5:
+            elif confidence >= self._WATCHLIST_MIN_CONFIDENCE:
                 out["watchlist"].append(c_view)
             else:
                 c_view["rejection_reason"] = "low_confidence"

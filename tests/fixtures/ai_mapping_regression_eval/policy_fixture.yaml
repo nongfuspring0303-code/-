@@ -1,0 +1,18 @@
+
+schema_version: "v1.0"
+policy_name: "test_smoke"
+datasets:
+  benchmark:
+    labels_file: "tests/fixtures/ai_mapping_regression_eval/labels_fixture.yaml"
+gates:
+  hard:
+    empty_mapping_rate:
+      op: "<"
+      value: 0.05
+    healthcare_misroute_count:
+      op: "="
+      value: 0
+  target:
+    stock_quality_mean:
+      op: ">="
+      value: 20.0

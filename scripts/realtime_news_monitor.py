@@ -215,37 +215,16 @@ class RealtimeNewsMonitor:
             self._thread_local.workflow = workflow
         return workflow
     
-    def _fetch_latest_news(self, timeout_seconds: int = 30) -> List[Dict[str, Any]]:
+    def _fetch_latest_news(self) -> List[Dict[str, Any]]:
         if not self.data_adapter:
             return []
 
         try:
-            fetched_news: List[Dict[str, Any]] = []
-            exception_holder = {"exc": None}
-
-            def _fetch_task():
-                try:
-                    if hasattr(self.data_adapter, "fetch_news_batch"):
-                        fetched_news.extend(self.data_adapter.fetch_news_batch(max_items=self.batch_news_limit) or [])
-                    else:
-                        news = self.data_adapter.fetch_news()
-                        if news:
-                            fetched_news.append(news)
-                except Exception as e:
-                    exception_holder["exc"] = e
-
-            fetch_thread = threading.Thread(target=_fetch_task)
-            fetch_thread.daemon = True
-            fetch_thread.start()
-            fetch_thread.join(timeout=timeout_seconds)
-
-            if fetch_thread.is_alive():
-                logger.warning(f"⚠️ 新闻获取超时({timeout_seconds}s)，跳过本轮")
-                return []
-            if exception_holder["exc"]:
-                logger.error(f"获取新闻失败: {exception_holder['exc']}")
-                return []
-            return fetched_news if isinstance(fetched_news, list) else []
+            if hasattr(self.data_adapter, "fetch_news_batch"):
+                result = self.data_adapter.fetch_news_batch(max_items=self.batch_news_limit)
+                return result if isinstance(result, list) else []
+            result = self.data_adapter.fetch_news()
+            return [result] if result else []
         except Exception as e:
             logger.error(f"获取新闻失败: {e}")
             return []
@@ -483,12 +462,11 @@ class RealtimeNewsMonitor:
                 else:
                     direction = "WATCH"
                     
-                sector_impact = float(item.get("impact_score", analysis.get("conduction", {}).get("confidence", 0))) / 100.0
                 sectors.append({
                     "name": item.get("sector", "未知板块"),
                     "direction": direction,
-                    "impact_score": round(min(1.0, max(0.0, sector_impact)), 2),
-                    "confidence": round(min(1.0, max(0.0, sector_impact)), 2),
+                    "impact_score": round(min(1.0, max(0.0, float(analysis.get("conduction", {}).get("confidence", 0)) / 100.0)), 2),
+                    "confidence": round(min(1.0, max(0.0, float(analysis.get("conduction", {}).get("confidence", 0)) / 100.0)), 2),
                 })
             
             data = {

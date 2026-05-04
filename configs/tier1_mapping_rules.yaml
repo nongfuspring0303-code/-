@@ -201,3 +201,89 @@ recommendation_rules:
   min_confidence_mid: 0.60
   direct_mention_bonus: 0.25
   inferred_penalty: 0.08
+
+# Hardcoded guardrails migrated from conduction_mapper.py constants.
+# Code reads from this config; missing key falls back to code default.
+recommendation_guardrails:
+  tier1_event_types:
+    - geo_political
+    - energy
+    - commodity
+    - monetary
+    - tariff
+    - tech
+    - earnings
+    - regulatory
+    - industrial
+    - merger
+  no_recommend_tier3_event_types:
+    - other
+    - natural_disaster
+    - shipping
+    - healthcare
+  recommendation_thresholds:
+    recommended_min_confidence: 0.70
+    watchlist_min_confidence: 0.50
+  proxy_blocklists:
+    energy_tickers:
+      - XOM
+      - CVX
+      - SLB
+      - HAL
+      - BKR
+      - COP
+      - EOG
+      - OXY
+      - LNG
+      - VLO
+      - MPC
+      - PSX
+    non_us_block_proxy_tickers:
+      - XOM
+      - CAT
+      - CVX
+      - SLB
+      - HAL
+      - BKR
+    us_tech_fin_proxy_tickers:
+      - NVDA
+      - MSFT
+      - AAPL
+      - GOOGL
+      - META
+      - AVGO
+      - JPM
+      - BAC
+      - WFC
+      - C
+      - GS
+  market_hints:
+    non_us:
+      - "日本"
+      - "东京"
+      - "日经"
+      - "欧洲"
+      - "欧元区"
+      - "德国"
+      - "法国"
+      - "韩国"
+      - "台湾"
+      - "A股"
+      - "港股"
+      - "上证"
+      - "深证"
+      - "伦敦"
+      - "英国"
+      - "印度"
+      - "巴西"
+      - "俄罗斯"
+    geo_energy_allowed:
+      - "霍尔木兹"
+      - "海峡"
+      - "停火"
+      - "冲突"
+      - "制裁"
+      - "原油"
+      - "opec"
+      - "lng"
+      - "天然气"

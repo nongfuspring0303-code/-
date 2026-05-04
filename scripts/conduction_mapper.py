@@ -1580,7 +1580,6 @@ class ConductionMapper(EDTModule):
                 "confidence_contract": causal_contract["confidence"],
                 "expectation_gap_contract": expectation_gap_contract,
                 "market_validation_evidence": market_validation_evidence,
-                "dominant_driver": dominant_driver,
                 "direction_contract": direction_contract,
                 "audit": {
                     "module": self.name,

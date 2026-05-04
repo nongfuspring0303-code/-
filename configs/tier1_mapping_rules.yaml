@@ -3,31 +3,6 @@ version: "0.1.0"
 updated_at: "2026-05-04T00:00:00Z"
 description: "Tier1 event mapping rules: sector weights, subtype boosts, ticker pools"
 
-pr110_min_contract:
-  direction_contract:
-    default_absolute: "uncertain"
-    absolute_from_change_pct:
-      positive: "benefit"
-      negative: "hurt"
-      flat: "uncertain"
-  dominant_driver_by_event_type:
-    geo_political: "risk_regime"
-    energy: "oil"
-    commodity: "commodity_price"
-    monetary: "rates"
-    tariff: "growth"
-    tech: "risk_regime"
-    earnings: "risk_regime"
-    regulatory: "rates"
-    industrial: "growth"
-    merger: "risk_regime"
-  expectation_gap:
-    high_threshold: 25
-    medium_threshold: 10
-  market_validation:
-    change_pct_confirm_threshold: 0.10
-    max_evidence_items: 5
-
 tier1_event_types:
   - geo_political
   - energy

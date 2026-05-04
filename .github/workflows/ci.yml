@@ -34,6 +34,18 @@ jobs:
         run: |
           python -m pytest tests/test_member_b_stage5_scorecard_contract.py tests/test_outcome_attribution_engine.py tests/test_opportunity_score.py -q
 
+      - name: Run PR109 tier1 mapping tests
+        run: |
+          python -m pytest tests/test_conduction_mapper_dynamic.py -q
+
+      - name: Run PR109 regression eval smoke
+        run: |
+          python -m pytest tests/test_ai_mapping_regression_eval_smoke.py -q
+
+      - name: Run PR109 config contract tests
+        run: |
+          python -m pytest tests/test_tier1_mapping_rules_contract.py tests/test_ai_mapping_regression_policy_contract.py tests/test_tier1_guardrails_config_runtime.py -q
+
       - name: Run healthcheck
         run: |
           python scripts/system_healthcheck.py --mode dev

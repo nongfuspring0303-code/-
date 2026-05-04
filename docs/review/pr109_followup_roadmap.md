@@ -57,5 +57,5 @@ cache/*
 | **PR109** | 基础映射层收口（当前） |
 | **PR110** | 交易感知因果最小契约：expectation_gap、market_validation、dominant_driver、relative/absolute direction |
 | **PR111** | 疲劳 + 生命周期 + 时间尺度：fatigue_score、lifecycle_state、time_scale、decay_profile |
-| **PR112** | 交易建议层：position sizing、entry timing、risk control、stop condition、overnight_allowed |
+| **PR112** | execution_suggestion only：trade_type / entry_condition / risk_level / overnight_allowed / invalidation_condition；仅供人工审查，不接自动交易执行链路 |
 | **PR113** | 路径质量评估：path_accuracy、validation_accuracy、direction_accuracy |

@@ -1,2 +1,2 @@
-{"trace_id": "prev-001", "semantic_event_type": "energy", "sector_candidates": ["Energy"], "sector_quality_score": 100, "ticker_quality_score": 100, "ai_confidence": 80}
-{"trace_id": "prev-002", "semantic_event_type": "geo_political", "sector_candidates": ["Energy"], "sector_quality_score": 100, "ticker_quality_score": 100, "ai_confidence": 80}
+{"trace_id": "trace-001", "event_hash": "hash-001", "logged_at": "2026-05-04T00:00:00Z", "semantic_event_type": "energy", "sector_candidates": ["Energy"], "sector_quality_score": 100, "ticker_quality_score": 100, "ai_confidence": 80}
+{"trace_id": "trace-002", "event_hash": "hash-002", "logged_at": "2026-05-04T00:01:00Z", "semantic_event_type": "geo_political", "sector_candidates": ["Energy"], "sector_quality_score": 100, "ticker_quality_score": 100, "ai_confidence": 80}

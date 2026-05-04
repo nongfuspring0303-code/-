@@ -221,6 +221,10 @@ recommendation_guardrails:
     - natural_disaster
     - shipping
     - healthcare
+  no_recommend_event_types:
+    - other
+    - natural_disaster
+  watchlist_default_event_types: []
   recommendation_thresholds:
     recommended_min_confidence: 0.70
     watchlist_min_confidence: 0.50

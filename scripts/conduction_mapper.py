@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from pathlib import Path
 import sys
 import yaml
+import logging
 
 # Ensure top-level packages (e.g. transmission_engine) are importable when
 # this module is loaded from script entrypoints under scripts/ in CI.
@@ -28,23 +29,23 @@ from config_center import ConfigCenter
 from transmission_engine.core.shock_classifier import ShockClassifier
 from transmission_engine.core.factor_vectorizer import FactorVectorizer
 
+logger = logging.getLogger(__name__)
+
 
 class ConductionMapper(EDTModule):
     """Structured event conduction mapper."""
 
     _SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
     _INVALID_SYMBOLS = {"N/A", "NA", "NONE", "NULL", "UNKNOWN", "UNDEFINED", "TBD"}
-    _TIER1_EVENT_TYPES = {"geo_political", "energy", "commodity", "monetary", "tariff", "tech", "earnings", "regulatory", "industrial", "merger"}
-    _NO_RECOMMEND_TIER3_EVENT_TYPES = {"other", "natural_disaster", "shipping", "healthcare"}
-    _RECOMMENDED_MIN_CONFIDENCE = 0.70
+    _TIER1_EVENT_TYPES: set[str] = set()
+    _NO_RECOMMEND_TIER3_EVENT_TYPES: set[str] = {"other", "natural_disaster", "shipping", "healthcare"}
+    _NO_RECOMMEND_EVENT_TYPES: set[str] = {"other", "natural_disaster"}
+    _WATCHLIST_DEFAULT_EVENT_TYPES: set[str] = set()
+    _RECOMMENDED_MIN_CONFIDENCE = 1.01
     _WATCHLIST_MIN_CONFIDENCE = 0.50
-    _ENERGY_TICKERS = {"XOM", "CVX", "SLB", "HAL", "BKR", "COP", "EOG", "OXY", "LNG", "VLO", "MPC", "PSX"}
-    _NON_US_BLOCK_PROXY_TICKERS = {"XOM", "CAT", "CVX", "SLB", "HAL", "BKR"}
-    _US_TECH_FIN_PROXY_TICKERS = {
-        "NVDA", "MSFT", "AAPL", "GOOGL", "META", "AVGO", "JPM", "BAC", "WFC", "C", "GS",
-    }
-    # Default config fallback paths
-    _TIER1_RULES_CFG_PATH = "configs/tier1_mapping_rules.yaml"
+    _ENERGY_TICKERS: set[str] = set()
+    _NON_US_BLOCK_PROXY_TICKERS: set[str] = set()
+    _US_TECH_FIN_PROXY_TICKERS: set[str] = set()
     _HEALTHCARE_HINTS = (
         "healthcare",
         "hospital",
@@ -59,46 +60,8 @@ class ConductionMapper(EDTModule):
         "制药",
     )
     _ASIA_TECH_HINTS = ("东京电子", "台积电", "tsmc", "asml", "三星", "semiconductor", "chip")
-    _ENERGY_TICKERS = {"XOM", "CVX", "SLB", "HAL", "BKR", "COP", "EOG", "OXY", "LNG", "VLO", "MPC", "PSX"}
-    _NON_US_BLOCK_PROXY_TICKERS = {"XOM", "CAT", "CVX", "SLB", "HAL", "BKR"}
-    _US_TECH_FIN_PROXY_TICKERS = {
-        "NVDA",
-        "MSFT",
-        "ORCL",
-        "CRM",
-        "AMD",
-        "AVGO",
-        "INTC",
-        "QCOM",
-        "MU",
-        "JPM",
-        "BAC",
-        "WFC",
-        "C",
-        "GS",
-        "MS",
-        "SCHW",
-        "CME",
-        "ICE",
-    }
-    _NO_RECOMMEND_EVENT_TYPES = {"other", "natural_disaster"}
-    _WATCHLIST_DEFAULT_EVENT_TYPES = set()
-    _NO_RECOMMEND_TIER3_EVENT_TYPES = {"other", "natural_disaster", "shipping", "healthcare"}
-    _NON_US_MARKET_HINTS = (
-        "日本",
-        "东京",
-        "日经",
-        "欧洲",
-        "欧元区",
-        "德国",
-        "法国",
-        "韩国",
-        "台湾",
-        "a股",
-        "港股",
-        "伦敦",
-    )
-    _GEO_ENERGY_ALLOWED_HINTS = ("霍尔木兹", "海峡", "停火", "冲突", "制裁", "原油", "opec", "lng", "天然气")
+    _NON_US_MARKET_HINTS: tuple[str, ...] = tuple()
+    _GEO_ENERGY_ALLOWED_HINTS: tuple[str, ...] = tuple()
 
     def __init__(self, config_path: Optional[str] = None):
         super().__init__("ConductionMapper", "1.0.0", config_path)
@@ -131,10 +94,25 @@ class ConductionMapper(EDTModule):
         self._tier1_guardrails = self._load_tier1_rules_guardrails()
         self._apply_guardrails_config()
 
+    def _set_safe_guardrails_fallback(self, reason: str) -> None:
+        self._TIER1_EVENT_TYPES = set()
+        self._NO_RECOMMEND_TIER3_EVENT_TYPES = {"other", "natural_disaster", "shipping", "healthcare"}
+        self._NO_RECOMMEND_EVENT_TYPES = {"other", "natural_disaster"}
+        self._WATCHLIST_DEFAULT_EVENT_TYPES = set()
+        self._RECOMMENDED_MIN_CONFIDENCE = 1.01
+        self._WATCHLIST_MIN_CONFIDENCE = 0.50
+        self._ENERGY_TICKERS = set()
+        self._NON_US_BLOCK_PROXY_TICKERS = set()
+        self._US_TECH_FIN_PROXY_TICKERS = set()
+        self._NON_US_MARKET_HINTS = tuple()
+        self._GEO_ENERGY_ALLOWED_HINTS = tuple()
+        logger.warning("tier1 guardrails missing/invalid; entering safe fallback mode: %s", reason)
+
     def _apply_guardrails_config(self) -> None:
         """Override class-level defaults with values from tier1_mapping_rules.yaml recommendation_guardrails."""
         gr = self._tier1_guardrails
         if not gr:
+            self._set_safe_guardrails_fallback("recommendation_guardrails absent")
             return
 
         # Tier1 event types
@@ -147,13 +125,21 @@ class ConductionMapper(EDTModule):
         if isinstance(raw_t3, list):
             self._NO_RECOMMEND_TIER3_EVENT_TYPES = {str(x).strip() for x in raw_t3 if str(x).strip()}
 
+        # Non-recommend and watchlist default event types
+        raw_no_recommend = gr.get("no_recommend_event_types")
+        if isinstance(raw_no_recommend, list):
+            self._NO_RECOMMEND_EVENT_TYPES = {str(x).strip() for x in raw_no_recommend if str(x).strip()}
+        raw_watchlist_default = gr.get("watchlist_default_event_types")
+        if isinstance(raw_watchlist_default, list):
+            self._WATCHLIST_DEFAULT_EVENT_TYPES = {str(x).strip() for x in raw_watchlist_default if str(x).strip()}
+
         # Thresholds
         thresholds = gr.get("recommendation_thresholds", {}) or {}
         if isinstance(thresholds, dict):
             self._RECOMMENDED_MIN_CONFIDENCE = float(thresholds.get("recommended_min_confidence", 0.70))
             self._WATCHLIST_MIN_CONFIDENCE = float(thresholds.get("watchlist_min_confidence", 0.50))
         else:
-            self._RECOMMENDED_MIN_CONFIDENCE = 0.70
+            self._RECOMMENDED_MIN_CONFIDENCE = 1.01
             self._WATCHLIST_MIN_CONFIDENCE = 0.50
 
         # Proxy blocklists
@@ -186,8 +172,8 @@ class ConductionMapper(EDTModule):
             gr = cfg.get("recommendation_guardrails", {}) or {}
             if isinstance(gr, dict):
                 return gr
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("failed to load tier1 guardrails: %s", exc)
         return {}
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:

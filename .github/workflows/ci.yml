@@ -48,7 +48,7 @@ jobs:
 
       - name: Run PR110 causal contract tests
         run: |
-          python -m pytest tests/test_causal_contract_schema.py tests/test_causal_contract_fields.py tests/test_causal_contract_consumer_boundary.py -q
+          python -m pytest tests/test_causal_contract_schema.py tests/test_causal_contract_fields.py tests/test_causal_contract_consumer_boundary.py tests/test_causal_contract_config_runtime.py -q
 
       - name: Run healthcheck
         run: |

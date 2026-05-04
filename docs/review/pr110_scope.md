@@ -5,8 +5,8 @@
 - market_validation evidence array output
 - dominant_driver output
 - relative/absolute direction contract output
-- config-driven thresholds and defaults under `configs/tier1_mapping_rules.yaml`
-- unit tests for the four outputs
+- config single source under `configs/causal_contract_policy.yaml`
+- unit tests for causal contract outputs and boundary rules
 - causal contract schema/policy artifacts
 
 ## Field Definitions (PR110 atomic outputs)
@@ -33,6 +33,12 @@
 - `tests/test_causal_contract_schema.py`
 - `tests/test_causal_contract_fields.py`
 - `tests/test_causal_contract_consumer_boundary.py`
+- `tests/test_causal_contract_config_runtime.py`
+
+## Follow-up (PR111 / PR112 / PR113)
+- PR111: fatigue_score + lifecycle_state + time_scale + decay_profile
+- PR112: execution_suggestion only (human review assist, no auto execution)
+- PR113: path-quality / validation-quality eval layer
 
 ## Out of Scope
 - fatigue_score / lifecycle_state / time_scale / decay_profile

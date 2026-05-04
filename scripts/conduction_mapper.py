@@ -74,6 +74,7 @@ class ConductionMapper(EDTModule):
         self.metric_dictionary_path = base / "configs" / "metric_dictionary.yaml"
         self.backtest_protocol_path = base / "configs" / "backtest_protocol.yaml"
         self.tier1_mapping_rules_path = base / "configs" / "tier1_mapping_rules.yaml"
+        self.causal_contract_policy_path = base / "configs" / "causal_contract_policy.yaml"
 
         self.config_center = ConfigCenter(config_path=config_path)
         self.config_center.register("conduction_chain", self.chain_config_path)
@@ -84,6 +85,7 @@ class ConductionMapper(EDTModule):
         self.config_center.register("metric_dictionary", self.metric_dictionary_path)
         self.config_center.register("backtest_protocol", self.backtest_protocol_path)
         self.config_center.register("tier1_mapping_rules", self.tier1_mapping_rules_path)
+        self.config_center.register("causal_contract_policy", self.causal_contract_policy_path)
 
         self.semantic = SemanticAnalyzer(config_path=config_path)
         self.selector = AIConductionSelector()
@@ -962,9 +964,15 @@ class ConductionMapper(EDTModule):
             return default
 
     def _pr110_contract_cfg(self) -> Dict[str, Any]:
-        rules = self._load_tier1_rules()
-        payload = rules.get("pr110_min_contract", {}) if isinstance(rules, dict) else {}
+        payload = self.config_center.get_registered("causal_contract_policy", {})
         return payload if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _enforce_enum(value: str, allowed: List[str], fallback: str) -> str:
+        normalized = str(value or "").strip()
+        if normalized in allowed:
+            return normalized
+        return fallback
 
     def _build_expectation_gap_contract(self, semantic_out: Dict[str, Any]) -> Dict[str, Any]:
         cfg = self._pr110_contract_cfg().get("expectation_gap", {}) or {}
@@ -1092,7 +1100,10 @@ class ConductionMapper(EDTModule):
         mapping: Dict[str, Any],
         market_validation_status: str,
     ) -> Dict[str, Any]:
-        cfg = self._pr110_contract_cfg().get("dominant_driver_by_event_type", {}) or {}
+        dominant_cfg = self._pr110_contract_cfg().get("dominant_driver", {}) or {}
+        cfg = dominant_cfg.get("by_event_type", {}) if isinstance(dominant_cfg, dict) else {}
+        allowed = dominant_cfg.get("allowed_values", []) if isinstance(dominant_cfg, dict) else []
+        allowed = [str(x).strip() for x in allowed if str(x).strip()]
         if market_validation_status in {"insufficient_data", "unconfirmed"}:
             return {"primary": "unknown", "secondary": [], "driver_confidence": 0.0}
 
@@ -1103,13 +1114,15 @@ class ConductionMapper(EDTModule):
                 dominant = str((macro[0] or {}).get("factor", "")).strip()
         if not dominant:
             dominant = "unknown"
+        if allowed:
+            dominant = self._enforce_enum(dominant, allowed, "unknown")
         secondary: List[str] = []
         macro = mapping.get("macro_factors", [])
         if isinstance(macro, list):
             for factor in macro[1:3]:
                 name = str((factor or {}).get("factor", "")).strip()
                 if name and name != dominant and name not in secondary:
-                    secondary.append(name)
+                    secondary.append(self._enforce_enum(name, allowed, "unknown") if allowed else name)
         driver_confidence = 0.8 if market_validation_status == "validated" else 0.6
         if market_validation_status == "contradicted":
             driver_confidence = 0.3
@@ -1120,11 +1133,13 @@ class ConductionMapper(EDTModule):
         semantic_event_type: str,
         sector_impacts: List[Dict[str, Any]],
     ) -> Tuple[str, str, Dict[str, Any]]:
-        cfg = self._pr110_contract_cfg().get("direction_contract", {}) or {}
-        absolute_cfg = cfg.get("absolute_from_change_pct", {}) if isinstance(cfg, dict) else {}
-        abs_positive = str(absolute_cfg.get("positive", "positive"))
-        abs_negative = str(absolute_cfg.get("negative", "negative"))
-        abs_flat = str(absolute_cfg.get("flat", cfg.get("default_absolute", "uncertain")))
+        contract_cfg = self._pr110_contract_cfg()
+        absolute_allowed = contract_cfg.get("absolute_direction", {}).get("allowed_values", [])
+        relative_allowed = contract_cfg.get("relative_direction", {}).get("allowed_values", [])
+        absolute_allowed = [str(x).strip() for x in absolute_allowed if str(x).strip()]
+        relative_allowed = [str(x).strip() for x in relative_allowed if str(x).strip()]
+        abs_positive = "positive"
+        abs_negative = "negative"
         mapped: List[Dict[str, Any]] = []
         rel_counts = {"outperform": 0, "underperform": 0}
         abs_counts = {"positive": 0, "negative": 0}
@@ -1143,7 +1158,11 @@ class ConductionMapper(EDTModule):
                 abs_counts["negative"] += 1
             else:
                 relative = "neutral"
-                absolute = "unknown" if abs_flat == "uncertain" else abs_flat
+                absolute = "unknown"
+            if relative_allowed:
+                relative = self._enforce_enum(relative, relative_allowed, "unknown")
+            if absolute_allowed:
+                absolute = self._enforce_enum(absolute, absolute_allowed, "unknown")
             mapped.append(
                 {
                     "sector": sector,
@@ -1166,6 +1185,10 @@ class ConductionMapper(EDTModule):
             absolute_top = "negative"
         else:
             absolute_top = "unknown"
+        if relative_allowed:
+            relative_top = self._enforce_enum(relative_top, relative_allowed, "unknown")
+        if absolute_allowed:
+            absolute_top = self._enforce_enum(absolute_top, absolute_allowed, "unknown")
 
         return relative_top, absolute_top, {
             "event_type": semantic_event_type,
@@ -1460,17 +1483,35 @@ class ConductionMapper(EDTModule):
         )
         macro_factors = mapping.get("macro_factors", [])
         macro_factor = {}
+        macro_policy = self._pr110_contract_cfg().get("macro_factor", {}) or {}
+        macro_factor_allowed = [str(x).strip() for x in (macro_policy.get("factor_allowed_values", []) or []) if str(x).strip()]
+        macro_direction_allowed = [str(x).strip() for x in (macro_policy.get("direction_allowed_values", []) or []) if str(x).strip()]
+        macro_strength_allowed = [str(x).strip() for x in (macro_policy.get("strength_allowed_values", []) or []) if str(x).strip()]
         if isinstance(macro_factors, list) and macro_factors:
             primary_macro = macro_factors[0] or {}
+            factor = str(primary_macro.get("factor", "")).strip() or "unknown"
+            direction = str(primary_macro.get("direction", "")).strip() or "unknown"
+            strength = str(primary_macro.get("strength", "")).strip() or "unknown"
+            if macro_factor_allowed:
+                factor = self._enforce_enum(factor, macro_factor_allowed, "unknown")
+            if macro_direction_allowed:
+                direction = self._enforce_enum(direction, macro_direction_allowed, "unknown")
+            if macro_strength_allowed:
+                strength = self._enforce_enum(strength, macro_strength_allowed, "unknown")
             macro_factor = {
-                "factor": str(primary_macro.get("factor", "")).strip() or "unknown",
-                "direction": str(primary_macro.get("direction", "")).strip() or "unknown",
-                "strength": str(primary_macro.get("strength", "")).strip() or "unknown",
+                "factor": factor,
+                "direction": direction,
+                "strength": strength,
             }
         else:
             macro_factor = {"factor": "unknown", "direction": "unknown", "strength": "unknown"}
 
         impact_layers = ["macro", "sector", "ticker"] if mapping.get("stock_candidates") else ["macro", "sector"]
+        layer_allowed = [str(x).strip() for x in (self._pr110_contract_cfg().get("impact_layers", {}).get("allowed_values", []) or []) if str(x).strip()]
+        if layer_allowed:
+            impact_layers = [x for x in impact_layers if x in layer_allowed]
+            if not impact_layers:
+                impact_layers = ["macro"]
         validation_confidence = min(1.0, max(0.0, len([x for x in market_validation_evidence if x.get("status") == "confirmed"]) / 3.0))
         causal_confidence = max(0.0, min(1.0, float(mapping.get("confidence", 0.0)) / 100.0))
         causal_contract = {

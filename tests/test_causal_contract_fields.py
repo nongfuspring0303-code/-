@@ -67,7 +67,17 @@ def test_market_validation_non_live_structure():
 
 
 def test_market_validation_contradicted_when_observed_opposite_expected():
-    out = ConductionMapper().run(
+    mapper = ConductionMapper()
+    # Force expected up while observed down to pin contradicted path.
+    mapper._policy_mapping = lambda policy_intervention, sector_data: {  # type: ignore[assignment]
+        "macro_factors": [{"factor": "rates", "direction": "down", "strength": "medium", "reason": "stub"}],
+        "asset_impacts": [],
+        "sector_impacts": [{"sector": "Technology", "direction": "benefit", "driver_type": "stub", "reason": "stub"}],
+        "stock_candidates": [],
+        "conduction_path": ["stub"],
+        "confidence": 70.0,
+    }
+    out = mapper.run(
         {
             "event_id": "ME-CC-CONTRADICT-001",
             "category": "E",
@@ -81,16 +91,25 @@ def test_market_validation_contradicted_when_observed_opposite_expected():
         }
     )
     mv = out.data["market_validation"]
-    assert mv["status"] in {"contradicted", "partial", "unconfirmed", "validated"}
-    assert any(
-        item["expected"] in {"up", "down", "unknown", "flat"}
-        and item["observed"] in {"up", "down", "flat", "missing"}
-        for item in mv["evidence"]
-    )
+    assert mv["status"] == "contradicted"
+    assert any(item["status"] == "contradicted" for item in mv["evidence"])
 
 
 def test_absolute_direction_not_derived_from_price_move():
-    out = ConductionMapper().run(
+    mapper = ConductionMapper()
+    # Force causal direction as benefit while observed prices are negative.
+    mapper._policy_mapping = lambda policy_intervention, sector_data: {  # type: ignore[assignment]
+        "macro_factors": [{"factor": "rates", "direction": "down", "strength": "medium", "reason": "stub"}],
+        "asset_impacts": [],
+        "sector_impacts": [
+            {"sector": "Technology", "direction": "benefit", "driver_type": "stub", "reason": "stub"},
+            {"sector": "Financial Services", "direction": "benefit", "driver_type": "stub", "reason": "stub"},
+        ],
+        "stock_candidates": [],
+        "conduction_path": ["stub"],
+        "confidence": 70.0,
+    }
+    out = mapper.run(
         {
             "event_id": "ME-CC-ABS-001",
             "category": "E",
@@ -104,8 +123,10 @@ def test_absolute_direction_not_derived_from_price_move():
             ],
         }
     )
-    # Absolute direction should be driven by causal mapping semantics, not directly by observed price sign.
-    assert out.data["absolute_direction"] in {"positive", "negative", "neutral", "mixed", "unknown"}
+    # Absolute direction should follow causal mapping semantics (benefit -> positive),
+    # not observed negative price sign.
+    assert out.data["absolute_direction"] == "positive"
+    assert out.data["market_validation"]["status"] in {"contradicted", "partial", "unconfirmed", "insufficient_data"}
 
 
 def test_market_validation_not_validated_with_only_sector_snapshot():

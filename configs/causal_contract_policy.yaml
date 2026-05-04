@@ -23,6 +23,22 @@ absolute_direction:
 
 dominant_driver:
   allowed_values: [oil, rates, growth, inflation, risk_regime, commodity_price, unknown]
+  by_event_type:
+    geo_political: risk_regime
+    energy: oil
+    commodity: commodity_price
+    monetary: rates
+    tariff: growth
+    tech: risk_regime
+    earnings: risk_regime
+    regulatory: rates
+    industrial: growth
+    merger: risk_regime
 
 impact_layers:
   allowed_values: [macro, sector, theme, ticker, liquidity]
+
+macro_factor:
+  factor_allowed_values: [liquidity, rates, growth, inflation, risk_regime, oil, commodity_price, unknown]
+  direction_allowed_values: [up, down, flat, unknown]
+  strength_allowed_values: [low, medium, high, unknown]

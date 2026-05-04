@@ -961,6 +961,117 @@ class ConductionMapper(EDTModule):
         except (TypeError, ValueError):
             return default
 
+    def _pr110_contract_cfg(self) -> Dict[str, Any]:
+        rules = self._load_tier1_rules()
+        payload = rules.get("pr110_min_contract", {}) if isinstance(rules, dict) else {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _build_expectation_gap_contract(self, semantic_out: Dict[str, Any]) -> Dict[str, Any]:
+        cfg = self._pr110_contract_cfg().get("expectation_gap", {}) or {}
+        high = int(self._safe_float(cfg.get("high_threshold"), 25))
+        medium = int(self._safe_float(cfg.get("medium_threshold"), 10))
+        raw_gap = int(self._safe_float(semantic_out.get("expectation_gap"), 0))
+        abs_gap = abs(raw_gap)
+        if abs_gap >= high:
+            level = "high"
+        elif abs_gap >= medium:
+            level = "medium"
+        else:
+            level = "low"
+        return {
+            "gap_score": raw_gap,
+            "gap_level": level,
+            "consensus_state": "surprise" if abs_gap >= medium else "priced_in",
+        }
+
+    def _build_market_validation_evidence(self, sector_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        cfg = self._pr110_contract_cfg().get("market_validation", {}) or {}
+        threshold = self._safe_float(cfg.get("change_pct_confirm_threshold"), 0.10)
+        max_items = max(1, int(self._safe_float(cfg.get("max_evidence_items"), 5)))
+        evidence: List[Dict[str, Any]] = []
+        for item in sector_data[:max_items]:
+            raw_change = item.get("change_pct")
+            sector = self._normalize_sector_name(self._resolve_sector_snapshot_name(item))
+            if not sector:
+                continue
+            if raw_change is None:
+                evidence.append(
+                    {
+                        "sector": sector,
+                        "signal": "change_pct_missing",
+                        "confirmed": False,
+                        "value": None,
+                        "threshold": threshold,
+                    }
+                )
+                continue
+            change_pct = self._safe_float(raw_change, 0.0)
+            evidence.append(
+                {
+                    "sector": sector,
+                    "signal": "change_pct",
+                    "confirmed": abs(change_pct) >= threshold,
+                    "value": round(change_pct, 4),
+                    "threshold": threshold,
+                }
+            )
+        return evidence
+
+    def _build_dominant_driver(self, semantic_event_type: str, mapping: Dict[str, Any]) -> Dict[str, Any]:
+        cfg = self._pr110_contract_cfg().get("dominant_driver_by_event_type", {}) or {}
+        dominant = str(cfg.get(semantic_event_type) or "").strip()
+        if not dominant:
+            macro = mapping.get("macro_factors", [])
+            if isinstance(macro, list) and macro:
+                dominant = str((macro[0] or {}).get("factor", "")).strip()
+        if not dominant:
+            dominant = "unknown"
+        secondary: List[str] = []
+        macro = mapping.get("macro_factors", [])
+        if isinstance(macro, list):
+            for factor in macro[1:3]:
+                name = str((factor or {}).get("factor", "")).strip()
+                if name and name != dominant and name not in secondary:
+                    secondary.append(name)
+        return {"dominant": dominant, "secondary": secondary}
+
+    def _build_relative_absolute_direction_contract(
+        self,
+        semantic_event_type: str,
+        sector_impacts: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        cfg = self._pr110_contract_cfg().get("direction_contract", {}) or {}
+        absolute_cfg = cfg.get("absolute_from_change_pct", {}) if isinstance(cfg, dict) else {}
+        abs_positive = str(absolute_cfg.get("positive", "benefit"))
+        abs_negative = str(absolute_cfg.get("negative", "hurt"))
+        abs_flat = str(absolute_cfg.get("flat", cfg.get("default_absolute", "uncertain")))
+        mapped: List[Dict[str, Any]] = []
+        for impact in sector_impacts:
+            sector = self._normalize_sector_name(impact.get("sector", ""))
+            relative = str(impact.get("direction", "watch")).strip() or "watch"
+            change_pct = impact.get("change_pct")
+            if change_pct is None:
+                absolute = abs_flat
+            else:
+                value = self._safe_float(change_pct, 0.0)
+                if value > 0:
+                    absolute = abs_positive
+                elif value < 0:
+                    absolute = abs_negative
+                else:
+                    absolute = abs_flat
+            mapped.append(
+                {
+                    "sector": sector,
+                    "relative": relative,
+                    "absolute": absolute,
+                }
+            )
+        return {
+            "event_type": semantic_event_type,
+            "sectors": mapped,
+        }
+
     def _policy_mapping(
         self,
         policy_intervention: str,
@@ -1237,6 +1348,13 @@ class ConductionMapper(EDTModule):
         ]
 
         needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"] and mapping["stock_candidates"])
+        expectation_gap_contract = self._build_expectation_gap_contract(semantic_out if isinstance(semantic_out, dict) else {})
+        market_validation_evidence = self._build_market_validation_evidence(sector_data)
+        dominant_driver = self._build_dominant_driver(semantic_event_type, mapping)
+        direction_contract = self._build_relative_absolute_direction_contract(
+            semantic_event_type=semantic_event_type,
+            sector_impacts=mapping.get("sector_impacts", []),
+        )
 
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,
@@ -1273,6 +1391,10 @@ class ConductionMapper(EDTModule):
                 "confidence": mapping["confidence"],
                 "needs_manual_review": needs_manual_review,
                 "mapping_source": mapping.get("mapping_source", "rule"),
+                "expectation_gap_contract": expectation_gap_contract,
+                "market_validation_evidence": market_validation_evidence,
+                "dominant_driver": dominant_driver,
+                "direction_contract": direction_contract,
                 "audit": {
                     "module": self.name,
                     "rule_version": "conduction_v1",

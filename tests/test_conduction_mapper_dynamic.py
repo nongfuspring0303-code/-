@@ -621,6 +621,73 @@ def test_non_us_market_context_blocks_us_energy_ticker(monkeypatch):
     assert "XOM" not in symbols
 
 
+def test_pr110_min_contract_fields_exist():
+    out = ConductionMapper().run(
+        {
+            "event_id": "ME-PR110-001",
+            "category": "E",
+            "severity": "E2",
+            "headline": "Fed signals rate cuts ahead",
+            "summary": "Policy easing expected",
+            "lifecycle_state": "Active",
+            "sector_data": [
+                {"symbol": "XLK", "sector": "Technology", "industry": "Technology", "change_pct": 0.8},
+                {"symbol": "XLF", "sector": "Financial Services", "industry": "Financial Services", "change_pct": -0.5},
+            ],
+        }
+    )
+    assert out.status.value == "success"
+    data = out.data
+    assert "expectation_gap_contract" in data
+    assert "market_validation_evidence" in data
+    assert "dominant_driver" in data
+    assert "direction_contract" in data
+
+
+def test_pr110_direction_contract_contains_relative_and_absolute():
+    out = ConductionMapper().run(
+        {
+            "event_id": "ME-PR110-002",
+            "category": "E",
+            "severity": "E2",
+            "headline": "Fed signals rate cuts ahead",
+            "summary": "Policy easing expected",
+            "lifecycle_state": "Active",
+            "sector_data": [
+                {"symbol": "XLK", "sector": "Technology", "industry": "Technology", "change_pct": 1.0},
+                {"symbol": "XLF", "sector": "Financial Services", "industry": "Financial Services", "change_pct": -0.9},
+            ],
+        }
+    )
+    payload = out.data.get("direction_contract", {})
+    assert payload.get("event_type")
+    sectors = payload.get("sectors", [])
+    assert isinstance(sectors, list) and sectors
+    first = sectors[0]
+    assert set(first.keys()) >= {"sector", "relative", "absolute"}
+
+
+def test_pr110_market_validation_evidence_uses_threshold_and_missing_source():
+    out = ConductionMapper().run(
+        {
+            "event_id": "ME-PR110-003",
+            "category": "E",
+            "severity": "E2",
+            "headline": "Policy uncertainty update",
+            "summary": "",
+            "lifecycle_state": "Active",
+            "sector_data": [
+                {"symbol": "XLK", "sector": "Technology", "industry": "Technology", "change_pct": 0.2},
+                {"symbol": "XLF", "sector": "Financial Services", "industry": "Financial Services"},
+            ],
+        }
+    )
+    evidence = out.data.get("market_validation_evidence", [])
+    assert isinstance(evidence, list) and len(evidence) >= 2
+    assert any(item.get("signal") == "change_pct" and item.get("confirmed") is True for item in evidence)
+    assert any(item.get("signal") == "change_pct_missing" and item.get("confirmed") is False for item in evidence)
+
+
 def test_non_us_market_context_blocks_cat_proxy(monkeypatch):
     mapper = ConductionMapper()
     monkeypatch.setattr(

@@ -27,12 +27,13 @@ tier_mapping:
     - energy
     - commodity
     - monetary
-  tier2:
-    - earnings
-    - merger
-    - regulatory
+    - tariff
     - tech
+    - earnings
+    - regulatory
     - industrial
+    - merger
+  tier2: []
   tier3:
     - other
     - natural_disaster

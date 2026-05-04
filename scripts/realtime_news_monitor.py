@@ -12,20 +12,16 @@ Real-time News Monitor for EDT Project
 
 import argparse
 import asyncio
-import atexit
-from collections import deque
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
 import logging
 import re
 import sys
-import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import yaml
 
 try:
@@ -64,64 +60,11 @@ class RealtimeNewsMonitor:
         self._bootstrap_done = False
         self.batch_news_limit = 20
         self._pending_news: List[Dict[str, Any]] = []
-        self._dead_letter_max_items = self._safe_parse_int("EDT_DEAD_LETTER_MAX_ITEMS", 1000)
-        self._dead_letter: Deque[Dict[str, Any]] = deque(maxlen=self._dead_letter_max_items)
-        self._dead_letter_log_path = ROOT / "logs" / "realtime_news_monitor_dead_letter.jsonl"
-        self._glm_concurrency = self._safe_parse_int("EDT_GLM_CONCURRENCY", 5)
-        self.max_process_per_cycle = self._safe_parse_int("EDT_MAX_PROCESS_PER_CYCLE", self._glm_concurrency)
-        self._use_concurrent_processing = self._glm_concurrency > 1
-        self._executor = None
-        self._thread_local = threading.local()
-        if self._use_concurrent_processing:
-            self._executor = ThreadPoolExecutor(max_workers=self._glm_concurrency)
-            atexit.register(self._shutdown_executor)
+        self.max_process_per_cycle = max(1, int(os.getenv("EDT_MAX_PROCESS_PER_CYCLE", "1") or "1"))
         self.translator = Translator() if Translator else None
         if not self.translator:
             logger.warning("⚠️ googletrans 不可用，中文翻译将跳过")
         self._load_news_module()
-
-    @staticmethod
-    def _safe_parse_int(key: str, default: int) -> int:
-        raw = os.getenv(key, "").strip()
-        if not raw:
-            return default
-        try:
-            return max(1, int(raw))
-        except (ValueError, TypeError):
-            logger.warning("⚠️ 环境变量 %s='%s' 不是有效整数，使用默认值 %d", key, raw, default)
-            return default
-
-    def _shutdown_executor(self) -> None:
-        executor = self._executor
-        if executor is None:
-            return
-        self._executor = None
-        try:
-            executor.shutdown(wait=True)
-        except Exception as exc:
-            logger.warning("executor shutdown failed: %s", exc)
-
-    def _record_dead_letter(self, item: Dict[str, Any], error: Exception, phase: str) -> None:
-        record = {
-            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "phase": phase,
-            "error": str(error),
-            "event_id": item.get("event_id"),
-            "headline": item.get("headline"),
-            "source_url": item.get("source_url"),
-            "timestamp": item.get("timestamp"),
-            "metadata": item.get("metadata", {}),
-        }
-        maxlen = getattr(self._dead_letter, "maxlen", None)
-        if maxlen is not None and len(self._dead_letter) == maxlen:
-            logger.warning("☠️ dead-letter 已达上限 %d，最旧记录将被覆盖", maxlen)
-        self._dead_letter.append(record)
-        try:
-            self._dead_letter_log_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._dead_letter_log_path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        except Exception as exc:
-            logger.warning("dead-letter 持久化失败: %s", exc)
 
     def _load_node_role(self) -> str:
         env_role = os.getenv("EDT_NODE_ROLE", "").strip().lower()
@@ -172,48 +115,15 @@ class RealtimeNewsMonitor:
             from intel_modules import EventCapture
             from data_adapter import DataAdapter
             from full_workflow_runner import FullWorkflowRunner
-            self._event_capture_cls = EventCapture
-            self._data_adapter_cls = DataAdapter
-            self._workflow_cls = FullWorkflowRunner
             self.event_capture = EventCapture(self.config_path)
             self.data_adapter = DataAdapter()
             self.workflow = FullWorkflowRunner()
             logger.info("✅ 模块加载成功")
         except ImportError as e:
             logger.warning(f"⚠️ 模块导入失败: {e}")
-            self._event_capture_cls = None
-            self._data_adapter_cls = None
-            self._workflow_cls = None
             self.event_capture = None
             self.data_adapter = None
             self.workflow = None
-
-    def _get_event_capture(self):
-        if not self._use_concurrent_processing or not self._event_capture_cls:
-            return self.event_capture
-        capture = getattr(self._thread_local, "event_capture", None)
-        if capture is None:
-            capture = self._event_capture_cls(self.config_path)
-            self._thread_local.event_capture = capture
-        return capture
-
-    def _get_market_data_adapter(self):
-        if not self._use_concurrent_processing or not self._data_adapter_cls:
-            return self.data_adapter
-        data_adapter = getattr(self._thread_local, "data_adapter", None)
-        if data_adapter is None:
-            data_adapter = self._data_adapter_cls()
-            self._thread_local.data_adapter = data_adapter
-        return data_adapter
-
-    def _get_workflow_runner(self):
-        if not self._use_concurrent_processing or not self._workflow_cls:
-            return self.workflow
-        workflow = getattr(self._thread_local, "workflow", None)
-        if workflow is None:
-            workflow = self._workflow_cls()
-            self._thread_local.workflow = workflow
-        return workflow
     
     def _fetch_latest_news(self) -> List[Dict[str, Any]]:
         if not self.data_adapter:
@@ -330,8 +240,7 @@ class RealtimeNewsMonitor:
     
     def _process_news(self, news: Dict[str, Any]) -> bool:
         """处理单条新闻，返回是否触发成功"""
-        event_capture = self._get_event_capture()
-        if not event_capture:
+        if not self.event_capture:
             return False
 
         metadata = news.get("metadata", {})
@@ -353,7 +262,7 @@ class RealtimeNewsMonitor:
         self._push_news_preview(news)
 
         try:
-            result = event_capture.run(news)
+            result = self.event_capture.run(news)
             captured = result.data.get("captured", False)
             self._push_news_preview(
                 news,
@@ -378,15 +287,13 @@ class RealtimeNewsMonitor:
     
     def _trigger_ab_pipeline(self, news: Dict[str, Any], publish_event_update: bool = True):
         """触发A/B计算流水线"""
-        workflow = self._get_workflow_runner()
-        if not workflow:
+        if not self.workflow:
             logger.warning("⚠️ Workflow未加载，跳过A/B计算")
             return
         
         try:
             logger.info("🔄 触发A/B计算...")
-            data_adapter = self._get_market_data_adapter()
-            market = data_adapter.fetch_market_data() if data_adapter else {}
+            market = self.data_adapter.fetch_market_data() if self.data_adapter else {}
 
             def _num_or_default(value, default=0):
                 try:
@@ -407,7 +314,7 @@ class RealtimeNewsMonitor:
                 "sequence": 1,
             }
             
-            result = workflow.run(payload)
+            result = self.workflow.run(payload)
             
             if "intel" in result and "analysis" in result:
                 logger.info("✅ A/B计算完成")
@@ -700,34 +607,10 @@ class RealtimeNewsMonitor:
 
         process_count = min(self.max_process_per_cycle, len(self._pending_news))
         processed_any = False
-        if process_count > 0:
-            items = [self._pending_news.pop(0) for _ in range(process_count)]
-            last_item = items[-1]
-            self.last_news_signature = self._get_news_signature(last_item)
-            use_concurrent = self._use_concurrent_processing and self._executor is not None
-            if use_concurrent:
-                # Keep FIFO order: submit all, wait all, retrieve in input order.
-                futures = [self._executor.submit(self._process_news, item) for item in items]
-                from concurrent.futures import wait as futures_wait
-                futures_wait(futures)
-                for future, item in zip(futures, items):
-                    try:
-                        if future.result():
-                            processed_any = True
-                    except Exception as e:
-                        logger.error(f"并发处理新闻失败: {e}")
-                        self._record_dead_letter(item, e, "concurrent_process_news")
-            else:
-                for item in items:
-                    try:
-                        if self._process_news(item):
-                            processed_any = True
-                    except Exception as e:
-                        logger.error(f"处理新闻失败: {e}")
-                        self._record_dead_letter(item, e, "sequential_process_news")
-
-        if self._dead_letter:
-            logger.warning("☠️ 本轮 %d 条新闻进入 dead-letter", len(self._dead_letter))
+        for _ in range(process_count):
+            item = self._pending_news.pop(0)
+            self.last_news_signature = self._get_news_signature(item)
+            processed_any = self._process_news(item) or processed_any
 
         logger.info(
             "🆕 实时采样: 新增=%d 本轮处理=%d 待处理=%d",
@@ -742,50 +625,41 @@ class RealtimeNewsMonitor:
         logger.info(f"🚀 启动实时新闻监控 (轮询间隔: {self.poll_interval}秒)")
         
         iterations = 0
-        try:
-            while True:
-                try:
-                    triggered = self.run_once()
-                    if triggered:
-                        logger.info("⏸️ 等待下一轮...")
-                except KeyboardInterrupt:
-                    logger.info("🛑 用户中断")
-                    break
-                except Exception as e:
-                    logger.error(f"循环异常: {e}")
-                
-                iterations += 1
-                if max_iterations and iterations >= max_iterations:
-                    logger.info(f"达到最大迭代次数: {max_iterations}")
-                    break
-                
-                time.sleep(self.poll_interval)
-    
-        finally:
-            if self._executor:
-                self._shutdown_executor()
+        while True:
+            try:
+                triggered = self.run_once()
+                if triggered:
+                    logger.info("⏸️ 等待下一轮...")
+            except KeyboardInterrupt:
+                logger.info("🛑 用户中断")
+                break
+            except Exception as e:
+                logger.error(f"循环异常: {e}")
+            
+            iterations += 1
+            if max_iterations and iterations >= max_iterations:
+                logger.info(f"达到最大迭代次数: {max_iterations}")
+                break
+            
+            time.sleep(self.poll_interval)
 
     async def run_loop_async(self):
         """异步版本的持续运行"""
         logger.info(f"🚀 启动实时新闻监控 (轮询间隔: {self.poll_interval}秒)")
 
-        try:
-            while True:
-                try:
-                    # run_once 包含网络 IO 与同步处理，放到线程池避免阻塞主事件循环
-                    triggered = await asyncio.to_thread(self.run_once)
-                    if triggered:
-                        logger.info("⏸️ 等待下一轮...")
-                except KeyboardInterrupt:
-                    logger.info("🛑 用户中断")
-                    break
-                except Exception as e:
-                    logger.error(f"循环异常: {e}")
+        while True:
+            try:
+                # run_once 包含网络 IO 与同步处理，放到线程池避免阻塞主事件循环
+                triggered = await asyncio.to_thread(self.run_once)
+                if triggered:
+                    logger.info("⏸️ 等待下一轮...")
+            except KeyboardInterrupt:
+                logger.info("🛑 用户中断")
+                break
+            except Exception as e:
+                logger.error(f"循环异常: {e}")
 
-                await asyncio.sleep(self.poll_interval)
-        finally:
-            if self._executor:
-                self._shutdown_executor()
+            await asyncio.sleep(self.poll_interval)
 
 def main():
     parser = argparse.ArgumentParser(description="实时新闻监控")

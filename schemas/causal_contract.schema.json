@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CausalContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "expectation_gap",
+    "macro_factor",
+    "market_validation",
+    "dominant_driver",
+    "relative_direction",
+    "absolute_direction",
+    "impact_layers",
+    "confidence"
+  ],
+  "properties": {
+    "expectation_gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "raw_score", "reason"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "enum": ["positive_surprise", "negative_surprise", "in_line", "unknown", "conflict"]
+        },
+        "raw_score": { "type": ["integer", "null"] },
+        "reason": { "type": "string" }
+      }
+    },
+    "macro_factor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factor", "direction", "strength"],
+      "properties": {
+        "factor": { "type": "string", "enum": ["liquidity", "rates", "growth", "inflation", "risk_regime", "oil", "commodity_price", "unknown"] },
+        "direction": { "type": "string", "enum": ["up", "down", "flat", "unknown"] },
+        "strength": { "type": "string", "enum": ["low", "medium", "high", "unknown"] }
+      }
+    },
+    "market_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["validated", "partial", "unconfirmed", "contradicted", "insufficient_data"]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["layer", "asset", "expected", "observed", "status", "weight", "source"],
+            "properties": {
+              "layer": { "type": "string", "enum": ["macro", "sector", "theme", "ticker", "liquidity"] },
+              "asset": { "type": "string" },
+              "expected": { "type": "string", "enum": ["up", "down", "flat", "unknown"] },
+              "observed": { "type": "string", "enum": ["up", "down", "flat", "missing"] },
+              "status": { "type": "string", "enum": ["confirmed", "partial", "not_confirmed", "contradicted"] },
+              "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+              "source": { "type": "string", "enum": ["macro_asset", "sector_snapshot", "missing"] }
+            }
+          }
+        }
+      }
+    },
+    "dominant_driver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary", "secondary", "driver_confidence"],
+      "properties": {
+        "primary": { "type": "string", "enum": ["oil", "rates", "growth", "inflation", "risk_regime", "commodity_price", "unknown"] },
+        "secondary": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["oil", "rates", "growth", "inflation", "risk_regime", "commodity_price", "unknown"] }
+        },
+        "driver_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "relative_direction": {
+      "type": "string",
+      "enum": ["outperform", "underperform", "neutral", "unknown"]
+    },
+    "absolute_direction": {
+      "type": "string",
+      "enum": ["positive", "negative", "neutral", "mixed", "unknown"]
+    },
+    "impact_layers": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["macro", "sector", "theme", "ticker", "liquidity"] }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["causal_confidence", "validation_confidence"],
+      "properties": {
+        "causal_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "validation_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

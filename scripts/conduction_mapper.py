@@ -10,7 +10,7 @@ rule.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 import sys
 import yaml
@@ -74,6 +74,7 @@ class ConductionMapper(EDTModule):
         self.metric_dictionary_path = base / "configs" / "metric_dictionary.yaml"
         self.backtest_protocol_path = base / "configs" / "backtest_protocol.yaml"
         self.tier1_mapping_rules_path = base / "configs" / "tier1_mapping_rules.yaml"
+        self.causal_contract_policy_path = base / "configs" / "causal_contract_policy.yaml"
 
         self.config_center = ConfigCenter(config_path=config_path)
         self.config_center.register("conduction_chain", self.chain_config_path)
@@ -84,6 +85,7 @@ class ConductionMapper(EDTModule):
         self.config_center.register("metric_dictionary", self.metric_dictionary_path)
         self.config_center.register("backtest_protocol", self.backtest_protocol_path)
         self.config_center.register("tier1_mapping_rules", self.tier1_mapping_rules_path)
+        self.config_center.register("causal_contract_policy", self.causal_contract_policy_path)
 
         self.semantic = SemanticAnalyzer(config_path=config_path)
         self.selector = AIConductionSelector()
@@ -961,6 +963,238 @@ class ConductionMapper(EDTModule):
         except (TypeError, ValueError):
             return default
 
+    def _pr110_contract_cfg(self) -> Dict[str, Any]:
+        payload = self.config_center.get_registered("causal_contract_policy", {})
+        return payload if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _enforce_enum(value: str, allowed: List[str], fallback: str) -> str:
+        normalized = str(value or "").strip()
+        if normalized in allowed:
+            return normalized
+        return fallback
+
+    def _build_expectation_gap_contract(self, semantic_out: Dict[str, Any]) -> Dict[str, Any]:
+        cfg = self._pr110_contract_cfg().get("expectation_gap", {}) or {}
+        high = int(self._safe_float(cfg.get("high_threshold"), 25))
+        medium = int(self._safe_float(cfg.get("medium_threshold"), 10))
+        if "expectation_gap" not in semantic_out:
+            return {"value": "unknown", "raw_score": None, "reason": "missing_input"}
+
+        raw_value = semantic_out.get("expectation_gap")
+        try:
+            raw_gap = int(float(raw_value))
+        except (TypeError, ValueError):
+            return {"value": "conflict", "raw_score": None, "reason": "invalid_value"}
+
+        abs_gap = abs(raw_gap)
+        if raw_gap >= medium:
+            value = "positive_surprise"
+            reason = "surprise_up"
+        elif raw_gap <= -medium:
+            value = "negative_surprise"
+            reason = "surprise_down"
+        else:
+            value = "in_line"
+            reason = "priced_in"
+        if abs_gap >= high:
+            reason = f"{reason}_high"
+        return {
+            "value": value,
+            "raw_score": raw_gap,
+            "reason": reason,
+        }
+
+    @staticmethod
+    def _expected_from_relative(direction: str) -> str:
+        val = str(direction or "").strip().lower()
+        if val in {"benefit", "long", "outperform", "up"}:
+            return "up"
+        if val in {"hurt", "short", "underperform", "down"}:
+            return "down"
+        if val in {"watch", "neutral", "flat"}:
+            return "flat"
+        return "unknown"
+
+    def _build_market_validation_evidence(
+        self,
+        sector_data: List[Dict[str, Any]],
+        sector_impacts: List[Dict[str, Any]],
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        cfg = self._pr110_contract_cfg().get("market_validation", {}) or {}
+        threshold = self._safe_float(cfg.get("change_pct_confirm_threshold"), 0.10)
+        max_items = max(1, int(self._safe_float(cfg.get("max_evidence_items"), 5)))
+        evidence: List[Dict[str, Any]] = []
+        expected_by_sector: Dict[str, str] = {}
+        for impact in sector_impacts:
+            sector_name = self._normalize_sector_name(impact.get("sector", ""))
+            if not sector_name:
+                continue
+            expected_by_sector[sector_name] = self._expected_from_relative(str(impact.get("direction", "")))
+
+        confirmed = 0
+        contradicted = 0
+        for item in sector_data[:max_items]:
+            raw_change = item.get("change_pct")
+            sector = self._normalize_sector_name(self._resolve_sector_snapshot_name(item))
+            if not sector:
+                continue
+            if raw_change is None:
+                evidence.append(
+                    {
+                        "layer": "sector",
+                        "asset": sector,
+                        "expected": expected_by_sector.get(sector, "unknown"),
+                        "observed": "missing",
+                        "status": "not_confirmed",
+                        "weight": 0.2,
+                        "source": "missing",
+                    }
+                )
+                continue
+            change_pct = self._safe_float(raw_change, 0.0)
+            expected = expected_by_sector.get(sector, "unknown")
+            observed = "up" if change_pct > 0 else ("down" if change_pct < 0 else "flat")
+            if abs(change_pct) >= threshold:
+                if expected == "unknown":
+                    status = "partial"
+                elif expected in {"up", "down"} and observed != expected:
+                    status = "contradicted"
+                    contradicted += 1
+                else:
+                    status = "confirmed"
+                    confirmed += 1
+            elif abs(change_pct) == 0:
+                status = "not_confirmed"
+            else:
+                status = "partial"
+            evidence.append(
+                {
+                    "layer": "sector",
+                    "asset": sector,
+                    "expected": expected,
+                    "observed": observed,
+                    "status": status,
+                    "weight": 0.8,
+                    "source": "sector_snapshot",
+                }
+            )
+        if not evidence:
+            return "insufficient_data", []
+        # PR110 contract: sector snapshot alone cannot produce "validated".
+        # Without macro-asset evidence, cap top status at partial/unconfirmed/contradicted.
+        has_macro_asset = any(str(x.get("source", "")) == "macro_asset" for x in evidence)
+        if contradicted > 0 and confirmed == 0:
+            top_status = "contradicted"
+        elif confirmed == len(evidence) and has_macro_asset:
+            top_status = "validated"
+        elif confirmed > 0:
+            top_status = "partial"
+        else:
+            top_status = "unconfirmed"
+        return top_status, evidence
+
+    def _build_dominant_driver(
+        self,
+        semantic_event_type: str,
+        mapping: Dict[str, Any],
+        market_validation_status: str,
+    ) -> Dict[str, Any]:
+        dominant_cfg = self._pr110_contract_cfg().get("dominant_driver", {}) or {}
+        cfg = dominant_cfg.get("by_event_type", {}) if isinstance(dominant_cfg, dict) else {}
+        allowed = dominant_cfg.get("allowed_values", []) if isinstance(dominant_cfg, dict) else []
+        allowed = [str(x).strip() for x in allowed if str(x).strip()]
+        if market_validation_status in {"insufficient_data", "unconfirmed"}:
+            return {"primary": "unknown", "secondary": [], "driver_confidence": 0.0}
+
+        dominant = str(cfg.get(semantic_event_type) or "").strip()
+        if not dominant:
+            macro = mapping.get("macro_factors", [])
+            if isinstance(macro, list) and macro:
+                dominant = str((macro[0] or {}).get("factor", "")).strip()
+        if not dominant:
+            dominant = "unknown"
+        if allowed:
+            dominant = self._enforce_enum(dominant, allowed, "unknown")
+        secondary: List[str] = []
+        macro = mapping.get("macro_factors", [])
+        if isinstance(macro, list):
+            for factor in macro[1:3]:
+                name = str((factor or {}).get("factor", "")).strip()
+                if name and name != dominant and name not in secondary:
+                    secondary.append(self._enforce_enum(name, allowed, "unknown") if allowed else name)
+        driver_confidence = 0.8 if market_validation_status == "validated" else 0.6
+        if market_validation_status == "contradicted":
+            driver_confidence = 0.3
+        return {"primary": dominant, "secondary": secondary, "driver_confidence": driver_confidence}
+
+    def _build_relative_absolute_direction_contract(
+        self,
+        semantic_event_type: str,
+        sector_impacts: List[Dict[str, Any]],
+    ) -> Tuple[str, str, Dict[str, Any]]:
+        contract_cfg = self._pr110_contract_cfg()
+        absolute_allowed = contract_cfg.get("absolute_direction", {}).get("allowed_values", [])
+        relative_allowed = contract_cfg.get("relative_direction", {}).get("allowed_values", [])
+        absolute_allowed = [str(x).strip() for x in absolute_allowed if str(x).strip()]
+        relative_allowed = [str(x).strip() for x in relative_allowed if str(x).strip()]
+        abs_positive = "positive"
+        abs_negative = "negative"
+        mapped: List[Dict[str, Any]] = []
+        rel_counts = {"outperform": 0, "underperform": 0}
+        abs_counts = {"positive": 0, "negative": 0}
+        for impact in sector_impacts:
+            sector = self._normalize_sector_name(impact.get("sector", ""))
+            raw_relative = str(impact.get("direction", "watch")).strip().lower()
+            if raw_relative in {"benefit", "long", "up"}:
+                relative = "outperform"
+                rel_counts["outperform"] += 1
+                absolute = abs_positive
+                abs_counts["positive"] += 1
+            elif raw_relative in {"hurt", "short", "down"}:
+                relative = "underperform"
+                rel_counts["underperform"] += 1
+                absolute = abs_negative
+                abs_counts["negative"] += 1
+            else:
+                relative = "neutral"
+                absolute = "unknown"
+            if relative_allowed:
+                relative = self._enforce_enum(relative, relative_allowed, "unknown")
+            if absolute_allowed:
+                absolute = self._enforce_enum(absolute, absolute_allowed, "unknown")
+            mapped.append(
+                {
+                    "sector": sector,
+                    "relative": relative,
+                    "absolute": absolute,
+                }
+            )
+        if rel_counts["outperform"] > rel_counts["underperform"]:
+            relative_top = "outperform"
+        elif rel_counts["underperform"] > rel_counts["outperform"]:
+            relative_top = "underperform"
+        else:
+            relative_top = "neutral" if mapped else "unknown"
+
+        if abs_counts["positive"] > 0 and abs_counts["negative"] > 0:
+            absolute_top = "mixed"
+        elif abs_counts["positive"] > 0:
+            absolute_top = "positive"
+        elif abs_counts["negative"] > 0:
+            absolute_top = "negative"
+        else:
+            absolute_top = "unknown"
+        if relative_allowed:
+            relative_top = self._enforce_enum(relative_top, relative_allowed, "unknown")
+        if absolute_allowed:
+            absolute_top = self._enforce_enum(absolute_top, absolute_allowed, "unknown")
+
+        return relative_top, absolute_top, {
+            "event_type": semantic_event_type,
+            "sectors": mapped,
+        }
+
     def _policy_mapping(
         self,
         policy_intervention: str,
@@ -1237,6 +1471,65 @@ class ConductionMapper(EDTModule):
         ]
 
         needs_manual_review = not (mapping["macro_factors"] and mapping["sector_impacts"] and mapping["stock_candidates"])
+        expectation_gap_contract = self._build_expectation_gap_contract(semantic_out if isinstance(semantic_out, dict) else {})
+        market_validation_status, market_validation_evidence = self._build_market_validation_evidence(
+            sector_data,
+            mapping.get("sector_impacts", []),
+        )
+        dominant_driver = self._build_dominant_driver(semantic_event_type, mapping, market_validation_status)
+        relative_direction, absolute_direction, direction_contract = self._build_relative_absolute_direction_contract(
+            semantic_event_type=semantic_event_type,
+            sector_impacts=mapping.get("sector_impacts", []),
+        )
+        macro_factors = mapping.get("macro_factors", [])
+        macro_factor = {}
+        macro_policy = self._pr110_contract_cfg().get("macro_factor", {}) or {}
+        macro_factor_allowed = [str(x).strip() for x in (macro_policy.get("factor_allowed_values", []) or []) if str(x).strip()]
+        macro_direction_allowed = [str(x).strip() for x in (macro_policy.get("direction_allowed_values", []) or []) if str(x).strip()]
+        macro_strength_allowed = [str(x).strip() for x in (macro_policy.get("strength_allowed_values", []) or []) if str(x).strip()]
+        if isinstance(macro_factors, list) and macro_factors:
+            primary_macro = macro_factors[0] or {}
+            factor = str(primary_macro.get("factor", "")).strip() or "unknown"
+            direction = str(primary_macro.get("direction", "")).strip() or "unknown"
+            strength = str(primary_macro.get("strength", "")).strip() or "unknown"
+            if macro_factor_allowed:
+                factor = self._enforce_enum(factor, macro_factor_allowed, "unknown")
+            if macro_direction_allowed:
+                direction = self._enforce_enum(direction, macro_direction_allowed, "unknown")
+            if macro_strength_allowed:
+                strength = self._enforce_enum(strength, macro_strength_allowed, "unknown")
+            macro_factor = {
+                "factor": factor,
+                "direction": direction,
+                "strength": strength,
+            }
+        else:
+            macro_factor = {"factor": "unknown", "direction": "unknown", "strength": "unknown"}
+
+        impact_layers = ["macro", "sector", "ticker"] if mapping.get("stock_candidates") else ["macro", "sector"]
+        layer_allowed = [str(x).strip() for x in (self._pr110_contract_cfg().get("impact_layers", {}).get("allowed_values", []) or []) if str(x).strip()]
+        if layer_allowed:
+            impact_layers = [x for x in impact_layers if x in layer_allowed]
+            if not impact_layers:
+                impact_layers = ["macro"]
+        validation_confidence = min(1.0, max(0.0, len([x for x in market_validation_evidence if x.get("status") == "confirmed"]) / 3.0))
+        causal_confidence = max(0.0, min(1.0, float(mapping.get("confidence", 0.0)) / 100.0))
+        causal_contract = {
+            "expectation_gap": expectation_gap_contract,
+            "macro_factor": macro_factor,
+            "market_validation": {
+                "status": market_validation_status,
+                "evidence": market_validation_evidence,
+            },
+            "dominant_driver": dominant_driver,
+            "relative_direction": relative_direction,
+            "absolute_direction": absolute_direction,
+            "impact_layers": impact_layers,
+            "confidence": {
+                "causal_confidence": round(causal_confidence, 4),
+                "validation_confidence": round(validation_confidence, 4),
+            },
+        }
 
         return ModuleOutput(
             status=ModuleStatus.SUCCESS,
@@ -1273,6 +1566,21 @@ class ConductionMapper(EDTModule):
                 "confidence": mapping["confidence"],
                 "needs_manual_review": needs_manual_review,
                 "mapping_source": mapping.get("mapping_source", "rule"),
+                "causal_contract": causal_contract,
+                "expectation_gap": expectation_gap_contract,
+                "macro_factor": macro_factor,
+                "market_validation": {
+                    "status": market_validation_status,
+                    "evidence": market_validation_evidence,
+                },
+                "dominant_driver": dominant_driver,
+                "relative_direction": relative_direction,
+                "absolute_direction": absolute_direction,
+                "impact_layers": impact_layers,
+                "confidence_contract": causal_contract["confidence"],
+                "expectation_gap_contract": expectation_gap_contract,
+                "market_validation_evidence": market_validation_evidence,
+                "direction_contract": direction_contract,
                 "audit": {
                     "module": self.name,
                     "rule_version": "conduction_v1",

@@ -145,6 +145,22 @@ registry:
       - tests/test_execution_suggestion_policy_contract.py
       - tests/test_execution_suggestion_consumer_boundary.py
 
+  - name: PathQualityEvaluator
+    version: 1.0.0
+    category: 分析
+    description: "PR113 分析层路径质量评估（analysis-only，不接自动执行）"
+    output_schema: path_quality_eval.schema.json
+    dependencies: [SignalScorer, MarketValidator, ExecutionSuggestionBuilder]
+    config: path_quality_eval_policy.yaml
+    test_case: tests/test_path_quality_eval_schema.py
+    acceptance_case: tests/test_path_quality_eval_consumer_boundary.py
+    contract_artifacts:
+      - configs/path_quality_eval_policy.yaml
+      - schemas/path_quality_eval.schema.json
+      - tests/test_path_quality_eval_schema.py
+      - tests/test_path_quality_eval_policy_contract.py
+      - tests/test_path_quality_eval_consumer_boundary.py
+
   # ========== 执行层模块 ==========
   
   - name: LiquidityChecker

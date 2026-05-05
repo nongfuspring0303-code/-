@@ -25,6 +25,7 @@ from lifecycle_manager import LifecycleManager
 from market_validator import MarketValidator
 from opportunity_score import OpportunityScorer
 from execution_suggestion_builder import ExecutionSuggestionBuilder
+from path_quality_evaluator import PathQualityEvaluator
 from signal_scorer import SignalScorer
 from state_store import EventStateStore
 from workflow_runner import WorkflowRunner
@@ -49,6 +50,7 @@ class FullWorkflowRunner:
         self.scorer = SignalScorer(config_path=config_path)
         self.opportunity = OpportunityScorer()
         self.execution_suggestion_builder = ExecutionSuggestionBuilder()
+        self.path_quality_evaluator = PathQualityEvaluator()
         self.logs_dir = Path(audit_dir) if audit_dir else ROOT / "logs"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.execution = WorkflowRunner(audit_dir=str(self.logs_dir))
@@ -1012,6 +1014,36 @@ class FullWorkflowRunner:
                 stage="execution_suggestion",
                 status="failed",
                 details={"errors": execution_suggestion_out.errors},
+            )
+
+        raw_score = signal_out.get("score")
+        normalized_score = float(raw_score) / 100.0 if raw_score is not None else None
+
+        path_quality_in = {
+            "path_confidence": normalized_score,
+            "validation_checks": validation_out.get("checks"),
+            "relative_direction_score": signal_out.get("relative_direction_score"),
+            "absolute_direction": signal_out.get("absolute_direction"),
+            "driver_confidence": signal_out.get("driver_confidence"),
+            "gap_score": signal_out.get("gap_score"),
+            "execution_confidence": signal_out.get("execution_confidence"),
+        }
+        path_quality_out = self.path_quality_evaluator.run(path_quality_in)
+        if path_quality_out.status == ModuleStatus.SUCCESS:
+            analysis_out["path_quality_eval"] = path_quality_out.data
+        else:
+            analysis_out["path_quality_eval_status"] = "failed"
+            analysis_out["path_quality_eval_errors"] = path_quality_out.errors
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=11,
+                stage="path_quality_eval",
+                status="failed",
+                details={"errors": path_quality_out.errors},
             )
 
         # Build per-symbol price map for multi-opportunity scenarios

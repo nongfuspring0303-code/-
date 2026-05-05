@@ -62,6 +62,14 @@ jobs:
         run: |
           python -m pytest tests/test_causal_contract_schema.py tests/test_causal_contract_fields.py tests/test_causal_contract_consumer_boundary.py tests/test_causal_contract_config_runtime.py -q
 
+      - name: Run PR113 path-quality-eval contract tests
+        run: |
+          python -m pytest tests/test_path_quality_eval_schema.py tests/test_path_quality_eval_policy_contract.py tests/test_path_quality_eval_consumer_boundary.py -q
+
+      - name: Run PR113 path-quality-eval full-workflow tests
+        run: |
+          python -m pytest tests/test_full_workflow.py::test_full_workflow_path_quality_eval_failed_is_not_swallowed tests/test_full_workflow.py::test_full_workflow_path_quality_eval_missing_upstream_does_not_inject_empty tests/test_full_workflow.py::test_full_workflow_path_quality_eval_success_path -q
+
       - name: Run healthcheck
         run: |
           python scripts/system_healthcheck.py --mode dev

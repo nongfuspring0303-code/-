@@ -76,3 +76,61 @@ def test_full_workflow_emits_execution_suggestion_contract() -> None:
     out = FullWorkflowRunner().run(payload)
     suggestion = out["analysis"]["execution_suggestion"]
     jsonschema.validate(suggestion, schema)
+
+
+def test_execution_suggestion_score_boundary_breakout_at_80() -> None:
+    out = ExecutionSuggestionBuilder().run(
+        {
+            "score": 80,
+            "fatigue_score": 40,
+            "has_opportunity": True,
+            "market_validated": True,
+            "lifecycle_state": "Active",
+            "stale_event": {"is_stale": False},
+        }
+    )
+    assert out.status.value == "success"
+    assert out.data["trade_type"] == "breakout"
+
+
+def test_execution_suggestion_missing_score_fails() -> None:
+    out = ExecutionSuggestionBuilder().run(
+        {
+            "fatigue_score": 40,
+            "has_opportunity": True,
+            "market_validated": True,
+            "lifecycle_state": "Active",
+            "stale_event": {"is_stale": False},
+        }
+    )
+    assert out.status.value == "failed"
+    assert out.errors and out.errors[0]["code"] == "MISSING_CRITICAL_INPUT_SCORE"
+
+
+def test_execution_suggestion_missing_fatigue_score_fails() -> None:
+    out = ExecutionSuggestionBuilder().run(
+        {
+            "score": 75,
+            "has_opportunity": True,
+            "market_validated": True,
+            "lifecycle_state": "Active",
+            "stale_event": {"is_stale": False},
+        }
+    )
+    assert out.status.value == "failed"
+    assert out.errors and out.errors[0]["code"] == "MISSING_CRITICAL_INPUT_FATIGUE_SCORE"
+
+
+def test_execution_suggestion_intraday_only_path_reachable() -> None:
+    out = ExecutionSuggestionBuilder().run(
+        {
+            "score": 70,
+            "fatigue_score": 30,
+            "has_opportunity": True,
+            "market_validated": False,
+            "lifecycle_state": "Verified",
+            "stale_event": {"is_stale": False},
+        }
+    )
+    assert out.status.value == "success"
+    assert out.data["trade_type"] == "intraday_only"

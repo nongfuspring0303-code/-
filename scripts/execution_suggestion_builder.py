@@ -22,32 +22,43 @@ class ExecutionSuggestionBuilder(EDTModule):
     def __init__(self, config_path: Optional[str] = None):
         if not config_path:
             default_policy = Path(__file__).resolve().parent.parent / "configs" / "execution_suggestion_policy.yaml"
-            config_path = str(default_policy) if default_policy.exists() else None
+            if not default_policy.exists():
+                raise FileNotFoundError(f"execution_suggestion policy missing: {default_policy}")
+            config_path = str(default_policy)
+        else:
+            p = Path(config_path)
+            if not p.exists():
+                raise FileNotFoundError(f"execution_suggestion policy missing: {p}")
         super().__init__("ExecutionSuggestionBuilder", "1.0.0", config_path)
         self._load_policy()
 
     def _load_policy(self) -> None:
         policy = self.config if isinstance(self.config, dict) else {}
-        self.thresholds = policy.get(
-            "thresholds",
-            {
-                "breakout_min_score": 80,
-                "low_buy_min_score": 65,
-                "watch_min_score": 40,
-                "kill_switch_fatigue_min": 90,
-                "reduce_only_fatigue_min": 75,
-            },
-        )
-        self.position_bands = policy.get(
-            "position_bands",
-            {
-                "breakout": {"min": 0.30, "max": 0.60, "mode": "range"},
-                "low_buy": {"min": 0.15, "max": 0.35, "mode": "range"},
-                "watch": {"min": 0.00, "max": 0.00, "mode": "zero"},
-                "avoid": {"min": 0.00, "max": 0.00, "mode": "zero"},
-                "intraday_only": {"min": 0.10, "max": 0.25, "mode": "range"},
-            },
-        )
+        thresholds = policy.get("thresholds")
+        position_bands = policy.get("position_bands")
+        if not isinstance(thresholds, dict):
+            raise ValueError("execution_suggestion policy missing thresholds")
+        if not isinstance(position_bands, dict):
+            raise ValueError("execution_suggestion policy missing position_bands")
+
+        required_thresholds = {
+            "breakout_min_score",
+            "low_buy_min_score",
+            "watch_min_score",
+            "kill_switch_fatigue_min",
+            "reduce_only_fatigue_min",
+        }
+        missing_thresholds = sorted(required_thresholds - set(thresholds.keys()))
+        if missing_thresholds:
+            raise ValueError(f"execution_suggestion policy missing thresholds keys: {','.join(missing_thresholds)}")
+
+        required_trade_types = {"breakout", "low_buy", "intraday_only", "watch", "avoid"}
+        missing_bands = sorted(required_trade_types - set(position_bands.keys()))
+        if missing_bands:
+            raise ValueError(f"execution_suggestion policy missing position bands: {','.join(missing_bands)}")
+
+        self.thresholds = thresholds
+        self.position_bands = position_bands
 
     @staticmethod
     def _to_float(value: Any, default: float = 0.0) -> float:
@@ -56,10 +67,32 @@ class ExecutionSuggestionBuilder(EDTModule):
         except (TypeError, ValueError):
             return default
 
+    @staticmethod
+    def _required_float(raw: Dict[str, Any], key: str) -> tuple[float | None, str | None]:
+        value = raw.get(key)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None, f"missing_critical_input_{key}"
+        try:
+            return float(value), None
+        except (TypeError, ValueError):
+            return None, f"invalid_critical_input_{key}"
+
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
-        score = self._to_float(raw.get("score"), 0.0)
-        fatigue_score = self._to_float(raw.get("fatigue_score"), 0.0)
+        score, score_err = self._required_float(raw, "score")
+        if score_err:
+            return ModuleOutput(
+                status=ModuleStatus.FAILED,
+                data={},
+                errors=[{"code": "MISSING_CRITICAL_INPUT_SCORE", "message": score_err}],
+            )
+        fatigue_score, fatigue_err = self._required_float(raw, "fatigue_score")
+        if fatigue_err:
+            return ModuleOutput(
+                status=ModuleStatus.FAILED,
+                data={},
+                errors=[{"code": "MISSING_CRITICAL_INPUT_FATIGUE_SCORE", "message": fatigue_err}],
+            )
         has_opportunity = bool(raw.get("has_opportunity", False))
         market_validated = bool(raw.get("market_validated", False))
         lifecycle_state = str(raw.get("lifecycle_state") or "")
@@ -76,6 +109,8 @@ class ExecutionSuggestionBuilder(EDTModule):
             trade_type = "avoid"
         elif score >= breakout_min and market_validated:
             trade_type = "breakout"
+        elif score >= low_buy_min and lifecycle_state == "Verified" and not market_validated:
+            trade_type = "intraday_only"
         elif score >= low_buy_min:
             trade_type = "low_buy"
         else:
@@ -154,4 +189,3 @@ class ExecutionSuggestionBuilder(EDTModule):
             "overnight_allowed": overnight_allowed,
         }
         return ModuleOutput(status=ModuleStatus.SUCCESS, data=data)
-

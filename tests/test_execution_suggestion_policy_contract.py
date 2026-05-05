@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -61,3 +62,9 @@ def test_execution_suggestion_threshold_changes_affect_runtime_behavior(tmp_path
     assert out.status.value == "success"
     # With breakout threshold raised to 95, score=85 should no longer be breakout.
     assert out.data["trade_type"] == "low_buy"
+
+
+def test_execution_suggestion_policy_missing_file_fails_fast(tmp_path: Path) -> None:
+    missing = tmp_path / "missing_policy.yaml"
+    with pytest.raises(FileNotFoundError):
+        ExecutionSuggestionBuilder(config_path=str(missing))

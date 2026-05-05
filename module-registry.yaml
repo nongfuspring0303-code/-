@@ -128,6 +128,23 @@ registry:
     config: edt-modules-config.yaml
     test_case: tests/test_ai_signal_adapter.py
 
+  - name: ExecutionSuggestionBuilder
+    version: 1.0.0
+    category: 分析
+    description: "PR112 分析层执行建议（advisory-only，不接自动执行）"
+    input_schema: signal_scorer_output.json
+    output_schema: execution_suggestion.schema.json
+    dependencies: [SignalScorer, LifecycleManager, MarketValidator]
+    config: execution_suggestion_policy.yaml
+    test_case: tests/test_execution_suggestion_schema.py
+    acceptance_case: tests/test_execution_suggestion_consumer_boundary.py
+    contract_artifacts:
+      - configs/execution_suggestion_policy.yaml
+      - schemas/execution_suggestion.schema.json
+      - tests/test_execution_suggestion_schema.py
+      - tests/test_execution_suggestion_policy_contract.py
+      - tests/test_execution_suggestion_consumer_boundary.py
+
   # ========== 执行层模块 ==========
   
   - name: LiquidityChecker

@@ -1,0 +1,72 @@
+schema_version: stage6.path_quality_eval_policy.v1
+owner: member-c
+mode: analysis_only
+
+# ===== 7 evaluation dimensions =====
+dimensions:
+  - path_accuracy
+  - validation_accuracy
+  - direction_relative_accuracy
+  - direction_absolute_accuracy
+  - dominant_driver_accuracy
+  - expectation_gap_accuracy
+  - execution_decision_quality
+
+# ===== Per-dimension weights for composite score =====
+weights:
+  path_accuracy: 0.20
+  validation_accuracy: 0.20
+  direction_relative_accuracy: 0.10
+  direction_absolute_accuracy: 0.15
+  dominant_driver_accuracy: 0.10
+  expectation_gap_accuracy: 0.15
+  execution_decision_quality: 0.10
+
+# ===== Status scoring lookup =====
+status_scores:
+  confirmed: 1.00
+  partial: 0.60
+  missing: 0.40
+  not_confirmed: 0.20
+  conflicted: 0.00
+
+# ===== Direction scoring lookup =====
+absolute_direction_scores:
+  benefit: 1.00
+  hurt: 1.00
+  mixed: 0.50
+  uncertain: 0.20
+  watch: 0.40
+
+# ===== Score bands for quality grading =====
+grade_bands:
+  excellent:
+    min: 0.80
+    max: 1.00
+    label: "Excellent"
+  good:
+    min: 0.60
+    max: 0.80
+    label: "Good"
+  acceptable:
+    min: 0.40
+    max: 0.60
+    label: "Acceptable"
+  poor:
+    min: 0.20
+    max: 0.40
+    label: "Poor"
+  failed:
+    min: 0.00
+    max: 0.20
+    label: "Failed"
+
+# ===== Guardrails =====
+guardrails:
+  analysis_only: true
+  allow_runtime_consumer: false
+  blocked_consumers:
+    - workflow_runner
+    - gate
+    - final_action
+    - broker_execution_path

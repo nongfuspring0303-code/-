@@ -200,3 +200,105 @@ def test_full_workflow_builder_failed_is_not_swallowed():
     assert "execution_suggestion" not in analysis
     assert analysis.get("execution_suggestion_status") == "failed"
     assert analysis.get("execution_suggestion_errors") == [{"code": "FORCED_FAILED", "message": "forced test failure"}]
+
+
+def test_full_workflow_path_quality_eval_failed_is_not_swallowed():
+    runner = FullWorkflowRunner()
+
+    def _force_failed(_payload):
+        return ModuleOutput(
+            status=ModuleStatus.FAILED,
+            data={},
+            errors=[{"code": "FORCED_FAILED_PQE", "message": "forced pqe failure"}],
+        )
+
+    runner.path_quality_evaluator.run = _force_failed
+    out = runner.run(_base_payload_for_execution_suggestion())
+    analysis = out["analysis"]
+    assert "path_quality_eval" not in analysis
+    assert analysis.get("path_quality_eval_status") == "failed"
+    assert analysis.get("path_quality_eval_errors") == [{"code": "FORCED_FAILED_PQE", "message": "forced pqe failure"}]
+
+
+def test_full_workflow_path_quality_eval_missing_upstream_does_not_inject_empty():
+    """When upstream signals lack path_quality_eval inputs, the wiring must not inject empty dict."""
+    runner = FullWorkflowRunner()
+
+    original_run = runner.scorer.run
+
+    def _run_without_pqe_fields(payload):
+        out = original_run(payload)
+        data = dict(out.data)
+        # Remove fields that PathQualityEvaluator needs
+        data.pop("relative_direction_score", None)
+        data.pop("absolute_direction", None)
+        data.pop("driver_confidence", None)
+        data.pop("gap_score", None)
+        data.pop("execution_confidence", None)
+        return SimpleNamespace(data=data)
+
+    runner.scorer.run = _run_without_pqe_fields
+    out = runner.run(_base_payload_for_execution_suggestion())
+    analysis = out["analysis"]
+    # PathQualityEvaluator should FAIL because upstream inputs are missing
+    assert "path_quality_eval" not in analysis
+    assert analysis.get("path_quality_eval_status") == "failed"
+    assert analysis.get("path_quality_eval_errors")
+
+
+def test_full_workflow_path_quality_eval_success_path():
+    """Verify that a valid payload correctly produces a path_quality_eval payload without failing."""
+    runner = FullWorkflowRunner()
+
+    # We need to mock upstream signals to ensure all fields required by PathQualityEvaluator are present
+    original_run = runner.scorer.run
+    
+    def _run_with_perfect_pqe_fields(payload):
+        out = original_run(payload)
+        data = dict(out.data)
+        data["score"] = 85.0  # Normalized to 0.85
+        data["relative_direction_score"] = 0.9
+        data["absolute_direction"] = "benefit"
+        data["driver_confidence"] = 0.8
+        data["gap_score"] = 0.7
+        data["execution_confidence"] = 0.95
+        return SimpleNamespace(data=data, status=ModuleStatus.SUCCESS)
+
+    runner.scorer.run = _run_with_perfect_pqe_fields
+    
+    original_validation = runner.validation.run
+    def _run_with_perfect_validation(payload):
+        out = original_validation(payload)
+        data = dict(out.data)
+        data["checks"] = [
+            {"status": "confirmed", "weight": 0.5},
+            {"status": "partial", "weight": 0.5}
+        ]
+        return SimpleNamespace(data=data, status=ModuleStatus.SUCCESS)
+        
+    runner.validation.run = _run_with_perfect_validation
+
+    out = runner.run(_base_payload_for_execution_suggestion())
+    analysis = out["analysis"]
+    
+    # Must exist and be populated
+    assert "path_quality_eval" in analysis
+    assert "path_quality_eval_status" not in analysis or analysis["path_quality_eval_status"] != "failed"
+    
+    pqe = analysis["path_quality_eval"]
+    assert "path_accuracy" in pqe
+    assert "validation_accuracy" in pqe
+    assert "direction_relative_accuracy" in pqe
+    assert "direction_absolute_accuracy" in pqe
+    assert "dominant_driver_accuracy" in pqe
+    assert "expectation_gap_accuracy" in pqe
+    assert "execution_decision_quality" in pqe
+    assert "composite_score" in pqe
+    assert "grade" in pqe
+    
+    # Check normalization
+    assert pqe["path_accuracy"] == 0.85
+    
+    # Must not leak into execution
+    assert "path_quality_eval" not in out["execution"]
+

@@ -143,6 +143,100 @@ def test_pr111_stale_event_downgrades_active_to_exhaustion() -> None:
     assert out["stale_event"]["reason"] == "stale_without_market_validation"
 
 
+def test_pr111_stale_event_downgrades_continuation_to_exhaustion() -> None:
+    out = LifecycleManager().run(
+        {
+            "event_id": "ME-PR111-STALE-002",
+            "category": "A",
+            "severity": "E3",
+            "source_rank": "A",
+            "headline": "Continuation phase stalls without updates",
+            "detected_at": "2026-05-01T00:00:00Z",
+            "previous_lifecycle_state": "Continuation",
+            "elapsed_hours": 73,
+            "market_validated": True,
+            "has_material_update": False,
+            "is_official_confirmed": True,
+        }
+    ).data
+    assert out["stale_event"]["downgrade_applied"] is True
+    assert out["stale_event"]["downgrade_from"] == "Continuation"
+    assert out["stale_event"]["downgrade_to"] == "Exhaustion"
+    assert out["stale_event"]["reason"] == "stale_without_material_update"
+    assert out["lifecycle_state"] == out["stale_event"]["downgrade_to"]
+
+
+def test_pr111_stale_event_downgrades_detected_to_dead() -> None:
+    out = LifecycleManager().run(
+        {
+            "event_id": "ME-PR111-STALE-003",
+            "category": "A",
+            "severity": "E2",
+            "source_rank": "C",
+            "headline": "Rumor stays unconfirmed",
+            "detected_at": "2026-05-01T00:00:00Z",
+            "previous_lifecycle_state": "Detected",
+            "elapsed_hours": 25,
+            "market_validated": False,
+            "has_material_update": False,
+            "is_official_confirmed": False,
+        }
+    ).data
+    assert out["stale_event"]["downgrade_applied"] is True
+    assert out["stale_event"]["downgrade_from"] == "Detected"
+    assert out["stale_event"]["downgrade_to"] == "Dead"
+    assert out["stale_event"]["reason"] == "stale_without_confirmation"
+    assert out["lifecycle_state"] == out["stale_event"]["downgrade_to"]
+
+
+def test_pr111_stale_thresholds_follow_policy_config() -> None:
+    custom_policy = {
+        "schema_version": "stage6.lifecycle_fatigue_policy.v1",
+        "version": "1.0.0",
+        "lifecycle": {
+            "allowed_lifecycle_state": ["Detected", "Verified", "Active", "Continuation", "Exhaustion", "Dead", "Archived"],
+            "allowed_time_scale": ["intraday", "overnight", "multiweek", "none"],
+            "allowed_decay_profile": ["fast", "medium", "slow", "exhausted", "none"],
+            "time_scale_mapping": {"intraday": "intraday", "overnight": "overnight", "multiweek": "multiweek", "none": "none"},
+            "decay_profile_mapping": {"first_impulse": "fast", "continuation": "slow", "exhaustion": "exhausted", "dead": "none"},
+            "stale_event": {
+                "active_without_market_validation_hours": 72,
+                "continuation_without_material_update_hours": 72,
+                "detected_without_confirmation_hours": 24,
+                "downgrade_targets": {"Active": "Exhaustion", "Continuation": "Exhaustion", "Detected": "Dead"},
+                "allowed_reasons": [
+                    "not_stale",
+                    "stale_without_market_validation",
+                    "stale_without_material_update",
+                    "stale_without_confirmation",
+                    "contradicted_by_new_fact",
+                    "manual_archive",
+                ],
+            },
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmpdir:
+        policy_path = Path(tmpdir) / "lifecycle_policy.yaml"
+        policy_path.write_text(yaml.safe_dump(custom_policy, sort_keys=False), encoding="utf-8")
+        out = LifecycleManager(config_path=str(policy_path)).run(
+            {
+                "event_id": "ME-PR111-STALE-004",
+                "category": "A",
+                "severity": "E3",
+                "source_rank": "A",
+                "headline": "Policy signal fades without market follow-through",
+                "detected_at": "2026-05-01T00:00:00Z",
+                "previous_lifecycle_state": "Active",
+                "elapsed_hours": 49,
+                "market_validated": False,
+                "has_material_update": False,
+                "is_official_confirmed": True,
+            }
+        ).data
+    assert out["stale_event"]["downgrade_applied"] is False
+    assert out["stale_event"]["reason"] == "not_stale"
+
+
 def test_full_workflow_emits_lifecycle_fatigue_contract_and_validates_schema(tmp_path: Path) -> None:
     logs_dir = tmp_path / "logs"
     state_db = tmp_path / "state.db"

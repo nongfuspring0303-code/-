@@ -95,7 +95,7 @@ class LifecycleManager(EDTModule):
                 return False, f"Missing required field: {key}"
         return True, None
 
-    def _internal_to_legacy(self, internal_state: str, contradicted: bool, market_validated: bool, elapsed_hours: float) -> str:
+    def _internal_to_legacy(self, internal_state: str, contradicted: bool) -> str:
         """内部状态映射到历史 lifecycle_state，保证下游兼容。"""
         if contradicted:
             return "Dead"
@@ -112,12 +112,23 @@ class LifecycleManager(EDTModule):
             "Reviewed": "Archived",
         }
 
-        legacy = mapping.get(internal_state, "Detected")
+        return mapping.get(internal_state, "Detected")
 
-        # 兼容旧规则：长时间未验证的活跃状态可退化为 Exhaustion
-        if legacy in {"Active", "Continuation"} and elapsed_hours >= 48 and not market_validated:
-            return "Exhaustion"
-        return legacy
+    @staticmethod
+    def _view_by_legacy_state(legacy_state: str) -> tuple[str, str, str]:
+        if legacy_state == "Dead":
+            return "dead", "blocked", "none"
+        if legacy_state == "Exhaustion":
+            return "exhaustion", "watch", "none"
+        if legacy_state == "Continuation":
+            return "continuation", "tradable", "multiweek"
+        if legacy_state == "Active":
+            return "first_impulse", "tradable", "overnight"
+        if legacy_state == "Verified":
+            return "first_impulse", "watch", "intraday"
+        if legacy_state == "Archived":
+            return "dead", "archive_only", "none"
+        return "first_impulse", "watch", "intraday"
 
     def _build_internal_state(self, raw: Dict[str, Any]) -> tuple[str, str]:
         """判定内部统一状态，并返回原因。"""
@@ -148,8 +159,6 @@ class LifecycleManager(EDTModule):
             return "Reviewed", "复盘已完成，进入终态"
 
         # 兼容旧生命周期推进规则（保障现有链路无破坏）
-        if previous_lifecycle in {"Active", "Continuation"} and elapsed_hours >= 48 and not material_update and not market_validated:
-            return "Monitored", "超过时间窗口且边际反应减弱，进入监控衰减"
         if previous_lifecycle in {"Active", "Continuation"} and official and market_validated and elapsed_hours >= 24 and material_update:
             return "Executed", "确认后持续发酵，延续阶段保持可交易"
         if close_conditions_met:
@@ -186,39 +195,7 @@ class LifecycleManager(EDTModule):
         previous_lifecycle = str(raw.get("previous_lifecycle_state") or "")
 
         internal_state, reason = self._build_internal_state(raw)
-        legacy_state = self._internal_to_legacy(internal_state, contradicted, market_validated, elapsed_hours)
-
-        if legacy_state == "Dead":
-            catalyst_state = "dead"
-            trade_eligibility = "blocked"
-            holding_horizon = "none"
-        elif legacy_state == "Exhaustion":
-            catalyst_state = "exhaustion"
-            trade_eligibility = "watch"
-            holding_horizon = "none"
-        elif legacy_state == "Continuation":
-            catalyst_state = "continuation"
-            trade_eligibility = "tradable"
-            holding_horizon = "multiweek"
-        elif legacy_state == "Active":
-            catalyst_state = "first_impulse"
-            trade_eligibility = "tradable"
-            holding_horizon = "overnight"
-        elif legacy_state == "Verified":
-            catalyst_state = "first_impulse"
-            trade_eligibility = "watch"
-            holding_horizon = "intraday"
-        elif legacy_state == "Archived":
-            catalyst_state = "dead"
-            trade_eligibility = "archive_only"
-            holding_horizon = "none"
-        else:
-            catalyst_state = "first_impulse"
-            trade_eligibility = "watch"
-            holding_horizon = "intraday"
-
-        time_scale = str(self.time_scale_mapping.get(holding_horizon, "none"))
-        decay_profile = str(self.decay_profile_mapping.get(catalyst_state, "none"))
+        legacy_state = self._internal_to_legacy(internal_state, contradicted)
 
         stale_event = {
             "is_stale": False,
@@ -275,6 +252,12 @@ class LifecycleManager(EDTModule):
             )
         if stale_event["reason"] not in self.stale_allowed_reasons:
             stale_event["reason"] = "manual_archive"
+        if stale_event["downgrade_applied"] and stale_event["downgrade_to"]:
+            legacy_state = str(stale_event["downgrade_to"])
+
+        catalyst_state, trade_eligibility, holding_horizon = self._view_by_legacy_state(legacy_state)
+        time_scale = str(self.time_scale_mapping.get(holding_horizon, "none"))
+        decay_profile = str(self.decay_profile_mapping.get(catalyst_state, "none"))
 
         next_review_at = (
             datetime.now(timezone.utc) + timedelta(hours=1 if legacy_state in {"Detected", "Verified"} else 4)

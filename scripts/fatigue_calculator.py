@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional
+import yaml
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 
@@ -39,16 +40,34 @@ class FatigueCalculator(EDTModule):
             self.watch_mode_threshold = self.config.get("watch_mode_threshold", 85)
             self.dead_event_reset_days = self.config.get("dead_event_reset_days", 30)
             self.take_profit_penalty_factor = self.config.get("take_profit_penalty_factor", 0.5)
+        self._load_bucket_thresholds()
 
-    @staticmethod
-    def _fatigue_bucket(score: int) -> str:
-        if score >= 85:
+    def _load_bucket_thresholds(self) -> None:
+        default = {"critical_min": 85, "high_min": 70, "medium_min": 40, "low_min": 1}
+        thresholds = {}
+        if isinstance(self.config, dict):
+            thresholds = dict((self.config.get("fatigue") or {}).get("bucket_thresholds", {}) or {})
+        if not thresholds:
+            policy_path = Path(__file__).resolve().parent.parent / "configs" / "lifecycle_fatigue_contract_policy.yaml"
+            if policy_path.exists():
+                policy = yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
+                thresholds = dict(((policy.get("fatigue") or {}).get("bucket_thresholds", {}) or {}))
+        merged = {**default, **thresholds}
+        self.bucket_thresholds = {
+            "critical_min": int(merged.get("critical_min", 85)),
+            "high_min": int(merged.get("high_min", 70)),
+            "medium_min": int(merged.get("medium_min", 40)),
+            "low_min": int(merged.get("low_min", 1)),
+        }
+
+    def _fatigue_bucket(self, score: int) -> str:
+        if score >= self.bucket_thresholds["critical_min"]:
             return "critical"
-        if score >= 70:
+        if score >= self.bucket_thresholds["high_min"]:
             return "high"
-        if score >= 40:
+        if score >= self.bucket_thresholds["medium_min"]:
             return "medium"
-        if score > 0:
+        if score >= self.bucket_thresholds["low_min"]:
             return "low"
         return "none"
 

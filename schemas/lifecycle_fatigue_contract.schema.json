@@ -9,7 +9,8 @@
     "time_scale",
     "decay_profile",
     "fatigue_score",
-    "fatigue_bucket"
+    "fatigue_bucket",
+    "stale_event"
   ],
   "properties": {
     "schema_version": {
@@ -44,6 +45,38 @@
     "fatigue_bucket": {
       "type": "string",
       "enum": ["none", "low", "medium", "high", "critical"]
+    },
+    "stale_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "is_stale",
+        "downgrade_applied",
+        "downgrade_from",
+        "downgrade_to",
+        "reason",
+        "elapsed_hours",
+        "threshold_hours"
+      ],
+      "properties": {
+        "is_stale": { "type": "boolean" },
+        "downgrade_applied": { "type": "boolean" },
+        "downgrade_from": { "type": ["string", "null"] },
+        "downgrade_to": { "type": ["string", "null"] },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "not_stale",
+            "stale_without_market_validation",
+            "stale_without_material_update",
+            "stale_without_confirmation",
+            "contradicted_by_new_fact",
+            "manual_archive"
+          ]
+        },
+        "elapsed_hours": { "type": "number" },
+        "threshold_hours": { "type": "number" }
+      }
     }
   }
 }

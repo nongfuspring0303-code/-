@@ -11,6 +11,7 @@ C1 升级目标：
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
@@ -48,22 +49,44 @@ class LifecycleManager(EDTModule):
         "dead",
     }
 
-    TIME_SCALE_BY_HORIZON = {
-        "intraday": "intraday",
-        "overnight": "overnight",
-        "multiweek": "multiweek",
-        "none": "none",
-    }
-
-    DECAY_BY_CATALYST = {
-        "first_impulse": "fast",
-        "continuation": "slow",
-        "exhaustion": "exhausted",
-        "dead": "none",
-    }
-
     def __init__(self, config_path: Optional[str] = None):
+        if not config_path:
+            default_policy = Path(__file__).resolve().parent.parent / "configs" / "lifecycle_fatigue_contract_policy.yaml"
+            config_path = str(default_policy) if default_policy.exists() else None
         super().__init__("LifecycleManager", "1.1.0", config_path)
+        self._load_contract_policy()
+
+    def _load_contract_policy(self) -> None:
+        lifecycle_cfg = self.config.get("lifecycle", {}) if isinstance(self.config, dict) else {}
+        self.time_scale_mapping = lifecycle_cfg.get(
+            "time_scale_mapping",
+            {"intraday": "intraday", "overnight": "overnight", "multiweek": "multiweek", "none": "none"},
+        )
+        self.decay_profile_mapping = lifecycle_cfg.get(
+            "decay_profile_mapping",
+            {"first_impulse": "fast", "continuation": "slow", "exhaustion": "exhausted", "dead": "none"},
+        )
+        stale_cfg = lifecycle_cfg.get("stale_event", {})
+        self.stale_active_hours = float(stale_cfg.get("active_without_market_validation_hours", 48))
+        self.stale_continuation_hours = float(stale_cfg.get("continuation_without_material_update_hours", 72))
+        self.stale_detected_hours = float(stale_cfg.get("detected_without_confirmation_hours", 24))
+        self.stale_targets = stale_cfg.get(
+            "downgrade_targets",
+            {"Active": "Exhaustion", "Continuation": "Exhaustion", "Detected": "Dead"},
+        )
+        self.stale_allowed_reasons = set(
+            stale_cfg.get(
+                "allowed_reasons",
+                [
+                    "not_stale",
+                    "stale_without_market_validation",
+                    "stale_without_material_update",
+                    "stale_without_confirmation",
+                    "contradicted_by_new_fact",
+                    "manual_archive",
+                ],
+            )
+        )
 
     def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         required = ["event_id", "category", "severity", "source_rank", "detected_at"]
@@ -158,6 +181,9 @@ class LifecycleManager(EDTModule):
         elapsed_hours = float(raw.get("elapsed_hours", 0))
         contradicted = bool(raw.get("contradicted_by_new_fact", False))
         market_validated = bool(raw.get("market_validated", False))
+        material_update = bool(raw.get("has_material_update", False))
+        official = bool(raw.get("is_official_confirmed", False))
+        previous_lifecycle = str(raw.get("previous_lifecycle_state") or "")
 
         internal_state, reason = self._build_internal_state(raw)
         legacy_state = self._internal_to_legacy(internal_state, contradicted, market_validated, elapsed_hours)
@@ -191,8 +217,64 @@ class LifecycleManager(EDTModule):
             trade_eligibility = "watch"
             holding_horizon = "intraday"
 
-        time_scale = self.TIME_SCALE_BY_HORIZON.get(holding_horizon, "none")
-        decay_profile = self.DECAY_BY_CATALYST.get(catalyst_state, "none")
+        time_scale = str(self.time_scale_mapping.get(holding_horizon, "none"))
+        decay_profile = str(self.decay_profile_mapping.get(catalyst_state, "none"))
+
+        stale_event = {
+            "is_stale": False,
+            "downgrade_applied": False,
+            "downgrade_from": None,
+            "downgrade_to": None,
+            "reason": "not_stale",
+            "elapsed_hours": elapsed_hours,
+            "threshold_hours": 0.0,
+        }
+        if contradicted:
+            stale_event.update(
+                {
+                    "is_stale": True,
+                    "downgrade_applied": True,
+                    "downgrade_from": previous_lifecycle or None,
+                    "downgrade_to": legacy_state,
+                    "reason": "contradicted_by_new_fact",
+                    "threshold_hours": 0.0,
+                }
+            )
+        elif previous_lifecycle == "Active" and elapsed_hours >= self.stale_active_hours and not market_validated:
+            stale_event.update(
+                {
+                    "is_stale": True,
+                    "downgrade_applied": True,
+                    "downgrade_from": "Active",
+                    "downgrade_to": str(self.stale_targets.get("Active", "Exhaustion")),
+                    "reason": "stale_without_market_validation",
+                    "threshold_hours": self.stale_active_hours,
+                }
+            )
+        elif previous_lifecycle == "Continuation" and elapsed_hours >= self.stale_continuation_hours and not material_update:
+            stale_event.update(
+                {
+                    "is_stale": True,
+                    "downgrade_applied": True,
+                    "downgrade_from": "Continuation",
+                    "downgrade_to": str(self.stale_targets.get("Continuation", "Exhaustion")),
+                    "reason": "stale_without_material_update",
+                    "threshold_hours": self.stale_continuation_hours,
+                }
+            )
+        elif previous_lifecycle == "Detected" and elapsed_hours >= self.stale_detected_hours and not official:
+            stale_event.update(
+                {
+                    "is_stale": True,
+                    "downgrade_applied": True,
+                    "downgrade_from": "Detected",
+                    "downgrade_to": str(self.stale_targets.get("Detected", "Dead")),
+                    "reason": "stale_without_confirmation",
+                    "threshold_hours": self.stale_detected_hours,
+                }
+            )
+        if stale_event["reason"] not in self.stale_allowed_reasons:
+            stale_event["reason"] = "manual_archive"
 
         next_review_at = (
             datetime.now(timezone.utc) + timedelta(hours=1 if legacy_state in {"Detected", "Verified"} else 4)
@@ -210,6 +292,7 @@ class LifecycleManager(EDTModule):
                 "holding_horizon": holding_horizon,
                 "time_scale": time_scale,
                 "decay_profile": decay_profile,
+                "stale_event": stale_event,
                 "transition_reason": reason,
                 "next_review_at": next_review_at,
                 "needs_manual_review": False,
@@ -223,7 +306,7 @@ class LifecycleManager(EDTModule):
                 "audit": {
                     "module": self.name,
                     "rule_version": "lifecycle_v1.1",
-                    "decision_trace": [internal_state, legacy_state, catalyst_state, trade_eligibility, time_scale, decay_profile],
+                    "decision_trace": [internal_state, legacy_state, catalyst_state, trade_eligibility, time_scale, decay_profile, stale_event["reason"]],
                 },
             },
         )

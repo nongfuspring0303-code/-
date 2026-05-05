@@ -949,6 +949,7 @@ class FullWorkflowRunner:
                 "decay_profile": lifecycle_out.get("decay_profile"),
                 "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final")),
                 "fatigue_bucket": fatigue_out.get("fatigue_bucket"),
+                "stale_event": lifecycle_out.get("stale_event"),
             },
         }
 

@@ -21,6 +21,31 @@ lifecycle:
     - slow
     - exhausted
     - none
+  time_scale_mapping:
+    intraday: intraday
+    overnight: overnight
+    multiweek: multiweek
+    none: none
+  decay_profile_mapping:
+    first_impulse: fast
+    continuation: slow
+    exhaustion: exhausted
+    dead: none
+  stale_event:
+    active_without_market_validation_hours: 48
+    continuation_without_material_update_hours: 72
+    detected_without_confirmation_hours: 24
+    downgrade_targets:
+      Active: Exhaustion
+      Continuation: Exhaustion
+      Detected: Dead
+    allowed_reasons:
+      - not_stale
+      - stale_without_market_validation
+      - stale_without_material_update
+      - stale_without_confirmation
+      - contradicted_by_new_fact
+      - manual_archive
 
 fatigue:
   allowed_fatigue_bucket:
@@ -32,3 +57,8 @@ fatigue:
   score_range:
     min: 0
     max: 100
+  bucket_thresholds:
+    critical_min: 85
+    high_min: 70
+    medium_min: 40
+    low_min: 1

@@ -24,10 +24,12 @@ from intel_modules import IntelPipeline
 from lifecycle_manager import LifecycleManager
 from market_validator import MarketValidator
 from opportunity_score import OpportunityScorer
+from execution_suggestion_builder import ExecutionSuggestionBuilder
 from signal_scorer import SignalScorer
 from state_store import EventStateStore
 from workflow_runner import WorkflowRunner
 from transmission_engine.core.path_adjudicator import PathAdjudicator
+from edt_module_base import ModuleStatus
 
 
 class FullWorkflowRunner:
@@ -46,6 +48,7 @@ class FullWorkflowRunner:
         self.path_adjudicator = PathAdjudicator(config_path=config_path)
         self.scorer = SignalScorer(config_path=config_path)
         self.opportunity = OpportunityScorer()
+        self.execution_suggestion_builder = ExecutionSuggestionBuilder()
         self.logs_dir = Path(audit_dir) if audit_dir else ROOT / "logs"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.execution = WorkflowRunner(audit_dir=str(self.logs_dir))
@@ -984,6 +987,33 @@ class FullWorkflowRunner:
         if selected_opp is None and opportunities:
             selected_opp = opportunities[0]
         primary_decision_price = selected_opp.get("decision_price") if selected_opp else None
+
+        execution_suggestion_in = {
+            "score": signal_out.get("score"),
+            "fatigue_score": fatigue_out.get("fatigue_score"),
+            "has_opportunity": has_opportunity,
+            "market_validated": validation_out.get("a1_market_validation") == "pass",
+            "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
+            "stale_event": lifecycle_out.get("stale_event", {}),
+        }
+        execution_suggestion_out = self.execution_suggestion_builder.run(execution_suggestion_in)
+        if execution_suggestion_out.status == ModuleStatus.SUCCESS:
+            analysis_out["execution_suggestion"] = execution_suggestion_out.data
+        else:
+            analysis_out["execution_suggestion_status"] = "failed"
+            analysis_out["execution_suggestion_errors"] = execution_suggestion_out.errors
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=10,
+                stage="execution_suggestion",
+                status="failed",
+                details={"errors": execution_suggestion_out.errors},
+            )
+
         # Build per-symbol price map for multi-opportunity scenarios
         decision_prices_by_symbol: Dict[str, Dict[str, Any]] = {}
         for opp in opportunities:

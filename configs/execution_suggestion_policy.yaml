@@ -1,0 +1,48 @@
+schema_version: stage6.execution_suggestion_policy.v1
+owner: member-c
+mode: advisory_only
+
+allowed_values:
+  trade_type: ["low_buy", "breakout", "intraday_only", "avoid", "watch"]
+  risk_switch: ["no_trade", "reduce_only", "kill_switch", "normal"]
+  overnight_allowed: ["true", "false", "conditional"]
+  entry_timing_window: ["breakout_confirm", "pullback_confirm", "next_day_watch", "none"]
+  stop_condition_kind: ["price_stop", "time_stop", "event_stop", "invalidation_stop"]
+
+thresholds:
+  breakout_min_score: 80
+  low_buy_min_score: 65
+  watch_min_score: 40
+  kill_switch_fatigue_min: 90
+  reduce_only_fatigue_min: 75
+
+position_bands:
+  breakout:
+    mode: range
+    min: 0.30
+    max: 0.60
+  low_buy:
+    mode: range
+    min: 0.15
+    max: 0.35
+  intraday_only:
+    mode: range
+    min: 0.10
+    max: 0.25
+  watch:
+    mode: zero
+    min: 0.00
+    max: 0.00
+  avoid:
+    mode: zero
+    min: 0.00
+    max: 0.00
+
+guardrails:
+  advisory_only: true
+  allow_runtime_consumer: false
+  blocked_consumers:
+    - workflow_runner
+    - gate
+    - final_action
+    - broker_execution_path

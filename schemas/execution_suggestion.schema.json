@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Stage6 Execution Suggestion (Advisory Only)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trade_type",
+    "position_sizing",
+    "entry_timing",
+    "risk_switch",
+    "stop_condition",
+    "overnight_allowed"
+  ],
+  "properties": {
+    "trade_type": {
+      "type": "string",
+      "enum": ["low_buy", "breakout", "intraday_only", "avoid", "watch"]
+    },
+    "position_sizing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "suggested_pct_min", "suggested_pct_max", "note"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["zero", "range", "fixed"]
+        },
+        "suggested_pct_min": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "suggested_pct_max": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "entry_timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["window", "trigger"],
+      "properties": {
+        "window": {
+          "type": "string",
+          "enum": ["breakout_confirm", "pullback_confirm", "next_day_watch", "none"]
+        },
+        "trigger": { "type": "string" }
+      }
+    },
+    "risk_switch": {
+      "type": "string",
+      "enum": ["no_trade", "reduce_only", "kill_switch", "normal"]
+    },
+    "stop_condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "rule"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["price_stop", "time_stop", "event_stop", "invalidation_stop"]
+        },
+        "rule": { "type": "string" }
+      }
+    },
+    "overnight_allowed": {
+      "type": "string",
+      "enum": ["true", "false", "conditional"]
+    }
+  }
+}

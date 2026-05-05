@@ -50,6 +50,10 @@ jobs:
         run: |
           python -m pytest tests/test_pr111_lifecycle_fatigue_contract.py -q
 
+      - name: Run PR112 execution-suggestion contract tests
+        run: |
+          python -m pytest tests/test_execution_suggestion_schema.py tests/test_execution_suggestion_policy_contract.py tests/test_execution_suggestion_consumer_boundary.py -q
+
       - name: Run PR110 causal contract tests
         run: |
           python -m pytest tests/test_causal_contract_schema.py tests/test_causal_contract_fields.py tests/test_causal_contract_consumer_boundary.py tests/test_causal_contract_config_runtime.py -q

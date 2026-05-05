@@ -19,6 +19,13 @@ from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 class ExecutionSuggestionBuilder(EDTModule):
     """Build advisory execution suggestions from analysis signals."""
 
+    @staticmethod
+    def _as_float(value: Any, name: str) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"execution_suggestion policy invalid numeric value for {name}")
+
     def __init__(self, config_path: Optional[str] = None):
         if not config_path:
             default_policy = Path(__file__).resolve().parent.parent / "configs" / "execution_suggestion_policy.yaml"
@@ -57,15 +64,54 @@ class ExecutionSuggestionBuilder(EDTModule):
         if missing_bands:
             raise ValueError(f"execution_suggestion policy missing position bands: {','.join(missing_bands)}")
 
-        self.thresholds = thresholds
-        self.position_bands = position_bands
+        # Strict numeric + range checks (single source of truth, fail-fast)
+        breakout_min = self._as_float(thresholds.get("breakout_min_score"), "thresholds.breakout_min_score")
+        low_buy_min = self._as_float(thresholds.get("low_buy_min_score"), "thresholds.low_buy_min_score")
+        watch_min = self._as_float(thresholds.get("watch_min_score"), "thresholds.watch_min_score")
+        kill_switch_min = self._as_float(
+            thresholds.get("kill_switch_fatigue_min"), "thresholds.kill_switch_fatigue_min"
+        )
+        reduce_only_min = self._as_float(
+            thresholds.get("reduce_only_fatigue_min"), "thresholds.reduce_only_fatigue_min"
+        )
+        for name, v in {
+            "breakout_min_score": breakout_min,
+            "low_buy_min_score": low_buy_min,
+            "watch_min_score": watch_min,
+            "kill_switch_fatigue_min": kill_switch_min,
+            "reduce_only_fatigue_min": reduce_only_min,
+        }.items():
+            if not (0.0 <= v <= 100.0):
+                raise ValueError(f"execution_suggestion policy {name} out of range [0,100]")
+        if not (breakout_min >= low_buy_min >= watch_min):
+            raise ValueError("execution_suggestion policy thresholds must satisfy breakout >= low_buy >= watch")
+        if kill_switch_min < reduce_only_min:
+            raise ValueError("execution_suggestion policy requires kill_switch_fatigue_min >= reduce_only_fatigue_min")
 
-    @staticmethod
-    def _to_float(value: Any, default: float = 0.0) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
+        validated_bands: Dict[str, Dict[str, Any]] = {}
+        for trade_type in required_trade_types:
+            cfg = position_bands.get(trade_type)
+            if not isinstance(cfg, dict):
+                raise ValueError(f"execution_suggestion policy band for {trade_type} must be an object")
+            mode = str(cfg.get("mode", "")).strip()
+            if mode not in {"zero", "range", "fixed"}:
+                raise ValueError(f"execution_suggestion policy band mode invalid for {trade_type}")
+            min_v = self._as_float(cfg.get("min"), f"position_bands.{trade_type}.min")
+            max_v = self._as_float(cfg.get("max"), f"position_bands.{trade_type}.max")
+            if not (0.0 <= min_v <= 1.0 and 0.0 <= max_v <= 1.0):
+                raise ValueError(f"execution_suggestion policy band range invalid for {trade_type}")
+            if min_v > max_v:
+                raise ValueError(f"execution_suggestion policy band min>max for {trade_type}")
+            validated_bands[trade_type] = {"mode": mode, "min": min_v, "max": max_v}
+
+        self.thresholds = {
+            "breakout_min_score": breakout_min,
+            "low_buy_min_score": low_buy_min,
+            "watch_min_score": watch_min,
+            "kill_switch_fatigue_min": kill_switch_min,
+            "reduce_only_fatigue_min": reduce_only_min,
+        }
+        self.position_bands = validated_bands
 
     @staticmethod
     def _required_float(raw: Dict[str, Any], key: str) -> tuple[float | None, str | None]:
@@ -99,11 +145,11 @@ class ExecutionSuggestionBuilder(EDTModule):
         stale_event = raw.get("stale_event") if isinstance(raw.get("stale_event"), dict) else {}
         is_stale = bool(stale_event.get("is_stale", False))
 
-        breakout_min = self._to_float(self.thresholds.get("breakout_min_score"), 80)
-        low_buy_min = self._to_float(self.thresholds.get("low_buy_min_score"), 65)
-        watch_min = self._to_float(self.thresholds.get("watch_min_score"), 40)
-        kill_switch_min = self._to_float(self.thresholds.get("kill_switch_fatigue_min"), 90)
-        reduce_only_min = self._to_float(self.thresholds.get("reduce_only_fatigue_min"), 75)
+        breakout_min = self.thresholds["breakout_min_score"]
+        low_buy_min = self.thresholds["low_buy_min_score"]
+        watch_min = self.thresholds["watch_min_score"]
+        kill_switch_min = self.thresholds["kill_switch_fatigue_min"]
+        reduce_only_min = self.thresholds["reduce_only_fatigue_min"]
 
         if (is_stale and not market_validated) or score < watch_min or not has_opportunity:
             trade_type = "avoid"
@@ -128,16 +174,16 @@ class ExecutionSuggestionBuilder(EDTModule):
         if risk_switch in {"no_trade", "kill_switch"}:
             trade_type = "avoid"
 
-        band = self.position_bands.get(trade_type, {"min": 0.0, "max": 0.0, "mode": "zero"})
+        band = self.position_bands[trade_type]
         if risk_switch == "reduce_only":
-            pct_min = max(0.0, self._to_float(band.get("min"), 0.0) * 0.5)
-            pct_max = max(pct_min, self._to_float(band.get("max"), 0.0) * 0.5)
+            pct_min = max(0.0, float(band["min"]) * 0.5)
+            pct_max = max(pct_min, float(band["max"]) * 0.5)
         elif risk_switch in {"no_trade", "kill_switch"}:
             pct_min = 0.0
             pct_max = 0.0
         else:
-            pct_min = max(0.0, self._to_float(band.get("min"), 0.0))
-            pct_max = max(pct_min, self._to_float(band.get("max"), 0.0))
+            pct_min = max(0.0, float(band["min"]))
+            pct_max = max(pct_min, float(band["max"]))
 
         if trade_type == "breakout":
             entry_window = "breakout_confirm"
@@ -172,7 +218,7 @@ class ExecutionSuggestionBuilder(EDTModule):
         data = {
             "trade_type": trade_type,
             "position_sizing": {
-                "mode": str(band.get("mode", "zero")),
+                "mode": str(band["mode"]),
                 "suggested_pct_min": round(pct_min, 4),
                 "suggested_pct_max": round(pct_max, 4),
                 "note": "advisory_only_human_review",

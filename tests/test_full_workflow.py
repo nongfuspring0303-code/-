@@ -3,11 +3,13 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from full_workflow_runner import FullWorkflowRunner
+from edt_module_base import ModuleOutput, ModuleStatus
 
 
 def test_full_workflow_execute():
@@ -125,3 +127,76 @@ def test_stage1_evidence_logs_written_with_trace_id(tmp_path):
         assert emit_record["event_hash"] == raw_record["event_hash"]
     else:
         assert not emit_lines
+
+
+def _base_payload_for_execution_suggestion():
+    return {
+        "headline": "Fed announces emergency liquidity action after tariff shock",
+        "source": "https://www.reuters.com/markets/us/example",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "vix": 24,
+        "vix_change_pct": 20,
+        "spx_move_pct": 1.8,
+        "sector_move_pct": 3.0,
+        "sequence": 1,
+        "account_equity": 100000,
+        "entry_price": 100.0,
+        "risk_per_share": 2.0,
+        "direction": "long",
+    }
+
+
+def test_full_workflow_missing_score_does_not_silent_fallback():
+    runner = FullWorkflowRunner()
+
+    original_run = runner.scorer.run
+
+    def _run_without_score(payload):
+        out = original_run(payload)
+        data = dict(out.data)
+        data.pop("score", None)
+        return SimpleNamespace(data=data)
+
+    runner.scorer.run = _run_without_score
+    out = runner.run(_base_payload_for_execution_suggestion())
+    analysis = out["analysis"]
+    assert "execution_suggestion" not in analysis
+    assert analysis.get("execution_suggestion_status") == "failed"
+    assert analysis.get("execution_suggestion_errors")
+
+
+def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():
+    runner = FullWorkflowRunner()
+
+    original_run = runner.fatigue.run
+
+    def _run_without_fatigue_score(payload):
+        out = original_run(payload)
+        data = dict(out.data)
+        data.pop("fatigue_score", None)
+        return SimpleNamespace(data=data)
+
+    runner.fatigue.run = _run_without_fatigue_score
+    out = runner.run(_base_payload_for_execution_suggestion())
+    analysis = out["analysis"]
+    assert "execution_suggestion" not in analysis
+    assert analysis.get("execution_suggestion_status") == "failed"
+    assert analysis.get("execution_suggestion_errors")
+
+
+def test_full_workflow_builder_failed_is_not_swallowed():
+    runner = FullWorkflowRunner()
+
+    def _force_failed(_payload):
+        return ModuleOutput(
+            status=ModuleStatus.FAILED,
+            data={},
+            errors=[{"code": "FORCED_FAILED", "message": "forced test failure"}],
+        )
+
+    runner.execution_suggestion_builder.run = _force_failed
+    out = runner.run(_base_payload_for_execution_suggestion())
+    analysis = out["analysis"]
+    assert "execution_suggestion" not in analysis
+    assert analysis.get("execution_suggestion_status") == "failed"
+    assert analysis.get("execution_suggestion_errors") == [{"code": "FORCED_FAILED", "message": "forced test failure"}]

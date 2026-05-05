@@ -68,3 +68,24 @@ def test_execution_suggestion_policy_missing_file_fails_fast(tmp_path: Path) -> 
     missing = tmp_path / "missing_policy.yaml"
     with pytest.raises(FileNotFoundError):
         ExecutionSuggestionBuilder(config_path=str(missing))
+
+
+def test_execution_suggestion_policy_invalid_threshold_value_fails(tmp_path: Path) -> None:
+    policy = _load_policy()
+    policy["thresholds"]["breakout_min_score"] = "bad-number"
+    policy_path = tmp_path / "bad_threshold_policy.yaml"
+    policy_path.write_text(yaml.safe_dump(policy, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        ExecutionSuggestionBuilder(config_path=str(policy_path))
+
+
+def test_execution_suggestion_policy_invalid_band_value_fails(tmp_path: Path) -> None:
+    policy = _load_policy()
+    policy["position_bands"]["breakout"]["min"] = 0.8
+    policy["position_bands"]["breakout"]["max"] = 0.2
+    policy_path = tmp_path / "bad_band_policy.yaml"
+    policy_path.write_text(yaml.safe_dump(policy, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        ExecutionSuggestionBuilder(config_path=str(policy_path))

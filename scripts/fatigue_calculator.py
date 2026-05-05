@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional
+import yaml
 
 from edt_module_base import EDTModule, ModuleInput, ModuleOutput, ModuleStatus
 
@@ -39,6 +40,43 @@ class FatigueCalculator(EDTModule):
             self.watch_mode_threshold = self.config.get("watch_mode_threshold", 85)
             self.dead_event_reset_days = self.config.get("dead_event_reset_days", 30)
             self.take_profit_penalty_factor = self.config.get("take_profit_penalty_factor", 0.5)
+        self._load_bucket_thresholds()
+
+    def _load_bucket_thresholds(self) -> None:
+        thresholds = {}
+        self._bucket_thresholds_error = ""
+        if isinstance(self.config, dict):
+            thresholds = dict((self.config.get("fatigue") or {}).get("bucket_thresholds", {}) or {})
+        if not thresholds:
+            policy_path = Path(__file__).resolve().parent.parent / "configs" / "lifecycle_fatigue_contract_policy.yaml"
+            if policy_path.exists():
+                policy = yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
+                thresholds = dict(((policy.get("fatigue") or {}).get("bucket_thresholds", {}) or {}))
+        required = ("critical_min", "high_min", "medium_min", "low_min")
+        missing = [k for k in required if k not in thresholds]
+        if missing:
+            self._bucket_thresholds_error = (
+                "missing fatigue.bucket_thresholds keys: " + ",".join(missing)
+            )
+            self.bucket_thresholds = {}
+            return
+        self.bucket_thresholds = {
+            "critical_min": int(thresholds["critical_min"]),
+            "high_min": int(thresholds["high_min"]),
+            "medium_min": int(thresholds["medium_min"]),
+            "low_min": int(thresholds["low_min"]),
+        }
+
+    def _fatigue_bucket(self, score: int) -> str:
+        if score >= self.bucket_thresholds["critical_min"]:
+            return "critical"
+        if score >= self.bucket_thresholds["high_min"]:
+            return "high"
+        if score >= self.bucket_thresholds["medium_min"]:
+            return "medium"
+        if score >= self.bucket_thresholds["low_min"]:
+            return "low"
+        return "none"
 
     def _get_active_counts_from_db(self, category: Optional[str] = None,
                                    narrative_tags: Optional[list] = None) -> tuple[int, Dict[str, int]]:
@@ -125,6 +163,17 @@ class FatigueCalculator(EDTModule):
 
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
+        if self._bucket_thresholds_error:
+            return ModuleOutput(
+                status=ModuleStatus.FAILED,
+                data={},
+                errors=[
+                    {
+                        "code": "MISSING_FATIGUE_BUCKET_THRESHOLDS",
+                        "message": self._bucket_thresholds_error,
+                    }
+                ],
+            )
 
         # 尝试从数据库查询活跃事件数（如果提供了 state_store）
         if self.state_store and "category_active_count" not in raw:
@@ -160,6 +209,7 @@ class FatigueCalculator(EDTModule):
             reset_eligible = False
 
         fatigue_final = max(fatigue_category, fatigue_tag)
+        fatigue_bucket = self._fatigue_bucket(fatigue_final)
         watch_mode = fatigue_final > self.watch_mode_threshold
 
         if fatigue_final > self.fatigue_discount_threshold:
@@ -176,6 +226,8 @@ class FatigueCalculator(EDTModule):
                 "fatigue_category": fatigue_category,
                 "fatigue_tag": fatigue_tag,
                 "fatigue_final": fatigue_final,
+                "fatigue_score": fatigue_final,
+                "fatigue_bucket": fatigue_bucket,
                 "watch_mode": watch_mode,
                 "a_minus_1_discount_factor": discount,
                 "take_profit_penalty": take_profit_penalty,
@@ -184,7 +236,7 @@ class FatigueCalculator(EDTModule):
                 "audit": {
                     "module": self.name,
                     "rule_version": "fatigue_v2",
-                    "decision_trace": [fatigue_category, fatigue_tag, fatigue_final, watch_mode],
+                    "decision_trace": [fatigue_category, fatigue_tag, fatigue_final, fatigue_bucket, watch_mode],
                 },
             },
         )

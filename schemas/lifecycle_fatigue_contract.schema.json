@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Stage6 Lifecycle Fatigue Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "lifecycle_state",
+    "time_scale",
+    "decay_profile",
+    "fatigue_score",
+    "fatigue_bucket",
+    "stale_event"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "stage6.lifecycle_fatigue.v1"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "Detected",
+        "Verified",
+        "Active",
+        "Continuation",
+        "Exhaustion",
+        "Dead",
+        "Archived"
+      ]
+    },
+    "time_scale": {
+      "type": "string",
+      "enum": ["intraday", "overnight", "multiweek", "none"]
+    },
+    "decay_profile": {
+      "type": "string",
+      "enum": ["fast", "medium", "slow", "exhausted", "none"]
+    },
+    "fatigue_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "fatigue_bucket": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high", "critical"]
+    },
+    "stale_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "is_stale",
+        "downgrade_applied",
+        "downgrade_from",
+        "downgrade_to",
+        "reason",
+        "elapsed_hours",
+        "threshold_hours"
+      ],
+      "properties": {
+        "is_stale": { "type": "boolean" },
+        "downgrade_applied": { "type": "boolean" },
+        "downgrade_from": { "type": ["string", "null"] },
+        "downgrade_to": { "type": ["string", "null"] },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "not_stale",
+            "stale_without_market_validation",
+            "stale_without_material_update",
+            "stale_without_confirmation",
+            "contradicted_by_new_fact",
+            "manual_archive",
+            "unknown"
+          ]
+        },
+        "elapsed_hours": { "type": "number" },
+        "threshold_hours": { "type": "number" }
+      }
+    }
+  }
+}

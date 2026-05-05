@@ -28,6 +28,7 @@
 ## Consumer Boundary
 - PR110 outputs are contract-layer analytics only.
 - No auto-trading fields may be emitted or consumed from this layer (`final_action`, `trade_decision`, `execution_suggestion` out of scope).
+- **Hard guardrail**: PR110 `causal_contract` is analysis-only and must not be used for execution, position sizing, or trading decisions.
 
 ## CI Validation
 - `tests/test_causal_contract_schema.py`

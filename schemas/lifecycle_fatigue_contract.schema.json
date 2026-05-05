@@ -71,7 +71,8 @@
             "stale_without_material_update",
             "stale_without_confirmation",
             "contradicted_by_new_fact",
-            "manual_archive"
+            "manual_archive",
+            "unknown"
           ]
         },
         "elapsed_hours": { "type": "number" },

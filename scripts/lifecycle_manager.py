@@ -186,6 +186,7 @@ class LifecycleManager(EDTModule):
 
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
+        warnings: list[str] = []
 
         elapsed_hours = float(raw.get("elapsed_hours", 0))
         contradicted = bool(raw.get("contradicted_by_new_fact", False))
@@ -251,7 +252,10 @@ class LifecycleManager(EDTModule):
                 }
             )
         if stale_event["reason"] not in self.stale_allowed_reasons:
-            stale_event["reason"] = "manual_archive"
+            stale_event["reason"] = "unknown"
+            warnings.append(
+                f"unknown_stale_reason_detected:{stale_event.get('downgrade_from')}->{stale_event.get('downgrade_to')}"
+            )
         if stale_event["downgrade_applied"] and stale_event["downgrade_to"]:
             legacy_state = str(stale_event["downgrade_to"])
 
@@ -292,6 +296,7 @@ class LifecycleManager(EDTModule):
                     "decision_trace": [internal_state, legacy_state, catalyst_state, trade_eligibility, time_scale, decay_profile, stale_event["reason"]],
                 },
             },
+            warnings=warnings,
         )
 
 

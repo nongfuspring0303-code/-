@@ -211,6 +211,7 @@ def test_pr111_stale_thresholds_follow_policy_config() -> None:
                     "stale_without_confirmation",
                     "contradicted_by_new_fact",
                     "manual_archive",
+                    "unknown",
                 ],
             },
         },
@@ -235,6 +236,77 @@ def test_pr111_stale_thresholds_follow_policy_config() -> None:
         ).data
     assert out["stale_event"]["downgrade_applied"] is False
     assert out["stale_event"]["reason"] == "not_stale"
+
+
+def test_pr111_invalid_stale_reason_is_not_silently_rewritten() -> None:
+    custom_policy = {
+        "schema_version": "stage6.lifecycle_fatigue_policy.v1",
+        "version": "1.0.0",
+        "lifecycle": {
+            "allowed_lifecycle_state": ["Detected", "Verified", "Active", "Continuation", "Exhaustion", "Dead", "Archived"],
+            "allowed_time_scale": ["intraday", "overnight", "multiweek", "none"],
+            "allowed_decay_profile": ["fast", "medium", "slow", "exhausted", "none"],
+            "time_scale_mapping": {"intraday": "intraday", "overnight": "overnight", "multiweek": "multiweek", "none": "none"},
+            "decay_profile_mapping": {"first_impulse": "fast", "continuation": "slow", "exhaustion": "exhausted", "dead": "none"},
+            "stale_event": {
+                "active_without_market_validation_hours": 48,
+                "continuation_without_material_update_hours": 72,
+                "detected_without_confirmation_hours": 24,
+                "downgrade_targets": {"Active": "Exhaustion", "Continuation": "Exhaustion", "Detected": "Dead"},
+                "allowed_reasons": ["unknown"],
+            },
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmpdir:
+        policy_path = Path(tmpdir) / "lifecycle_policy.yaml"
+        policy_path.write_text(yaml.safe_dump(custom_policy, sort_keys=False), encoding="utf-8")
+        res = LifecycleManager(config_path=str(policy_path)).run(
+            {
+                "event_id": "ME-PR111-STALE-005",
+                "category": "A",
+                "severity": "E3",
+                "source_rank": "A",
+                "headline": "Policy signal fades without market follow-through",
+                "detected_at": "2026-05-01T00:00:00Z",
+                "previous_lifecycle_state": "Active",
+                "elapsed_hours": 49,
+                "market_validated": False,
+                "has_material_update": False,
+                "is_official_confirmed": True,
+            }
+        )
+    out = res.data
+    assert out["stale_event"]["reason"] == "unknown"
+    assert res.warnings
+    assert "unknown_stale_reason_detected" in res.warnings[0]
+
+
+def test_pr111_missing_bucket_thresholds_fails_fast() -> None:
+    custom_cfg = {
+        "count_to_fatigue_score": {2: 0, 3: 20},
+        "fatigue_discount_threshold": 70,
+        "fatigue_discount_factor": 0.5,
+        "watch_mode_threshold": 85,
+        "dead_event_reset_days": 30,
+        "take_profit_penalty_factor": 0.5,
+        "fatigue": {"bucket_thresholds": {"critical_min": 90}},
+    }
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg_path = Path(tmpdir) / "fatigue_custom.yaml"
+        cfg_path.write_text(yaml.safe_dump(custom_cfg, sort_keys=False), encoding="utf-8")
+        res = FatigueCalculator(config_path=str(cfg_path)).run(
+            {
+                "event_id": "ME-A-PR111-006",
+                "category": "A",
+                "lifecycle_state": "Active",
+                "category_active_count": 4,
+                "tag_active_counts": {},
+                "days_since_last_dead": 0,
+            }
+        )
+    assert res.status.value == "failed"
+    assert res.errors
+    assert res.errors[0]["code"] == "MISSING_FATIGUE_BUCKET_THRESHOLDS"
 
 
 def test_full_workflow_emits_lifecycle_fatigue_contract_and_validates_schema(tmp_path: Path) -> None:

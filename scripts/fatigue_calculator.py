@@ -43,8 +43,8 @@ class FatigueCalculator(EDTModule):
         self._load_bucket_thresholds()
 
     def _load_bucket_thresholds(self) -> None:
-        default = {"critical_min": 85, "high_min": 70, "medium_min": 40, "low_min": 1}
         thresholds = {}
+        self._bucket_thresholds_error = ""
         if isinstance(self.config, dict):
             thresholds = dict((self.config.get("fatigue") or {}).get("bucket_thresholds", {}) or {})
         if not thresholds:
@@ -52,12 +52,19 @@ class FatigueCalculator(EDTModule):
             if policy_path.exists():
                 policy = yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
                 thresholds = dict(((policy.get("fatigue") or {}).get("bucket_thresholds", {}) or {}))
-        merged = {**default, **thresholds}
+        required = ("critical_min", "high_min", "medium_min", "low_min")
+        missing = [k for k in required if k not in thresholds]
+        if missing:
+            self._bucket_thresholds_error = (
+                "missing fatigue.bucket_thresholds keys: " + ",".join(missing)
+            )
+            self.bucket_thresholds = {}
+            return
         self.bucket_thresholds = {
-            "critical_min": int(merged.get("critical_min", 85)),
-            "high_min": int(merged.get("high_min", 70)),
-            "medium_min": int(merged.get("medium_min", 40)),
-            "low_min": int(merged.get("low_min", 1)),
+            "critical_min": int(thresholds["critical_min"]),
+            "high_min": int(thresholds["high_min"]),
+            "medium_min": int(thresholds["medium_min"]),
+            "low_min": int(thresholds["low_min"]),
         }
 
     def _fatigue_bucket(self, score: int) -> str:
@@ -156,6 +163,17 @@ class FatigueCalculator(EDTModule):
 
     def execute(self, input_data: ModuleInput) -> ModuleOutput:
         raw = input_data.raw_data
+        if self._bucket_thresholds_error:
+            return ModuleOutput(
+                status=ModuleStatus.FAILED,
+                data={},
+                errors=[
+                    {
+                        "code": "MISSING_FATIGUE_BUCKET_THRESHOLDS",
+                        "message": self._bucket_thresholds_error,
+                    }
+                ],
+            )
 
         # 尝试从数据库查询活跃事件数（如果提供了 state_store）
         if self.state_store and "category_active_count" not in raw:

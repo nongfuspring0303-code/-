@@ -46,6 +46,7 @@ lifecycle:
       - stale_without_confirmation
       - contradicted_by_new_fact
       - manual_archive
+      - unknown
 
 fatigue:
   allowed_fatigue_bucket:

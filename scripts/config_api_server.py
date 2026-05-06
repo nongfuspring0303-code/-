@@ -78,14 +78,32 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):  # noqa: N802
         self._send_json(200, {"ok": True})
 
-    def _project_error(self, status: int, message: str, trace_id: str | None = None, errors: list[dict] | None = None):
+    def _project_error(
+        self,
+        status: int,
+        message: str,
+        *,
+        code: str,
+        trace_id: str | None = None,
+        errors: list[dict] | None = None,
+    ):
         payload = build_api_envelope(
             status="error",
+            code=code,
             message=message,
-            data={},
+            data=None,
             trace_id=trace_id,
             request_id=None,
-            errors=errors or [],
+            errors=errors
+            or [
+                {
+                    "code": code,
+                    "message": message,
+                    "source": "config_api_server",
+                    "retryable": False,
+                    "severity": "error",
+                }
+            ],
             retryable=False,
         )
         self._send_json(status, payload)
@@ -103,15 +121,16 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
         return limit
 
     def _send_project_payload(self, payload: dict, *, default_status: int = 200):
-        http_status = default_status
-        if payload.get("status") == "error":
+        http_status = int(payload.get("http_status") or default_status)
+        if payload.get("status") == "error" and payload.get("http_status") is None:
             http_status = 500
         self._send_json(
             http_status,
             build_api_envelope(
                 status=payload.get("status", "error"),
+                code=payload.get("code", "OK"),
                 message=payload.get("message", "Project trace request failed."),
-                data=payload.get("data", {}),
+                data=payload.get("data"),
                 trace_id=payload.get("trace_id"),
                 errors=payload.get("errors", []),
                 retryable=False,
@@ -145,11 +164,20 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             self._project_error(
                 500,
                 "Project endpoint failed to load safely.",
-                errors=[{"code": "INTERNAL_ERROR"}],
+                code="INTERNAL_ERROR",
+                errors=[
+                    {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Project endpoint failed to load safely.",
+                        "source": "config_api_server",
+                        "retryable": False,
+                        "severity": "error",
+                    }
+                ],
             )
             return True
         if path.startswith("/api/project/"):
-            self._project_error(404, "Project endpoint not found.", errors=[{"code": "NOT_FOUND"}])
+            self._project_error(404, "Project endpoint not found.", code="NOT_FOUND")
             return True
         return False
 
@@ -181,7 +209,7 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             self._project_error(
                 405,
                 "Project endpoints are read-only.",
-                errors=[{"code": "METHOD_NOT_ALLOWED"}],
+                code="METHOD_NOT_ALLOWED",
             )
             return True
         return False

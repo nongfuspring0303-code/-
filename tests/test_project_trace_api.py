@@ -130,17 +130,24 @@ def test_project_trace_api_normal_and_empty_paths(project_server, logs_dir: Path
 
     status, body, raw = _request(project_server, "GET", f"/api/project/trace/{trace_id}")
     assert status == 200
-    assert body["status"] == "ok"
+    assert body["status"] in {"ok", "partial"}
+    assert body["code"] in {"OK", "PARTIAL_TRACE_DETAIL"}
     assert body["trace_id"] == trace_id
     assert len(body["data"]["pipeline_stages"]) == 2
     assert body["data"]["scorecard"]["grade"] == "A"
+    assert "lifecycle_fatigue_contract" in body["data"]
+    assert "execution_suggestion" in body["data"]
+    assert "path_quality_eval" in body["data"]
+    assert "trace_scorecard" in body["data"]
+    assert "risk_blocker_reason" in body["data"]
     assert "Traceback" not in raw
 
     status, body, raw = _request(project_server, "GET", "/api/project/trace/NOT-FOUND")
-    assert status == 200
-    assert body["status"] == "empty"
-    assert body["data"]["scorecard"] is None
-    assert body["data"]["pipeline_stages"] == []
+    assert status == 404
+    assert body["status"] == "error"
+    assert body["code"] == "TRACE_NOT_FOUND"
+    assert body["data"] is None
+    assert body["errors"]
     assert "Traceback" not in raw
     assert "evt_" not in raw
 
@@ -242,12 +249,10 @@ def test_project_trace_api_system_health_and_read_only_methods(project_server, l
     status, body, raw = _request(project_server, "GET", "/api/project/gap-report")
     assert status == 200
     assert body["schema_version"] == "project.api.v1"
-    assert body["status"] in {"ok", "empty", "partial", "error"}
+    assert body["status"] == "empty"
+    assert body["code"] == "GAP_REPORT_NOT_READY"
     assert body["trace_id"] is None
-    assert "scorecard_count" in body["data"]
-    assert "pipeline_stage_count" in body["data"]
-    assert "trace_count" in body["data"]
-    assert "required_field_gaps" in body["data"]
+    assert body["data"] is None
     assert "Traceback" not in raw
     assert "/Users/" not in raw
     assert "evt_" not in raw
@@ -255,18 +260,26 @@ def test_project_trace_api_system_health_and_read_only_methods(project_server, l
     status, body, _ = _request(project_server, "POST", "/api/project/traces/latest")
     assert status == 405
     assert body["status"] == "error"
+    assert body["code"] == "METHOD_NOT_ALLOWED"
+    assert body["data"] is None
 
     status, body, _ = _request(project_server, "PUT", "/api/project/traces/latest", body={})
     assert status == 405
     assert body["status"] == "error"
+    assert body["code"] == "METHOD_NOT_ALLOWED"
+    assert body["data"] is None
 
     status, body, _ = _request(project_server, "PATCH", "/api/project/traces/latest", body={})
     assert status == 405
     assert body["status"] == "error"
+    assert body["code"] == "METHOD_NOT_ALLOWED"
+    assert body["data"] is None
 
     status, body, _ = _request(project_server, "DELETE", "/api/project/traces/latest")
     assert status == 405
     assert body["status"] == "error"
+    assert body["code"] == "METHOD_NOT_ALLOWED"
+    assert body["data"] is None
 
 
 def test_project_trace_api_latest_trace_id_matches_snapshot_or_empty(logs_dir: Path):
@@ -353,6 +366,8 @@ def test_project_trace_api_error_path_is_safely_wrapped(monkeypatch, logs_dir: P
         status, body, raw = _request(server, "GET", "/api/project/trace/ME-PR-1-ERR")
         assert status == 500
         assert body["status"] == "error"
+        assert body["code"] == "INTERNAL_ERROR"
+        assert body["data"] is None
         assert "Traceback" not in raw
         assert "/Users/" not in raw
         assert "boom" not in raw
@@ -360,3 +375,17 @@ def test_project_trace_api_error_path_is_safely_wrapped(monkeypatch, logs_dir: P
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_project_trace_api_error_contract_fields(project_server, logs_dir: Path):
+    _write_text(logs_dir / "trace_scorecard.jsonl", "not-json\n")
+    status, body, _ = _request(project_server, "GET", "/api/project/scorecards/latest")
+    assert status == 200
+    assert body["status"] in {"partial", "error"}
+    assert body["code"] != "OK" or body["status"] != "error"
+    assert isinstance(body["errors"], list)
+    assert body["errors"]
+    first = body["errors"][0]
+    assert "source" in first
+    assert first.get("severity") in {"warning", "error"}
+    assert first.get("retryable") in {True, False}

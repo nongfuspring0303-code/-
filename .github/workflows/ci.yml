@@ -70,6 +70,14 @@ jobs:
         run: |
           python -m pytest tests/test_full_workflow.py::test_full_workflow_path_quality_eval_failed_is_not_swallowed tests/test_full_workflow.py::test_full_workflow_path_quality_eval_missing_upstream_does_not_inject_empty tests/test_full_workflow.py::test_full_workflow_path_quality_eval_success_path -q
 
+      - name: Run PR115 project trace API tests
+        run: |
+          python -m pytest tests/test_project_trace_api.py -q
+
+      - name: Run PR115 frontend contract tests
+        run: |
+          python -m pytest tests/test_project_trace_frontend_contract.py -q
+
       - name: Run healthcheck
         run: |
           python scripts/system_healthcheck.py --mode dev

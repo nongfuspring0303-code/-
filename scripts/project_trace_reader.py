@@ -17,6 +17,33 @@ DEFAULT_LOGS_DIR = ROOT / "logs"
 API_SCHEMA_VERSION = "project.api.v1"
 
 
+def _error_item(
+    *,
+    code: str,
+    message: str,
+    source: str,
+    retryable: bool = False,
+    severity: str = "error",
+    field: str | None = None,
+    line: int | None = None,
+    module: str | None = None,
+) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "code": code,
+        "message": message,
+        "source": source,
+        "retryable": retryable,
+        "severity": severity,
+    }
+    if field is not None:
+        item["field"] = field
+    if line is not None:
+        item["line"] = line
+    if module is not None:
+        item["module"] = module
+    return item
+
+
 def _now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -102,22 +129,24 @@ class ProjectTraceReader:
                 payload = json.loads(line)
             except Exception:
                 bad_lines.append(
-                    {
-                        "code": "BAD_JSONL_LINE",
-                        "message": f"Skipped unreadable JSONL line in {filename}.",
-                        "file": filename,
-                        "line": line_no,
-                    }
+                    _error_item(
+                        code="BAD_JSONL_LINE",
+                        message=f"Skipped unreadable JSONL line in {filename}.",
+                        source=filename,
+                        severity="warning",
+                        line=line_no,
+                    )
                 )
                 continue
             if not isinstance(payload, dict):
                 bad_lines.append(
-                    {
-                        "code": "NON_OBJECT_JSONL_ROW",
-                        "message": f"Skipped non-object JSONL row in {filename}.",
-                        "file": filename,
-                        "line": line_no,
-                    }
+                    _error_item(
+                        code="NON_OBJECT_JSONL_ROW",
+                        message=f"Skipped non-object JSONL row in {filename}.",
+                        source=filename,
+                        severity="warning",
+                        line=line_no,
+                    )
                 )
                 continue
             rows.append(payload)
@@ -166,6 +195,99 @@ class ProjectTraceReader:
     def _scorecard_required_gaps(self, row: dict[str, Any]) -> list[str]:
         # Field matrix v1.2 keeps the scorecard required set minimal for PR-1.
         return self._valid_required_fields(row, ["trace_id", "final_action"])
+
+    def _find_trace_payload(self, trace_id: str) -> dict[str, Any] | None:
+        candidates = [
+            "event_bus_live.jsonl",
+            "event_bus_live.json",
+            "action_card_replay.jsonl",
+            "action_card_replay.json",
+        ]
+        for filename in candidates:
+            result = self._read_jsonl(filename)
+            for row in reversed(result.rows):
+                if _safe_str(row.get("trace_id")) == trace_id:
+                    return row
+        return None
+
+    def _extract_trace_modules(
+        self,
+        *,
+        trace_id: str,
+        scorecard_row: dict[str, Any] | None,
+        trace_payload: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        modules: dict[str, Any] = {
+            "event": trace_payload or {},
+            "lifecycle_fatigue_contract": None,
+            "execution_suggestion": None,
+            "path_quality_eval": None,
+            "trace_scorecard": self._scorecard_record(scorecard_row) if scorecard_row else None,
+            "risk_blocker_reason": None,
+        }
+        errors: list[dict[str, Any]] = []
+
+        analysis = trace_payload.get("analysis") if isinstance(trace_payload, dict) and isinstance(trace_payload.get("analysis"), dict) else {}
+        execution = trace_payload.get("execution") if isinstance(trace_payload, dict) and isinstance(trace_payload.get("execution"), dict) else {}
+
+        lifecycle = analysis.get("lifecycle_fatigue_contract")
+        if lifecycle is not None:
+            modules["lifecycle_fatigue_contract"] = lifecycle
+        else:
+            errors.append(
+                _error_item(
+                    code="MODULE_MISSING",
+                    message="lifecycle_fatigue_contract is not available for this trace.",
+                    source="lifecycle_fatigue_contract",
+                    module="lifecycle_fatigue_contract",
+                    severity="warning",
+                )
+            )
+
+        execution_suggestion = analysis.get("execution_suggestion")
+        if execution_suggestion is not None:
+            modules["execution_suggestion"] = execution_suggestion
+        else:
+            errors.append(
+                _error_item(
+                    code="MODULE_MISSING",
+                    message="execution_suggestion is not available for this trace.",
+                    source="execution_suggestion",
+                    module="execution_suggestion",
+                    severity="warning",
+                )
+            )
+
+        path_quality = analysis.get("path_quality_eval")
+        if path_quality is not None:
+            modules["path_quality_eval"] = path_quality
+        else:
+            errors.append(
+                _error_item(
+                    code="MODULE_MISSING",
+                    message="path_quality_eval is not available for this trace.",
+                    source="path_quality_eval",
+                    module="path_quality_eval",
+                    severity="warning",
+                )
+            )
+
+        if modules["trace_scorecard"] is None:
+            errors.append(
+                _error_item(
+                    code="MODULE_MISSING",
+                    message="trace_scorecard is not available for this trace.",
+                    source="trace_scorecard",
+                    module="trace_scorecard",
+                    severity="warning",
+                )
+            )
+
+        final_data = execution.get("final") if isinstance(execution.get("final"), dict) else {}
+        if final_data:
+            modules["risk_blocker_reason"] = _safe_str(final_data.get("reason")) or _safe_str(final_data.get("block_reason"))
+
+        return modules, errors
 
     def _scorecard_rows(self) -> LoadResult:
         return self._read_jsonl("trace_scorecard.jsonl")
@@ -266,11 +388,20 @@ class ProjectTraceReader:
         lookup = _safe_str(trace_id)
         if not lookup:
             return {
-                "status": "empty",
+                "status": "error",
+                "code": "MISSING_TRACE_ID",
                 "message": "Trace id is missing.",
-                "errors": [{"code": "MISSING_TRACE_ID", "message": "Trace id is required."}],
+                "errors": [
+                    _error_item(
+                        code="MISSING_TRACE_ID",
+                        message="Trace id is required.",
+                        source="trace_detail",
+                        field="trace_id",
+                    )
+                ],
                 "trace_id": None,
-                "data": {"scorecard": None, "pipeline_stages": []},
+                "http_status": 404,
+                "data": None,
             }
 
         scorecards = self._scorecard_rows()
@@ -280,13 +411,24 @@ class ProjectTraceReader:
         matching_scorecards = [row for row in scorecards.rows if _safe_str(row.get("trace_id")) == lookup]
         matching_pipeline = [row for row in pipeline.rows if _safe_str(row.get("trace_id")) == lookup]
 
-        if not matching_scorecards and not matching_pipeline:
+        trace_payload = self._find_trace_payload(lookup)
+        if not matching_scorecards and not matching_pipeline and trace_payload is None:
             return {
-                "status": "empty",
+                "status": "error",
+                "code": "TRACE_NOT_FOUND",
                 "message": "Trace not found.",
-                "errors": errors,
+                "errors": errors
+                + [
+                    _error_item(
+                        code="TRACE_NOT_FOUND",
+                        message="Trace id does not exist in available logs.",
+                        source="trace_detail",
+                        field="trace_id",
+                    )
+                ],
                 "trace_id": lookup,
-                "data": {"scorecard": None, "pipeline_stages": []},
+                "http_status": 404,
+                "data": None,
             }
 
         latest_scorecard = None
@@ -305,19 +447,43 @@ class ProjectTraceReader:
                     if item.get(field) in ("", None):
                         required_missing.append(f"pipeline[{index}].{field}")
 
-        status = "ok"
-        if errors or required_missing:
-            status = "partial"
-        if latest_scorecard is None:
-            status = "partial" if errors or matching_pipeline else "empty"
+        modules, module_errors = self._extract_trace_modules(
+            trace_id=lookup,
+            scorecard_row=latest_scorecard,
+            trace_payload=trace_payload,
+        )
 
+        status = "ok"
+        if errors or required_missing or module_errors:
+            status = "partial"
+        if latest_scorecard is None and not matching_pipeline:
+            status = "partial" if errors or module_errors else "empty"
+
+        missing_field_errors = [
+            _error_item(
+                code="REQUIRED_FIELD_MISSING",
+                message=f"Required field {field} is missing.",
+                source="trace_detail",
+                field=field,
+                severity="error",
+            )
+            for field in required_missing
+        ]
         return {
             "status": status,
+            "code": "PARTIAL_TRACE_DETAIL" if status == "partial" else "OK",
             "message": "Trace detail loaded.",
-            "errors": errors + [{"code": "MISSING_REQUIRED_FIELD", "fields": required_missing}] if required_missing else errors,
+            "errors": errors + module_errors + missing_field_errors,
             "trace_id": lookup,
             "data": {
-                "scorecard": self._scorecard_record(latest_scorecard) if latest_scorecard else None,
+                "request_id": _safe_str(trace_payload.get("request_id")) if isinstance(trace_payload, dict) else None,
+                "event": modules["event"],
+                "lifecycle_fatigue_contract": modules["lifecycle_fatigue_contract"],
+                "execution_suggestion": modules["execution_suggestion"],
+                "path_quality_eval": modules["path_quality_eval"],
+                "trace_scorecard": modules["trace_scorecard"],
+                "risk_blocker_reason": modules["risk_blocker_reason"],
+                "scorecard": modules["trace_scorecard"],
                 "pipeline_stages": pipeline_records,
             },
         }
@@ -348,44 +514,13 @@ class ProjectTraceReader:
         }
 
     def gap_report(self) -> dict[str, Any]:
-        scorecards = self._scorecard_rows()
-        pipeline = self._pipeline_rows()
-        bad_lines = scorecards.bad_lines + pipeline.bad_lines
-
-        scorecard_ids = {sid for sid in (_safe_str(row.get("trace_id")) for row in scorecards.rows) if sid}
-        pipeline_ids = {sid for sid in (_safe_str(row.get("trace_id")) for row in pipeline.rows) if sid}
-        trace_ids = sorted(scorecard_ids | pipeline_ids)
-
-        missing_scorecard = sorted(pipeline_ids - scorecard_ids)
-        missing_pipeline = sorted(scorecard_ids - pipeline_ids)
-
-        required_gaps: list[dict[str, Any]] = []
-        for row in scorecards.rows:
-            missing = self._scorecard_required_gaps(row)
-            if missing:
-                required_gaps.append({"trace_id": _safe_str(row.get("trace_id")), "source": "trace_scorecard.jsonl", "missing": missing})
-        for row in pipeline.rows:
-            missing = self._valid_required_fields(row, ["trace_id", "stage", "status", "logged_at"])
-            if missing:
-                required_gaps.append({"trace_id": _safe_str(row.get("trace_id")), "source": "pipeline_stage.jsonl", "missing": missing})
-
-        status = "ok"
-        if bad_lines or required_gaps or missing_scorecard or missing_pipeline:
-            status = "partial"
-
         return {
-            "status": status,
-            "message": "Gap report loaded.",
-            "errors": bad_lines + [{"code": "MISSING_REQUIRED_FIELD", "items": required_gaps}] if required_gaps else bad_lines,
+            "status": "empty",
+            "code": "GAP_REPORT_NOT_READY",
+            "message": "Project gap report is not generated yet.",
+            "errors": [],
             "trace_id": None,
-            "data": {
-                "scorecard_count": len(scorecards.rows),
-                "pipeline_stage_count": len(pipeline.rows),
-                "trace_count": len(trace_ids),
-                "traces_missing_scorecard": missing_scorecard,
-                "traces_missing_pipeline": missing_pipeline,
-                "required_field_gaps": required_gaps,
-            },
+            "data": None,
         }
 
     def system_health(self) -> dict[str, Any]:
@@ -448,7 +583,7 @@ def build_api_envelope(
     *,
     status: str,
     message: str,
-    data: dict[str, Any],
+    data: Any,
     trace_id: str | None,
     request_id: str | None = None,
     errors: list[dict[str, Any]] | None = None,

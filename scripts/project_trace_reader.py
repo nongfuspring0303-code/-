@@ -163,6 +163,10 @@ class ProjectTraceReader:
                 missing.append(field)
         return missing
 
+    def _scorecard_required_gaps(self, row: dict[str, Any]) -> list[str]:
+        # Field matrix v1.2 keeps the scorecard required set minimal for PR-1.
+        return self._valid_required_fields(row, ["trace_id", "final_action"])
+
     def _scorecard_rows(self) -> LoadResult:
         return self._read_jsonl("trace_scorecard.jsonl")
 
@@ -215,17 +219,7 @@ class ProjectTraceReader:
         ]
         matching_pipeline.sort(key=lambda item: (item.get("stage_seq") is None, item.get("stage_seq") or 0, item.get("timestamp") or ""))
 
-        required_missing = self._valid_required_fields(latest_row, ["trace_id", "final_action"])
-        scores = latest_row.get("scores") if isinstance(latest_row.get("scores"), dict) else {}
-        if scores.get("total_score") in ("", None):
-            required_missing.append("scores.total_score")
-        if scores.get("grade") in ("", None):
-            required_missing.append("scores.grade")
-        required_missing.extend(
-            field
-            for field in ("sector_quality_score", "ticker_quality_score", "output_quality_score", "a_gate_blocker_codes")
-            if latest_row.get(field) in ("", None)
-        )
+        required_missing = self._scorecard_required_gaps(latest_row)
         status = "ok"
         if errors or required_missing:
             status = "partial"
@@ -277,17 +271,7 @@ class ProjectTraceReader:
 
         required_missing: list[str] = []
         if latest_scorecard is not None:
-            required_missing.extend(self._valid_required_fields(latest_scorecard, ["trace_id", "final_action"]))
-            scores = latest_scorecard.get("scores") if isinstance(latest_scorecard.get("scores"), dict) else {}
-            if scores.get("total_score") in ("", None):
-                required_missing.append("scores.total_score")
-            if scores.get("grade") in ("", None):
-                required_missing.append("scores.grade")
-            required_missing.extend(
-                field
-                for field in ("sector_quality_score", "ticker_quality_score", "output_quality_score", "a_gate_blocker_codes")
-                if latest_scorecard.get(field) in ("", None)
-            )
+            required_missing.extend(self._scorecard_required_gaps(latest_scorecard))
         if pipeline_records:
             for index, item in enumerate(pipeline_records):
                 for field in ("trace_id", "stage", "status", "timestamp"):
@@ -324,17 +308,7 @@ class ProjectTraceReader:
             }
 
         latest_row = max(scorecards.rows, key=lambda row: _safe_timestamp(row.get("logged_at")) or "")
-        required_missing = self._valid_required_fields(latest_row, ["trace_id", "final_action"])
-        scores = latest_row.get("scores") if isinstance(latest_row.get("scores"), dict) else {}
-        if scores.get("total_score") in ("", None):
-            required_missing.append("scores.total_score")
-        if scores.get("grade") in ("", None):
-            required_missing.append("scores.grade")
-        required_missing.extend(
-            field
-            for field in ("sector_quality_score", "ticker_quality_score", "output_quality_score", "a_gate_blocker_codes")
-            if latest_row.get(field) in ("", None)
-        )
+        required_missing = self._scorecard_required_gaps(latest_row)
         status = "ok"
         if errors or required_missing:
             status = "partial"
@@ -360,12 +334,7 @@ class ProjectTraceReader:
 
         required_gaps: list[dict[str, Any]] = []
         for row in scorecards.rows:
-            missing = self._valid_required_fields(row, ["trace_id", "final_action"])
-            scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
-            if scores.get("total_score") in ("", None):
-                missing.append("scores.total_score")
-            if scores.get("grade") in ("", None):
-                missing.append("scores.grade")
+            missing = self._scorecard_required_gaps(row)
             if missing:
                 required_gaps.append({"trace_id": _safe_str(row.get("trace_id")), "source": "trace_scorecard.jsonl", "missing": missing})
         for row in pipeline.rows:

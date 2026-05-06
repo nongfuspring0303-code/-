@@ -15,10 +15,10 @@
 
 ## Files Changed
 
-- `/Users/jia/Desktop/重大事件工作流/scripts/project_trace_reader.py`
-- `/Users/jia/Desktop/重大事件工作流/scripts/config_api_server.py`
-- `/Users/jia/Desktop/重大事件工作流/tests/test_project_trace_api.py`
-- `/Users/jia/Desktop/重大事件工作流/docs/pr/pr1_frontend_visibility_evidence_pack.md`
+- `scripts/project_trace_reader.py`
+- `scripts/config_api_server.py`
+- `tests/test_project_trace_api.py`
+- `docs/pr/pr1_frontend_visibility_evidence_pack.md`
 
 ## API Contract Impact
 
@@ -59,6 +59,8 @@
   - `trace_scorecard.jsonl`
   - `pipeline_stage.jsonl`
   - execution suggestion remains advisory-only
+- B sample verified: `trace_scorecard.jsonl` uses `scores.total_score` / `scores.grade`; API adapter maps them to `traceDetail.scorecard.totalScore` / `grade`. A should confirm whether field matrix `backend_path` needs update.
+- B sample verified: `pipeline_stage.jsonl` uses `logged_at`; API adapter maps it to `traceDetail.pipeline.timestamp`. A should confirm whether field matrix `backend_path` needs update.
 
 ## Log Sample Notes
 
@@ -96,4 +98,3 @@
 - `logs/` runtime outputs were intentionally not committed.
 - The advisory-only execution suggestion contract was preserved.
 - A review by A is still required before PR merge.
-

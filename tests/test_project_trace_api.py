@@ -230,6 +230,17 @@ def test_project_trace_api_system_health_and_read_only_methods(project_server, l
     assert "daily_report_markdown" in body["data"]
     assert "Traceback" not in raw
 
+    status, body, raw = _request(project_server, "GET", "/api/project/gap-report")
+    assert status == 200
+    assert body["schema_version"] == "project.api.v1"
+    assert body["status"] in {"ok", "empty", "partial", "error"}
+    assert "scorecard_count" in body["data"]
+    assert "pipeline_stage_count" in body["data"]
+    assert "trace_count" in body["data"]
+    assert "required_field_gaps" in body["data"]
+    assert "Traceback" not in raw
+    assert "/Users/" not in raw
+
     status, body, _ = _request(project_server, "POST", "/api/project/traces/latest")
     assert status == 405
     assert body["status"] == "error"

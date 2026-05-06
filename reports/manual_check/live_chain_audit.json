@@ -1,0 +1,2863 @@
+{
+  "summary": {
+    "window_start_utc": "2026-05-06T00:00:00Z",
+    "window_end_utc": "2026-05-06T18:27:06.628433Z",
+    "anchor_utc": "2026-05-07T01:51:38Z",
+    "hit_with_sector_and_stock_count": 42,
+    "stock_sector_consistency_rate": 1.0,
+    "opportunity_field_consistency_rows": 11,
+    "opportunity_field_consistency_mismatch_rows": 0,
+    "opportunity_field_consistency_match_rate": 1.0,
+    "primary_sector_only_eligible_traces": 3,
+    "primary_sector_only_pass_rate": 0.6667
+  },
+  "details": [
+    {
+      "trace_id": "evt_live_e90f0d10ed99",
+      "first_ts_utc": "2026-05-06T22:15:34.185193Z",
+      "headline": "白银连续主力合约日内涨3%，现报19205.00元。",
+      "ai_reason": "Silver futures contract rose 3% intraday, indicating strong bullish momentum in the commodity.",
+      "sectors": [
+        {
+          "sector": "Materials",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Consumer Staples",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_e90f0d10ed99",
+          "outer_request_id": "evt_live_e90f0d10ed99",
+          "outer_batch_id": "BATCH-evt_live_e90f0d10ed99"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AMZN",
+          "sector": "Consumer Staples",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_e90f0d10ed99",
+          "outer_request_id": "evt_live_e90f0d10ed99",
+          "outer_batch_id": "BATCH-evt_live_e90f0d10ed99"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "KO",
+          "sector": "Consumer Staples",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_e90f0d10ed99",
+          "outer_request_id": "evt_live_e90f0d10ed99",
+          "outer_batch_id": "BATCH-evt_live_e90f0d10ed99"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_c905ae181fbd",
+      "first_ts_utc": "2026-05-06T22:21:47.063100Z",
+      "headline": "市场消息：海洋跟踪数据显示霍尔木兹海峡出现GPS干扰。",
+      "ai_reason": "霍尔木兹海峡GPS干扰信号可能影响全球航运和能源运输安全",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.46,
+          "outer_trace_id": "evt_live_c905ae181fbd",
+          "outer_request_id": "evt_live_c905ae181fbd",
+          "outer_batch_id": "BATCH-evt_live_c905ae181fbd"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_c905ae181fbd",
+          "outer_request_id": "evt_live_c905ae181fbd",
+          "outer_batch_id": "BATCH-evt_live_c905ae181fbd"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_c905ae181fbd",
+          "outer_request_id": "evt_live_c905ae181fbd",
+          "outer_batch_id": "BATCH-evt_live_c905ae181fbd"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_086522854af4",
+      "first_ts_utc": "2026-05-06T22:26:36.160503Z",
+      "headline": "10-Q - UNIFI INC (0000100726) (Filer)",
+      "ai_reason": "A 10-Q filing is a routine earnings event with no specific sentiment or ticker recommendations.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_086522854af4",
+          "outer_request_id": "evt_live_086522854af4",
+          "outer_batch_id": "BATCH-evt_live_086522854af4"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_086522854af4",
+          "outer_request_id": "evt_live_086522854af4",
+          "outer_batch_id": "BATCH-evt_live_086522854af4"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_086522854af4",
+          "outer_request_id": "evt_live_086522854af4",
+          "outer_batch_id": "BATCH-evt_live_086522854af4"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "META",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_086522854af4",
+          "outer_request_id": "evt_live_086522854af4",
+          "outer_batch_id": "BATCH-evt_live_086522854af4"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "GOOGL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_086522854af4",
+          "outer_request_id": "evt_live_086522854af4",
+          "outer_batch_id": "BATCH-evt_live_086522854af4"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_1f8c86859727",
+      "first_ts_utc": "2026-05-06T22:46:07.531161Z",
+      "headline": "伊朗外交部发言人巴加埃：“谈判”这一概念至少要求当事方作出真诚的尝试，旨在通过讨论来解决争端。",
+      "ai_reason": "Iran's foreign ministry spokesperson defines negotiation conditions, indicating a diplomatic stance but no immediate market-moving action.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_1f8c86859727",
+          "outer_request_id": "evt_live_1f8c86859727",
+          "outer_batch_id": "BATCH-evt_live_1f8c86859727"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_1f8c86859727",
+          "outer_request_id": "evt_live_1f8c86859727",
+          "outer_batch_id": "BATCH-evt_live_1f8c86859727"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_1f8c86859727",
+          "outer_request_id": "evt_live_1f8c86859727",
+          "outer_batch_id": "BATCH-evt_live_1f8c86859727"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_11c0843c3f94",
+      "first_ts_utc": "2026-05-06T22:54:25.977787Z",
+      "headline": "墨西哥总统辛鲍姆：墨西哥政府支持的电动汽车OLINIA将于7月7日亮相。",
+      "ai_reason": "Announcement of a government-backed EV launch, but no specific tickers or financial impact details.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_11c0843c3f94",
+          "outer_request_id": "evt_live_11c0843c3f94",
+          "outer_batch_id": "BATCH-evt_live_11c0843c3f94"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_11c0843c3f94",
+          "outer_request_id": "evt_live_11c0843c3f94",
+          "outer_batch_id": "BATCH-evt_live_11c0843c3f94"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_d8093bde2d62",
+      "first_ts_utc": "2026-05-06T22:59:03.396349Z",
+      "headline": "  赫格塞思遭沃伦质询，涉承包商与特朗普之子存在利益关联。",
+      "ai_reason": "质询涉及利益关联，可能引发监管调查和合同风险。",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Utilities",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_d8093bde2d62",
+          "outer_request_id": "evt_live_d8093bde2d62",
+          "outer_batch_id": "BATCH-evt_live_d8093bde2d62"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NEE",
+          "sector": "Utilities",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_d8093bde2d62",
+          "outer_request_id": "evt_live_d8093bde2d62",
+          "outer_batch_id": "BATCH-evt_live_d8093bde2d62"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_d8093bde2d62",
+          "outer_request_id": "evt_live_d8093bde2d62",
+          "outer_batch_id": "BATCH-evt_live_d8093bde2d62"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_d8093bde2d62",
+          "outer_request_id": "evt_live_d8093bde2d62",
+          "outer_batch_id": "BATCH-evt_live_d8093bde2d62"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_d8093bde2d62",
+          "outer_request_id": "evt_live_d8093bde2d62",
+          "outer_batch_id": "BATCH-evt_live_d8093bde2d62"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_c311e024bb92",
+      "first_ts_utc": "2026-05-06T22:59:04.647044Z",
+      "headline": "Treasury considers allowing stocks in Trump Accounts - report",
+      "ai_reason": "Report of Treasury considering allowing stocks in Trump accounts introduces regulatory and political uncertainty.",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Utilities",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_c311e024bb92",
+          "outer_request_id": "evt_live_c311e024bb92",
+          "outer_batch_id": "BATCH-evt_live_c311e024bb92"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NEE",
+          "sector": "Utilities",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_c311e024bb92",
+          "outer_request_id": "evt_live_c311e024bb92",
+          "outer_batch_id": "BATCH-evt_live_c311e024bb92"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_c311e024bb92",
+          "outer_request_id": "evt_live_c311e024bb92",
+          "outer_batch_id": "BATCH-evt_live_c311e024bb92"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_c311e024bb92",
+          "outer_request_id": "evt_live_c311e024bb92",
+          "outer_batch_id": "BATCH-evt_live_c311e024bb92"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_c311e024bb92",
+          "outer_request_id": "evt_live_c311e024bb92",
+          "outer_batch_id": "BATCH-evt_live_c311e024bb92"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_0076abdbd3fa",
+      "first_ts_utc": "2026-05-06T23:05:24.222707Z",
+      "headline": " 美国石油产品出口量创下周新高，达820万桶/日。",
+      "ai_reason": "美国石油产品出口量创下周新高，表明能源供应强劲，对能源价格有下行压力。",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Materials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_0076abdbd3fa",
+          "outer_request_id": "evt_live_0076abdbd3fa",
+          "outer_batch_id": "BATCH-evt_live_0076abdbd3fa"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_0076abdbd3fa",
+          "outer_request_id": "evt_live_0076abdbd3fa",
+          "outer_batch_id": "BATCH-evt_live_0076abdbd3fa"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_4a07c05f8a37",
+      "first_ts_utc": "2026-05-06T23:13:35.747829Z",
+      "headline": "谷歌向欧盟提出方案以避免新闻搜索案中的罚款。",
+      "ai_reason": "Google proposes a settlement to the EU to avoid a fine in a news search case.",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Utilities",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.43,
+          "outer_trace_id": "evt_live_4a07c05f8a37",
+          "outer_request_id": "evt_live_4a07c05f8a37",
+          "outer_batch_id": "BATCH-evt_live_4a07c05f8a37"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NEE",
+          "sector": "Utilities",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_4a07c05f8a37",
+          "outer_request_id": "evt_live_4a07c05f8a37",
+          "outer_batch_id": "BATCH-evt_live_4a07c05f8a37"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_4a07c05f8a37",
+          "outer_request_id": "evt_live_4a07c05f8a37",
+          "outer_batch_id": "BATCH-evt_live_4a07c05f8a37"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_4a07c05f8a37",
+          "outer_request_id": "evt_live_4a07c05f8a37",
+          "outer_batch_id": "BATCH-evt_live_4a07c05f8a37"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_4a07c05f8a37",
+          "outer_request_id": "evt_live_4a07c05f8a37",
+          "outer_batch_id": "BATCH-evt_live_4a07c05f8a37"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_783e2f489da3",
+      "first_ts_utc": "2026-05-06T23:16:14.690881Z",
+      "headline": "英伟达与ServiceNow联手打造新型自主AI智能体。",
+      "ai_reason": "Partnership between two major tech firms to develop autonomous AI agents signals positive sector innovation.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_783e2f489da3",
+          "outer_request_id": "evt_live_783e2f489da3",
+          "outer_batch_id": "BATCH-evt_live_783e2f489da3"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_783e2f489da3",
+          "outer_request_id": "evt_live_783e2f489da3",
+          "outer_batch_id": "BATCH-evt_live_783e2f489da3"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_c2c79e0f79ec",
+      "first_ts_utc": "2026-05-06T23:30:35.570098Z",
+      "headline": "英伟达股价大涨5.13%，报206.6美元/股，总市值报5.02万亿美元。",
+      "ai_reason": "英伟达股价大幅上涨，反映市场对其前景的积极预期。",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_c2c79e0f79ec",
+          "outer_request_id": "evt_live_c2c79e0f79ec",
+          "outer_batch_id": "BATCH-evt_live_c2c79e0f79ec"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_c2c79e0f79ec",
+          "outer_request_id": "evt_live_c2c79e0f79ec",
+          "outer_batch_id": "BATCH-evt_live_c2c79e0f79ec"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_83b8d31bcea9",
+      "first_ts_utc": "2026-05-06T23:33:14.085368Z",
+      "headline": "  爱尔兰财政部：财政余额下滑主要受苹果补缴税款以及主权财富基金资金划转时间安排的影响。",
+      "ai_reason": "苹果补缴税款和主权财富基金资金划转时间安排导致爱尔兰财政余额下滑，属于监管和财政事件。",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Utilities",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.43,
+          "outer_trace_id": "evt_live_83b8d31bcea9",
+          "outer_request_id": "evt_live_83b8d31bcea9",
+          "outer_batch_id": "BATCH-evt_live_83b8d31bcea9"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NEE",
+          "sector": "Utilities",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_83b8d31bcea9",
+          "outer_request_id": "evt_live_83b8d31bcea9",
+          "outer_batch_id": "BATCH-evt_live_83b8d31bcea9"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_83b8d31bcea9",
+          "outer_request_id": "evt_live_83b8d31bcea9",
+          "outer_batch_id": "BATCH-evt_live_83b8d31bcea9"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_83b8d31bcea9",
+          "outer_request_id": "evt_live_83b8d31bcea9",
+          "outer_batch_id": "BATCH-evt_live_83b8d31bcea9"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_83b8d31bcea9",
+          "outer_request_id": "evt_live_83b8d31bcea9",
+          "outer_batch_id": "BATCH-evt_live_83b8d31bcea9"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_8b5cdde617b8",
+      "first_ts_utc": "2026-05-06T23:35:55.870174Z",
+      "headline": "现货铂金涨超5%，报2053.10美元。",
+      "ai_reason": "Spot platinum surged over 5% to $2053.10, indicating strong demand or supply disruption.",
+      "sectors": [
+        {
+          "sector": "Materials",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Consumer Staples",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_8b5cdde617b8",
+          "outer_request_id": "evt_live_8b5cdde617b8",
+          "outer_batch_id": "BATCH-evt_live_8b5cdde617b8"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AMZN",
+          "sector": "Consumer Staples",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_8b5cdde617b8",
+          "outer_request_id": "evt_live_8b5cdde617b8",
+          "outer_batch_id": "BATCH-evt_live_8b5cdde617b8"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "KO",
+          "sector": "Consumer Staples",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_8b5cdde617b8",
+          "outer_request_id": "evt_live_8b5cdde617b8",
+          "outer_batch_id": "BATCH-evt_live_8b5cdde617b8"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_614bf699e7e5",
+      "first_ts_utc": "2026-05-06T23:38:25.899779Z",
+      "headline": "瑞银CEO：中东战争的影响需要时间才能被市场消化。",
+      "ai_reason": "中东战争持续，市场需要时间消化影响，增加不确定性。",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_614bf699e7e5",
+          "outer_request_id": "evt_live_614bf699e7e5",
+          "outer_batch_id": "BATCH-evt_live_614bf699e7e5"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_614bf699e7e5",
+          "outer_request_id": "evt_live_614bf699e7e5",
+          "outer_batch_id": "BATCH-evt_live_614bf699e7e5"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_614bf699e7e5",
+          "outer_request_id": "evt_live_614bf699e7e5",
+          "outer_batch_id": "BATCH-evt_live_614bf699e7e5"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_a18fca337a93",
+      "first_ts_utc": "2026-05-06T23:38:26.071601Z",
+      "headline": "The Dow is about to exit correction territory, showing the old-school economy’s role in the AI boom",
+      "ai_reason": "Dow approaches correction exit driven by old-economy sectors benefiting from AI boom",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_a18fca337a93",
+          "outer_request_id": "evt_live_a18fca337a93",
+          "outer_batch_id": "BATCH-evt_live_a18fca337a93"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_a18fca337a93",
+          "outer_request_id": "evt_live_a18fca337a93",
+          "outer_batch_id": "BATCH-evt_live_a18fca337a93"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_8c718168c823",
+      "first_ts_utc": "2026-05-07T00:01:27.549157Z",
+      "headline": "法国财政部：数据显示，法国精炼油销售毛利润已经恢复至危机爆发之前的水平。",
+      "ai_reason": "French government data shows refined oil gross profit has returned to pre-crisis levels, indicating sector recovery.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Materials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_8c718168c823",
+          "outer_request_id": "evt_live_8c718168c823",
+          "outer_batch_id": "BATCH-evt_live_8c718168c823"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_8c718168c823",
+          "outer_request_id": "evt_live_8c718168c823",
+          "outer_batch_id": "BATCH-evt_live_8c718168c823"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_c24f92f31862",
+      "first_ts_utc": "2026-05-07T00:11:16.325594Z",
+      "headline": "有报道称，霍尔木兹海峡一艘船只遭到导弹袭击。",
+      "ai_reason": "霍尔木兹海峡船只遭导弹袭击，增加中东地缘紧张和能源供应风险。",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.46,
+          "outer_trace_id": "evt_live_c24f92f31862",
+          "outer_request_id": "evt_live_c24f92f31862",
+          "outer_batch_id": "BATCH-evt_live_c24f92f31862"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_c24f92f31862",
+          "outer_request_id": "evt_live_c24f92f31862",
+          "outer_batch_id": "BATCH-evt_live_c24f92f31862"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_c24f92f31862",
+          "outer_request_id": "evt_live_c24f92f31862",
+          "outer_batch_id": "BATCH-evt_live_c24f92f31862"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_177a657f732a",
+      "first_ts_utc": "2026-05-07T00:17:47.314403Z",
+      "headline": "Anthropic：已同意与SpaceX建立合作伙伴关系，这将大幅提升我们的算力规模。",
+      "ai_reason": "Anthropic's partnership with SpaceX to boost compute capacity signals positive tech sector development.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_177a657f732a",
+          "outer_request_id": "evt_live_177a657f732a",
+          "outer_batch_id": "BATCH-evt_live_177a657f732a"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_177a657f732a",
+          "outer_request_id": "evt_live_177a657f732a",
+          "outer_batch_id": "BATCH-evt_live_177a657f732a"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_0bd8a07445dc",
+      "first_ts_utc": "2026-05-07T00:17:47.606717Z",
+      "headline": "xAI ：Anthropic 计划利用新增算力，直接提升 Claude Pro 与 Claude Max 订阅用户的服务承载能力。",
+      "ai_reason": "Anthropic is expanding compute to boost subscription service capacity, indicating positive tech sector development.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_0bd8a07445dc",
+          "outer_request_id": "evt_live_0bd8a07445dc",
+          "outer_batch_id": "BATCH-evt_live_0bd8a07445dc"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_0bd8a07445dc",
+          "outer_request_id": "evt_live_0bd8a07445dc",
+          "outer_batch_id": "BATCH-evt_live_0bd8a07445dc"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_0f804b98b479",
+      "first_ts_utc": "2026-05-07T00:20:00.168735Z",
+      "headline": "Anthropic：与 SpaceX 达成的协议将使公司在本月内获得超 300 兆瓦的新增算力容量。",
+      "ai_reason": "Anthropic's deal with SpaceX adds over 300 MW compute capacity, strongly positive for AI infrastructure.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_0f804b98b479",
+          "outer_request_id": "evt_live_0f804b98b479",
+          "outer_batch_id": "BATCH-evt_live_0f804b98b479"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_0f804b98b479",
+          "outer_request_id": "evt_live_0f804b98b479",
+          "outer_batch_id": "BATCH-evt_live_0f804b98b479"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_50ee5156a249",
+      "first_ts_utc": "2026-05-07T00:32:35.808512Z",
+      "headline": "锡连续主力合约日内涨5%，现报425160.00元。",
+      "ai_reason": "Tin futures surged 5% in a single day, indicating strong bullish momentum in the commodity market.",
+      "sectors": [
+        {
+          "sector": "Materials",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Consumer Staples",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_50ee5156a249",
+          "outer_request_id": "evt_live_50ee5156a249",
+          "outer_batch_id": "BATCH-evt_live_50ee5156a249"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AMZN",
+          "sector": "Consumer Staples",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_50ee5156a249",
+          "outer_request_id": "evt_live_50ee5156a249",
+          "outer_batch_id": "BATCH-evt_live_50ee5156a249"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "KO",
+          "sector": "Consumer Staples",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_50ee5156a249",
+          "outer_request_id": "evt_live_50ee5156a249",
+          "outer_batch_id": "BATCH-evt_live_50ee5156a249"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_1486fd74ccb2",
+      "first_ts_utc": "2026-05-07T00:43:01.132542Z",
+      "headline": "  法国总统马克龙：已与伊朗总统通电话。",
+      "ai_reason": "A phone call between French and Iranian presidents indicates diplomatic activity, but no concrete outcome or market impact is specified.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_1486fd74ccb2",
+          "outer_request_id": "evt_live_1486fd74ccb2",
+          "outer_batch_id": "BATCH-evt_live_1486fd74ccb2"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_1486fd74ccb2",
+          "outer_request_id": "evt_live_1486fd74ccb2",
+          "outer_batch_id": "BATCH-evt_live_1486fd74ccb2"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_1486fd74ccb2",
+          "outer_request_id": "evt_live_1486fd74ccb2",
+          "outer_batch_id": "BATCH-evt_live_1486fd74ccb2"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_f80a902f6b8d",
+      "first_ts_utc": "2026-05-07T00:46:42.957990Z",
+      "headline": "Hantavirus outbreaks rarely happen. This Andes strain is ‘a complicated public-health situation.’",
+      "ai_reason": "Rare hantavirus outbreak on a cruise ship with confirmed case of Andes strain poses public health risk.",
+      "sectors": [
+        {
+          "sector": "Healthcare",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "LLY",
+          "sector": "Healthcare",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_f80a902f6b8d",
+          "outer_request_id": "evt_live_f80a902f6b8d",
+          "outer_batch_id": "BATCH-evt_live_f80a902f6b8d"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "UNH",
+          "sector": "Healthcare",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_f80a902f6b8d",
+          "outer_request_id": "evt_live_f80a902f6b8d",
+          "outer_batch_id": "BATCH-evt_live_f80a902f6b8d"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_7596215e7615",
+      "first_ts_utc": "2026-05-07T00:50:40.929385Z",
+      "headline": "I bonds are the best place to put your cash right now — and that should worry you",
+      "ai_reason": "I bonds are highlighted as a strong investment due to inflation concerns, signaling potential trouble ahead.",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_7596215e7615",
+          "outer_request_id": "evt_live_7596215e7615",
+          "outer_batch_id": "BATCH-evt_live_7596215e7615"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_7596215e7615",
+          "outer_request_id": "evt_live_7596215e7615",
+          "outer_batch_id": "BATCH-evt_live_7596215e7615"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_7596215e7615",
+          "outer_request_id": "evt_live_7596215e7615",
+          "outer_batch_id": "BATCH-evt_live_7596215e7615"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_7596215e7615",
+          "outer_request_id": "evt_live_7596215e7615",
+          "outer_batch_id": "BATCH-evt_live_7596215e7615"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "META",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_7596215e7615",
+          "outer_request_id": "evt_live_7596215e7615",
+          "outer_batch_id": "BATCH-evt_live_7596215e7615"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_bee935ccd32a",
+      "first_ts_utc": "2026-05-07T00:53:13.177918Z",
+      "headline": "S&P 500 record profits are a double-edged sword — and it could slash your returns",
+      "ai_reason": "Record profit margins imply high expectations, making stocks vulnerable to disappointment and potential return reduction.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_bee935ccd32a",
+          "outer_request_id": "evt_live_bee935ccd32a",
+          "outer_batch_id": "BATCH-evt_live_bee935ccd32a"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_bee935ccd32a",
+          "outer_request_id": "evt_live_bee935ccd32a",
+          "outer_batch_id": "BATCH-evt_live_bee935ccd32a"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_bee935ccd32a",
+          "outer_request_id": "evt_live_bee935ccd32a",
+          "outer_batch_id": "BATCH-evt_live_bee935ccd32a"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AMZN",
+          "sector": "Consumer Cyclical",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_bee935ccd32a",
+          "outer_request_id": "evt_live_bee935ccd32a",
+          "outer_batch_id": "BATCH-evt_live_bee935ccd32a"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "KO",
+          "sector": "Consumer Cyclical",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_bee935ccd32a",
+          "outer_request_id": "evt_live_bee935ccd32a",
+          "outer_batch_id": "BATCH-evt_live_bee935ccd32a"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_0fa629c9c1dd",
+      "first_ts_utc": "2026-05-07T00:59:00.827190Z",
+      "headline": "以色列总理内塔尼亚胡：将于周三晚些时候与特朗普通话。",
+      "ai_reason": "Announcement of a call between Israeli PM and former US president may signal upcoming policy discussions, but no concrete impact yet.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_0fa629c9c1dd",
+          "outer_request_id": "evt_live_0fa629c9c1dd",
+          "outer_batch_id": "BATCH-evt_live_0fa629c9c1dd"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_0fa629c9c1dd",
+          "outer_request_id": "evt_live_0fa629c9c1dd",
+          "outer_batch_id": "BATCH-evt_live_0fa629c9c1dd"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_0fa629c9c1dd",
+          "outer_request_id": "evt_live_0fa629c9c1dd",
+          "outer_batch_id": "BATCH-evt_live_0fa629c9c1dd"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_691640e07e95",
+      "first_ts_utc": "2026-05-07T00:59:01.339499Z",
+      "headline": "特朗普：我们不会允许伊朗拥有核武器。",
+      "ai_reason": "Trump's repeated statement signals heightened US-Iran nuclear standoff, increasing geopolitical uncertainty.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_691640e07e95",
+          "outer_request_id": "evt_live_691640e07e95",
+          "outer_batch_id": "BATCH-evt_live_691640e07e95"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_691640e07e95",
+          "outer_request_id": "evt_live_691640e07e95",
+          "outer_batch_id": "BATCH-evt_live_691640e07e95"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_691640e07e95",
+          "outer_request_id": "evt_live_691640e07e95",
+          "outer_batch_id": "BATCH-evt_live_691640e07e95"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_767adf6a3f59",
+      "first_ts_utc": "2026-05-07T01:01:22.103217Z",
+      "headline": "SpaceX reaches deal to rent data centre space to Anthropic",
+      "ai_reason": "SpaceX leasing data center space to Anthropic signals growing demand for AI compute infrastructure.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_767adf6a3f59",
+          "outer_request_id": "evt_live_767adf6a3f59",
+          "outer_batch_id": "BATCH-evt_live_767adf6a3f59"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_767adf6a3f59",
+          "outer_request_id": "evt_live_767adf6a3f59",
+          "outer_batch_id": "BATCH-evt_live_767adf6a3f59"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_0ceed80fd670",
+      "first_ts_utc": "2026-05-07T01:03:44.956250Z",
+      "headline": "美联储古尔斯比：如果生产率增长不及预期，可能会降低利率。",
+      "ai_reason": "Fed official signals potential rate cut if productivity growth disappoints.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_0ceed80fd670",
+          "outer_request_id": "evt_live_0ceed80fd670",
+          "outer_batch_id": "BATCH-evt_live_0ceed80fd670"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_0ceed80fd670",
+          "outer_request_id": "evt_live_0ceed80fd670",
+          "outer_batch_id": "BATCH-evt_live_0ceed80fd670"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AMZN",
+          "sector": "Consumer Cyclical",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_0ceed80fd670",
+          "outer_request_id": "evt_live_0ceed80fd670",
+          "outer_batch_id": "BATCH-evt_live_0ceed80fd670"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "KO",
+          "sector": "Consumer Cyclical",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_0ceed80fd670",
+          "outer_request_id": "evt_live_0ceed80fd670",
+          "outer_batch_id": "BATCH-evt_live_0ceed80fd670"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_0ceed80fd670",
+          "outer_request_id": "evt_live_0ceed80fd670",
+          "outer_batch_id": "BATCH-evt_live_0ceed80fd670"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_5efea4c6a2ec",
+      "first_ts_utc": "2026-05-07T01:10:20.337750Z",
+      "headline": "以色列总理内塔尼亚胡：稍后将与特朗普通话，与美国充分协调，没有任何意外。",
+      "ai_reason": "Announcement of coordination call between Israeli PM and former US president suggests diplomatic alignment but no immediate market-moving details.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_5efea4c6a2ec",
+          "outer_request_id": "evt_live_5efea4c6a2ec",
+          "outer_batch_id": "BATCH-evt_live_5efea4c6a2ec"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_5efea4c6a2ec",
+          "outer_request_id": "evt_live_5efea4c6a2ec",
+          "outer_batch_id": "BATCH-evt_live_5efea4c6a2ec"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_5efea4c6a2ec",
+          "outer_request_id": "evt_live_5efea4c6a2ec",
+          "outer_batch_id": "BATCH-evt_live_5efea4c6a2ec"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_413ccd90ff3b",
+      "first_ts_utc": "2026-05-07T01:16:03.456784Z",
+      "headline": "  安全消息人士：贝鲁特南郊数周来首次遭遇空袭。",
+      "ai_reason": "贝鲁特南郊数周来首次遭遇空袭，表明地区冲突升级，地缘政治风险显著增加。",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_413ccd90ff3b",
+          "outer_request_id": "evt_live_413ccd90ff3b",
+          "outer_batch_id": "BATCH-evt_live_413ccd90ff3b"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_413ccd90ff3b",
+          "outer_request_id": "evt_live_413ccd90ff3b",
+          "outer_batch_id": "BATCH-evt_live_413ccd90ff3b"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_413ccd90ff3b",
+          "outer_request_id": "evt_live_413ccd90ff3b",
+          "outer_batch_id": "BATCH-evt_live_413ccd90ff3b"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_65b6e12f86d8",
+      "first_ts_utc": "2026-05-07T01:18:17.824321Z",
+      "headline": "美联储古尔斯比：如果人工智能真能达到宣传的效果，那会非常理想，但美联储仍需警惕经济过热。",
+      "ai_reason": "Fed official expresses caution on AI-driven economic overheating, signaling potential monetary policy implications.",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_65b6e12f86d8",
+          "outer_request_id": "evt_live_65b6e12f86d8",
+          "outer_batch_id": "BATCH-evt_live_65b6e12f86d8"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_65b6e12f86d8",
+          "outer_request_id": "evt_live_65b6e12f86d8",
+          "outer_batch_id": "BATCH-evt_live_65b6e12f86d8"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_65b6e12f86d8",
+          "outer_request_id": "evt_live_65b6e12f86d8",
+          "outer_batch_id": "BATCH-evt_live_65b6e12f86d8"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_65b6e12f86d8",
+          "outer_request_id": "evt_live_65b6e12f86d8",
+          "outer_batch_id": "BATCH-evt_live_65b6e12f86d8"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "META",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_65b6e12f86d8",
+          "outer_request_id": "evt_live_65b6e12f86d8",
+          "outer_batch_id": "BATCH-evt_live_65b6e12f86d8"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_bc37ab7df788",
+      "first_ts_utc": "2026-05-07T01:18:18.256007Z",
+      "headline": "美联储古尔斯比：如果人们将未来预期收益提前至当前消费，很容易导致经济过热。",
+      "ai_reason": "Fed's Goolsbee warns that front-loading future expected gains into current consumption could cause economic overheating.",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_bc37ab7df788",
+          "outer_request_id": "evt_live_bc37ab7df788",
+          "outer_batch_id": "BATCH-evt_live_bc37ab7df788"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_bc37ab7df788",
+          "outer_request_id": "evt_live_bc37ab7df788",
+          "outer_batch_id": "BATCH-evt_live_bc37ab7df788"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_bc37ab7df788",
+          "outer_request_id": "evt_live_bc37ab7df788",
+          "outer_batch_id": "BATCH-evt_live_bc37ab7df788"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_bc37ab7df788",
+          "outer_request_id": "evt_live_bc37ab7df788",
+          "outer_batch_id": "BATCH-evt_live_bc37ab7df788"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "META",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_bc37ab7df788",
+          "outer_request_id": "evt_live_bc37ab7df788",
+          "outer_batch_id": "BATCH-evt_live_bc37ab7df788"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_690d0efc71e1",
+      "first_ts_utc": "2026-05-07T01:24:08.386372Z",
+      "headline": "  马斯克：将向人工智能企业出售算力，确保其发展造福人类。",
+      "ai_reason": "Musk's announcement of selling compute power to AI companies is a positive tech sector development but lacks specific ticker mentions.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_690d0efc71e1",
+          "outer_request_id": "evt_live_690d0efc71e1",
+          "outer_batch_id": "BATCH-evt_live_690d0efc71e1"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.47,
+          "outer_trace_id": "evt_live_690d0efc71e1",
+          "outer_request_id": "evt_live_690d0efc71e1",
+          "outer_batch_id": "BATCH-evt_live_690d0efc71e1"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_1867cc42f740",
+      "first_ts_utc": "2026-05-07T01:26:17.944883Z",
+      "headline": "  西方石油公司：市场波动率上升后，公司已停止对冲操作，且无意新增对冲头寸。",
+      "ai_reason": "Company stops hedging amid rising volatility, increasing exposure to price swings.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Materials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_1867cc42f740",
+          "outer_request_id": "evt_live_1867cc42f740",
+          "outer_batch_id": "BATCH-evt_live_1867cc42f740"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_1867cc42f740",
+          "outer_request_id": "evt_live_1867cc42f740",
+          "outer_batch_id": "BATCH-evt_live_1867cc42f740"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_d2d04b3592e3",
+      "first_ts_utc": "2026-05-07T01:28:27.144265Z",
+      "headline": "  西方石油公司：阿联酋阿尔霍斯油田的运营受限情况始于 3 月中旬，预计将在二季度末前恢复正常。",
+      "ai_reason": "油田运营受限导致短期供应减少，但预计二季度末恢复，影响有限。",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Materials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_d2d04b3592e3",
+          "outer_request_id": "evt_live_d2d04b3592e3",
+          "outer_batch_id": "BATCH-evt_live_d2d04b3592e3"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_d2d04b3592e3",
+          "outer_request_id": "evt_live_d2d04b3592e3",
+          "outer_batch_id": "BATCH-evt_live_d2d04b3592e3"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_61401acb02bc",
+      "first_ts_utc": "2026-05-07T01:32:07.064516Z",
+      "headline": "西方石油公司：受中东战事扰乱物流影响，硫磺销售业务预计将于 2026 年下半年恢复正常。",
+      "ai_reason": "中东战事导致物流中断，影响西方石油公司硫磺销售，预计长期才能恢复",
+      "sectors": [
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Materials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "CAT",
+          "sector": "Industrials",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_61401acb02bc",
+          "outer_request_id": "evt_live_61401acb02bc",
+          "outer_batch_id": "BATCH-evt_live_61401acb02bc"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_61401acb02bc",
+          "outer_request_id": "evt_live_61401acb02bc",
+          "outer_batch_id": "BATCH-evt_live_61401acb02bc"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_27aa51fdfb5d",
+      "first_ts_utc": "2026-05-07T01:34:18.435332Z",
+      "headline": "  据报道，出现汉坦病毒疫情的邮轮已驶离佛得角。",
+      "ai_reason": "Hantavirus outbreak on a cruise ship departing Cape Verde indicates a developing health risk with potential for wider spread.",
+      "sectors": [
+        {
+          "sector": "Healthcare",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-B-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "LLY",
+          "sector": "Healthcare",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_27aa51fdfb5d",
+          "outer_request_id": "evt_live_27aa51fdfb5d",
+          "outer_batch_id": "BATCH-evt_live_27aa51fdfb5d"
+        },
+        {
+          "trace_id": "ME-B-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "UNH",
+          "sector": "Healthcare",
+          "action": "WATCH",
+          "confidence": 0.5,
+          "outer_trace_id": "evt_live_27aa51fdfb5d",
+          "outer_request_id": "evt_live_27aa51fdfb5d",
+          "outer_batch_id": "BATCH-evt_live_27aa51fdfb5d"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_cb3c05dfab47",
+      "first_ts_utc": "2026-05-07T01:45:49.537773Z",
+      "headline": "  美国检察官宣布起诉 30 人，指控其参与内幕交易团伙，该团伙涉嫌利用从多家大型律所窃取的并购信息进行非法交易。",
+      "ai_reason": "Insider trading prosecution undermines market integrity and may trigger stricter M&A regulations.",
+      "sectors": [
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Utilities",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.43,
+          "outer_trace_id": "evt_live_cb3c05dfab47",
+          "outer_request_id": "evt_live_cb3c05dfab47",
+          "outer_batch_id": "BATCH-evt_live_cb3c05dfab47"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NEE",
+          "sector": "Utilities",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_cb3c05dfab47",
+          "outer_request_id": "evt_live_cb3c05dfab47",
+          "outer_batch_id": "BATCH-evt_live_cb3c05dfab47"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_cb3c05dfab47",
+          "outer_request_id": "evt_live_cb3c05dfab47",
+          "outer_batch_id": "BATCH-evt_live_cb3c05dfab47"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_cb3c05dfab47",
+          "outer_request_id": "evt_live_cb3c05dfab47",
+          "outer_batch_id": "BATCH-evt_live_cb3c05dfab47"
+        },
+        {
+          "trace_id": "ME-E-20260506-001.V1.0",
+          "request_id": null,
+          "batch_id": null,
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_cb3c05dfab47",
+          "outer_request_id": "evt_live_cb3c05dfab47",
+          "outer_batch_id": "BATCH-evt_live_cb3c05dfab47"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_adf518ea3272",
+      "first_ts_utc": "2026-05-07T01:53:35.382028Z",
+      "headline": "Goodbye quarterly earnings? Here's when traders believe this big change will happen",
+      "ai_reason": "News discusses potential change to quarterly earnings reporting, with traders divided on timeline, but no specific tickers mentioned.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "evt_live_adf518ea3272",
+          "request_id": "evt_live_adf518ea3272",
+          "batch_id": "BATCH-evt_live_adf518ea3272",
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_adf518ea3272",
+          "outer_request_id": "evt_live_adf518ea3272",
+          "outer_batch_id": "BATCH-evt_live_adf518ea3272"
+        },
+        {
+          "trace_id": "evt_live_adf518ea3272",
+          "request_id": "evt_live_adf518ea3272",
+          "batch_id": "BATCH-evt_live_adf518ea3272",
+          "symbol": "MSFT",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_adf518ea3272",
+          "outer_request_id": "evt_live_adf518ea3272",
+          "outer_batch_id": "BATCH-evt_live_adf518ea3272"
+        },
+        {
+          "trace_id": "evt_live_adf518ea3272",
+          "request_id": "evt_live_adf518ea3272",
+          "batch_id": "BATCH-evt_live_adf518ea3272",
+          "symbol": "AAPL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_adf518ea3272",
+          "outer_request_id": "evt_live_adf518ea3272",
+          "outer_batch_id": "BATCH-evt_live_adf518ea3272"
+        },
+        {
+          "trace_id": "evt_live_adf518ea3272",
+          "request_id": "evt_live_adf518ea3272",
+          "batch_id": "BATCH-evt_live_adf518ea3272",
+          "symbol": "META",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_adf518ea3272",
+          "outer_request_id": "evt_live_adf518ea3272",
+          "outer_batch_id": "BATCH-evt_live_adf518ea3272"
+        },
+        {
+          "trace_id": "evt_live_adf518ea3272",
+          "request_id": "evt_live_adf518ea3272",
+          "batch_id": "BATCH-evt_live_adf518ea3272",
+          "symbol": "GOOGL",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_adf518ea3272",
+          "outer_request_id": "evt_live_adf518ea3272",
+          "outer_batch_id": "BATCH-evt_live_adf518ea3272"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_924c75e2a960",
+      "first_ts_utc": "2026-05-07T01:55:54.177630Z",
+      "headline": "优步（Uber）维持超过7%的涨幅，该公司预计二季度总体预定可能会达到562.5亿-577.5亿美元，那将突破分析师们的预期。",
+      "ai_reason": "Uber's positive earnings guidance beat analyst expectations, driving stock price up.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Consumer Cyclical",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "evt_live_924c75e2a960",
+          "request_id": "evt_live_924c75e2a960",
+          "batch_id": "BATCH-evt_live_924c75e2a960",
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_924c75e2a960",
+          "outer_request_id": "evt_live_924c75e2a960",
+          "outer_batch_id": "BATCH-evt_live_924c75e2a960"
+        },
+        {
+          "trace_id": "evt_live_924c75e2a960",
+          "request_id": "evt_live_924c75e2a960",
+          "batch_id": "BATCH-evt_live_924c75e2a960",
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.42,
+          "outer_trace_id": "evt_live_924c75e2a960",
+          "outer_request_id": "evt_live_924c75e2a960",
+          "outer_batch_id": "BATCH-evt_live_924c75e2a960"
+        },
+        {
+          "trace_id": "evt_live_924c75e2a960",
+          "request_id": "evt_live_924c75e2a960",
+          "batch_id": "BATCH-evt_live_924c75e2a960",
+          "symbol": "JPM",
+          "sector": "Financial Services",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_924c75e2a960",
+          "outer_request_id": "evt_live_924c75e2a960",
+          "outer_batch_id": "BATCH-evt_live_924c75e2a960"
+        },
+        {
+          "trace_id": "evt_live_924c75e2a960",
+          "request_id": "evt_live_924c75e2a960",
+          "batch_id": "BATCH-evt_live_924c75e2a960",
+          "symbol": "AMZN",
+          "sector": "Consumer Cyclical",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_924c75e2a960",
+          "outer_request_id": "evt_live_924c75e2a960",
+          "outer_batch_id": "BATCH-evt_live_924c75e2a960"
+        },
+        {
+          "trace_id": "evt_live_924c75e2a960",
+          "request_id": "evt_live_924c75e2a960",
+          "batch_id": "BATCH-evt_live_924c75e2a960",
+          "symbol": "KO",
+          "sector": "Consumer Cyclical",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_924c75e2a960",
+          "outer_request_id": "evt_live_924c75e2a960",
+          "outer_batch_id": "BATCH-evt_live_924c75e2a960"
+        }
+      ],
+      "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_c8b66e1f2395",
+      "first_ts_utc": "2026-05-07T02:20:42.119955Z",
+      "headline": "  阿联酋外交部发表声明称，本国与国际及防务合作伙伴的关系属于主权事务。",
+      "ai_reason": "UAE statement on defense partnerships is a factual sovereignty assertion with low immediate market impact.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Financial Services",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "evt_live_c8b66e1f2395",
+          "request_id": "evt_live_c8b66e1f2395",
+          "batch_id": "BATCH-evt_live_c8b66e1f2395",
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_c8b66e1f2395",
+          "outer_request_id": "evt_live_c8b66e1f2395",
+          "outer_batch_id": "BATCH-evt_live_c8b66e1f2395"
+        }
+      ],
+      "stock_sector_consistent": true
+    }
+  ],
+  "opportunity_field_consistency": [
+    {
+      "trace_id": "evt_live_adf518ea3272",
+      "symbol": "NVDA",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
+    },
+    {
+      "trace_id": "evt_live_adf518ea3272",
+      "symbol": "MSFT",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
+    },
+    {
+      "trace_id": "evt_live_adf518ea3272",
+      "symbol": "AAPL",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
+    },
+    {
+      "trace_id": "evt_live_adf518ea3272",
+      "symbol": "META",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
+    },
+    {
+      "trace_id": "evt_live_adf518ea3272",
+      "symbol": "GOOGL",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
+    },
+    {
+      "trace_id": "evt_live_924c75e2a960",
+      "symbol": "NVDA",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
+    },
+    {
+      "trace_id": "evt_live_924c75e2a960",
+      "symbol": "AVGO",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
+    },
+    {
+      "trace_id": "evt_live_924c75e2a960",
+      "symbol": "JPM",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
+    },
+    {
+      "trace_id": "evt_live_924c75e2a960",
+      "symbol": "AMZN",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
+    },
+    {
+      "trace_id": "evt_live_924c75e2a960",
+      "symbol": "KO",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
+    },
+    {
+      "trace_id": "evt_live_c8b66e1f2395",
+      "symbol": "XOM",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T02:21:12.807175Z"
+    }
+  ],
+  "primary_sector_only": [
+    {
+      "trace_id": "evt_live_adf518ea3272",
+      "primary_sector": "Technology",
+      "opportunity_sectors": [
+        "Technology"
+      ],
+      "primary_sector_only_pass": true,
+      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
+    },
+    {
+      "trace_id": "evt_live_924c75e2a960",
+      "primary_sector": "Technology",
+      "opportunity_sectors": [
+        "Consumer Cyclical",
+        "Financial Services",
+        "Technology"
+      ],
+      "primary_sector_only_pass": false,
+      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
+    },
+    {
+      "trace_id": "evt_live_c8b66e1f2395",
+      "primary_sector": "Energy",
+      "opportunity_sectors": [
+        "Energy"
+      ],
+      "primary_sector_only_pass": true,
+      "timestamp_utc": "2026-05-07T02:21:12.807175Z"
+    }
+  ]
+}

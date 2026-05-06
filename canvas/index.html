@@ -1,122 +1,119 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EDT指挥中心 - 实时事件驱动交易</title>
+  <title>EDT V2.1 | Ultimate Edition Matrix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="app">
-    <!-- 左栏：新闻雷达 -->
-    <div class="panel left-panel" id="newsPanel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <span class="icon">📰</span>
-          新闻雷达
-          <span class="badge badge-live">LIVE</span>
+    <!-- HUD Header -->
+    <header class="hud-header">
+      <div class="hud-logo">
+        EDT INTELLIGENCE <span class="version">V2.1 PRO</span>
+      </div>
+      <div class="hud-metrics">
+        <div class="metric-item">
+          <span class="metric-label">VIX VOLATILITY</span>
+          <span class="metric-value" id="vixValue">16.42</span>
         </div>
-        <div class="panel-status">
-          <span class="status-dot"></span>
-          <span id="connectionStatus">连接中...</span>
-          <span id="lastNewsAt" class="last-news-at">最近新闻: --</span>
+        <div class="metric-item">
+          <span class="metric-label">SENTIMENT</span>
+          <span class="metric-value" style="color: var(--accent-bull);">BULLISH (0.72)</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">ENGINE STATUS</span>
+          <span class="metric-value"><span class="status-dot dot-live"></span><span id="connectionStatus">已连接</span></span>
         </div>
       </div>
-      <div class="news-list" id="newsList">
-        <!-- 新闻卡片由 JS 动态渲染 -->
-      </div>
-    </div>
+    </header>
 
-    <!-- 中栏：板块热力图 -->
-    <div class="panel center-panel" id="sectorPanel">
+    <!-- Left: Signal Stream -->
+    <aside class="panel signals-panel">
       <div class="panel-header">
-        <div class="panel-title">
-          <span class="icon">🔥</span>
-          板块热力图
-        </div>
-        <div class="panel-filter">
-          <select id="sectorFilter">
-            <option value="all">全部板块</option>
-            <option value="LONG">只看多头</option>
-            <option value="SHORT">只看空头</option>
-          </select>
-        </div>
-      </div>
-      <div class="sector-list" id="sectorList">
-        <!-- 板块卡片由 JS 动态渲染 -->
-        <div class="empty-state">
-          <p>点击左侧新闻查看板块影响</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 右栏：优质股机会池 -->
-    <div class="panel right-panel" id="opportunityPanel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <span class="icon">🎯</span>
-          优质股机会池
-        </div>
+        <div class="panel-title">信号洪流 <span id="newsCount" style="font-size: 10px; color: var(--text-muted);">0</span></div>
         <div class="panel-actions">
-          <button class="btn-icon" title="刷新" onclick="refreshOpportunities()">🔄</button>
-          <button class="btn-icon" title="配置" onclick="openConfig()">⚙️</button>
+          <button class="btn-icon" id="playPauseBtn" title="播放/暂停">▶</button>
+          <button class="btn-icon" id="liveModeBtn" title="实时模式">📡</button>
         </div>
       </div>
-      <div class="opportunity-list" id="opportunityList">
-        <!-- 机会卡由 JS 动态渲染 -->
-        <div class="empty-state">
-          <p>选择板块查看股票机会</p>
+      <div class="panel-content" id="newsList">
+        <div class="empty-state">等待信号注入...</div>
+      </div>
+    </aside>
+
+    <!-- Center: Analysis Matrix -->
+    <main class="panel analysis-panel">
+      <div class="panel-header">
+        <div class="panel-title">深度分析矩阵 <span id="currentTraceId" style="font-family: monospace; font-size: 10px; margin-left: 12px; opacity: 0.5;"></span></div>
+        <div class="panel-actions">
+          <span class="last-news-at" id="lastNewsAt">最近新闻: --</span>
         </div>
       </div>
-    </div>
+      <div class="panel-content">
+        <div class="matrix-grid">
+          <!-- Top Left: Conduction Chain -->
+          <div class="matrix-box">
+            <div class="matrix-title">传导链推演 (CONDUCTION MAP)</div>
+            <div id="sectorList" class="conduction-map">
+              <div class="empty-state">选择左侧信号启动传导分析</div>
+            </div>
+          </div>
+          <!-- Top Right: AI Signal Adapter -->
+          <div class="matrix-box">
+            <div class="matrix-title">AI 信号适配 (ADAPTER STATUS)</div>
+            <div id="aiVerdictBox" class="ai-reasoning-box">
+              <div style="color: var(--text-muted); font-style: italic;">等待 AI 模块返回结果...</div>
+            </div>
+            <div id="confidenceContainer" style="display: none; margin-top: auto;">
+              <div class="matrix-title" style="margin-bottom: 4px;">置信度 (CONFIDENCE)</div>
+              <div class="confidence-gauge">
+                <div id="confidenceFill" class="confidence-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right: Opportunities Board -->
+    <section class="panel opportunities-panel">
+      <div class="panel-header">
+        <div class="panel-title">执行机会卡 <span id="oppCount" style="font-size: 10px; color: var(--text-muted);">0</span></div>
+        <select id="sectorFilter" style="background: var(--bg-deep); color: var(--text-main); border: 1px solid var(--border-dim); font-size: 10px; padding: 2px 4px; border-radius: 4px;">
+          <option value="all">所有板块</option>
+        </select>
+      </div>
+      <div class="panel-content" id="opportunityList">
+        <div class="empty-state">选择板块获取执行建议</div>
+      </div>
+    </section>
+
+    <!-- Ticker Footer -->
+    <footer class="ticker-footer">
+      <div class="ticker-label">LATEST TRACES</div>
+      <div class="ticker-scroll" id="tickerTraces">
+        INITIALIZING SYSTEM... STANDBY FOR INCOMING EVENT DATA...
+      </div>
+    </footer>
   </div>
 
-  <!-- 底部时间轴 -->
-  <div class="timeline-bar" id="timelineBar">
-    <div class="timeline-controls">
-      <button class="btn-timeline" id="playPauseBtn" title="播放/暂停">▶</button>
-      <button class="btn-timeline" id="liveModeBtn" title="实时模式">LIVE</button>
-    </div>
-    <div class="timeline-track" id="timelineTrack">
-      <div class="timeline-progress" id="timelineProgress"></div>
-    </div>
-    <div class="timeline-time" id="timelineTime">--:--:--</div>
-  </div>
-
-  <!-- 配置弹窗 -->
-  <div class="modal" id="configModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>配置中心</h2>
-        <button class="btn-close" onclick="closeConfig()">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="config-tabs">
-          <button class="tab active" data-tab="sector">板块映射</button>
-          <button class="tab" data-tab="stock">优质股票池</button>
-          <button class="tab" data-tab="monitor">健康监控</button>
-        </div>
-        <div class="config-content" id="configContent">
-          <!-- 配置内容由 JS 动态渲染 -->
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 风险确认弹窗 -->
-  <div class="modal" id="riskModal">
+  <!-- Risk Modal -->
+  <div id="riskModal" class="modal">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>⚠️ 风险确认</h2>
-        <button class="btn-close" onclick="closeRiskModal()">×</button>
+        <h2>风险干预 (INTERVENTION)</h2>
+        <button class="btn-close" onclick="closeRiskModal()">&times;</button>
       </div>
-      <div class="modal-body" id="riskModalBody">
-        <!-- 风险详情 -->
-      </div>
+      <div class="modal-body" id="riskModalBody"></div>
     </div>
   </div>
 
-  <script src="./runtime-config.js"></script>
+  <script src="runtime-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

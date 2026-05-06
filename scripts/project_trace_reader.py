@@ -433,7 +433,7 @@ def build_api_envelope(
         "status": status,
         "code": code,
         "message": message,
-        "trace_id": trace_id or _short_request_id("evt"),
+        "trace_id": trace_id,
         "request_id": request_id or _short_request_id("req"),
         "generated_at": _now_utc_iso(),
         "retryable": retryable,

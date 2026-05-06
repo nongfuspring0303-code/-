@@ -117,10 +117,12 @@ def test_project_trace_api_normal_and_empty_paths(project_server, logs_dir: Path
     assert status == 200
     assert body["schema_version"] == "project.api.v1"
     assert body["status"] == "ok"
+    assert body["trace_id"] == "ME-PR-1-002"
     assert body["data"]["scorecard"]["trace_id"] == "ME-PR-1-002"
     assert body["data"]["scorecard"]["total_score"] == 82.0
     assert body["data"]["pipeline_stages"] == []
     assert "Traceback" not in raw
+    assert "evt_" not in raw
 
     status, body, raw = _request(project_server, "GET", f"/api/project/trace/{trace_id}")
     assert status == 200
@@ -136,6 +138,7 @@ def test_project_trace_api_normal_and_empty_paths(project_server, logs_dir: Path
     assert body["data"]["scorecard"] is None
     assert body["data"]["pipeline_stages"] == []
     assert "Traceback" not in raw
+    assert "evt_" not in raw
 
     status, body, raw = _request(project_server, "GET", "/api/project/scorecards/latest")
     assert status == 200
@@ -226,20 +229,24 @@ def test_project_trace_api_system_health_and_read_only_methods(project_server, l
     assert status == 200
     assert body["schema_version"] == "project.api.v1"
     assert body["status"] in {"ok", "partial"}
+    assert body["trace_id"] is None
     assert "system_health_daily" in body["data"]
     assert "daily_report_markdown" in body["data"]
     assert "Traceback" not in raw
+    assert "evt_" not in raw
 
     status, body, raw = _request(project_server, "GET", "/api/project/gap-report")
     assert status == 200
     assert body["schema_version"] == "project.api.v1"
     assert body["status"] in {"ok", "empty", "partial", "error"}
+    assert body["trace_id"] is None
     assert "scorecard_count" in body["data"]
     assert "pipeline_stage_count" in body["data"]
     assert "trace_count" in body["data"]
     assert "required_field_gaps" in body["data"]
     assert "Traceback" not in raw
     assert "/Users/" not in raw
+    assert "evt_" not in raw
 
     status, body, _ = _request(project_server, "POST", "/api/project/traces/latest")
     assert status == 405
@@ -256,6 +263,23 @@ def test_project_trace_api_system_health_and_read_only_methods(project_server, l
     status, body, _ = _request(project_server, "DELETE", "/api/project/traces/latest")
     assert status == 405
     assert body["status"] == "error"
+
+
+def test_project_trace_api_latest_trace_id_matches_snapshot_or_empty(logs_dir: Path):
+    empty_server, thread = _serve(logs_dir)
+    try:
+        status, body, raw = _request(empty_server, "GET", "/api/project/traces/latest")
+        assert status == 200
+        assert body["schema_version"] == "project.api.v1"
+        assert body["status"] == "empty"
+        assert body["trace_id"] is None
+        assert body["data"]["scorecard"] is None
+        assert body["data"]["pipeline_stages"] == []
+        assert "evt_" not in raw
+    finally:
+        empty_server.shutdown()
+        empty_server.server_close()
+        thread.join(timeout=2)
 
 
 def test_project_trace_api_error_path_is_safely_wrapped(monkeypatch, logs_dir: Path):

@@ -1,15 +1,15 @@
 {
   "summary": {
     "window_start_utc": "2026-05-06T00:00:00Z",
-    "window_end_utc": "2026-05-06T18:29:32.168752Z",
-    "anchor_utc": "2026-05-07T01:51:38Z",
-    "hit_with_sector_and_stock_count": 43,
+    "window_end_utc": "2026-05-06T18:32:23.095990Z",
+    "anchor_utc": "2026-05-07T02:29:14Z",
+    "hit_with_sector_and_stock_count": 44,
     "stock_sector_consistency_rate": 1.0,
-    "opportunity_field_consistency_rows": 13,
+    "opportunity_field_consistency_rows": 1,
     "opportunity_field_consistency_mismatch_rows": 0,
     "opportunity_field_consistency_match_rate": 1.0,
-    "primary_sector_only_eligible_traces": 4,
-    "primary_sector_only_pass_rate": 0.75
+    "primary_sector_only_eligible_traces": 1,
+    "primary_sector_only_pass_rate": 1.0
   },
   "details": [
     {
@@ -2806,126 +2806,66 @@
         }
       ],
       "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_10a73f1afad1",
+      "first_ts_utc": "2026-05-07T02:31:41.966616Z",
+      "headline": "  调查显示，据美国能源信息署周四报告预估，上周美国天然气库存增加 740 亿立方英尺。",
+      "ai_reason": "Routine weekly natural gas storage report with no surprise relative to typical seasonal build.",
+      "sectors": [
+        {
+          "sector": "Energy",
+          "direction": "LONG",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Utilities",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        },
+        {
+          "sector": "Industrials",
+          "direction": "WATCH",
+          "impact_score": 0.8,
+          "confidence": 0.8
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "evt_live_10a73f1afad1",
+          "request_id": "evt_live_10a73f1afad1",
+          "batch_id": "BATCH-evt_live_10a73f1afad1",
+          "symbol": "XOM",
+          "sector": "Energy",
+          "action": "WATCH",
+          "confidence": 0.48,
+          "outer_trace_id": "evt_live_10a73f1afad1",
+          "outer_request_id": "evt_live_10a73f1afad1",
+          "outer_batch_id": "BATCH-evt_live_10a73f1afad1"
+        }
+      ],
+      "stock_sector_consistent": true
     }
   ],
   "opportunity_field_consistency": [
     {
-      "trace_id": "evt_live_adf518ea3272",
-      "symbol": "NVDA",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
-    },
-    {
-      "trace_id": "evt_live_adf518ea3272",
-      "symbol": "MSFT",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
-    },
-    {
-      "trace_id": "evt_live_adf518ea3272",
-      "symbol": "AAPL",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
-    },
-    {
-      "trace_id": "evt_live_adf518ea3272",
-      "symbol": "META",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
-    },
-    {
-      "trace_id": "evt_live_adf518ea3272",
-      "symbol": "GOOGL",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
-    },
-    {
-      "trace_id": "evt_live_924c75e2a960",
-      "symbol": "NVDA",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
-    },
-    {
-      "trace_id": "evt_live_924c75e2a960",
-      "symbol": "AVGO",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
-    },
-    {
-      "trace_id": "evt_live_924c75e2a960",
-      "symbol": "JPM",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
-    },
-    {
-      "trace_id": "evt_live_924c75e2a960",
-      "symbol": "AMZN",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
-    },
-    {
-      "trace_id": "evt_live_924c75e2a960",
-      "symbol": "KO",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
-    },
-    {
-      "trace_id": "evt_live_c8b66e1f2395",
+      "trace_id": "evt_live_10a73f1afad1",
       "symbol": "XOM",
       "mismatch": [],
-      "timestamp_utc": "2026-05-07T02:21:12.807175Z"
-    },
-    {
-      "trace_id": "evt_live_e883f2458e3b",
-      "symbol": "NVDA",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T02:27:54.244991Z"
-    },
-    {
-      "trace_id": "evt_live_e883f2458e3b",
-      "symbol": "AVGO",
-      "mismatch": [],
-      "timestamp_utc": "2026-05-07T02:27:54.244991Z"
+      "timestamp_utc": "2026-05-07T02:32:15.775108Z"
     }
   ],
   "primary_sector_only": [
     {
-      "trace_id": "evt_live_adf518ea3272",
-      "primary_sector": "Technology",
-      "opportunity_sectors": [
-        "Technology"
-      ],
-      "primary_sector_only_pass": true,
-      "timestamp_utc": "2026-05-07T01:54:20.625629Z"
-    },
-    {
-      "trace_id": "evt_live_924c75e2a960",
-      "primary_sector": "Technology",
-      "opportunity_sectors": [
-        "Consumer Cyclical",
-        "Financial Services",
-        "Technology"
-      ],
-      "primary_sector_only_pass": false,
-      "timestamp_utc": "2026-05-07T01:56:37.706028Z"
-    },
-    {
-      "trace_id": "evt_live_c8b66e1f2395",
+      "trace_id": "evt_live_10a73f1afad1",
       "primary_sector": "Energy",
       "opportunity_sectors": [
         "Energy"
       ],
       "primary_sector_only_pass": true,
-      "timestamp_utc": "2026-05-07T02:21:12.807175Z"
-    },
-    {
-      "trace_id": "evt_live_e883f2458e3b",
-      "primary_sector": "Technology",
-      "opportunity_sectors": [
-        "Technology"
-      ],
-      "primary_sector_only_pass": true,
-      "timestamp_utc": "2026-05-07T02:27:54.244991Z"
+      "timestamp_utc": "2026-05-07T02:32:15.775108Z"
     }
   ]
 }

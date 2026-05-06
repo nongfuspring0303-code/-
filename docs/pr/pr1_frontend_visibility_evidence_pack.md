@@ -83,6 +83,7 @@
 - `data-key="path_quality_eval.composite_score"` is present in the PathQualityEvalCard.
 - `data-key="trace_scorecard.final_action"` is present in the TraceScorecardCard.
 - `data-key="pipeline_stage.stage"` is present in the PipelineStageCard.
+- `data-module="EmptyStateCard"` and `data-key="empty_state"` are present in the global pending / empty trace fallback inside Trace Detail Panel.
 - `data-state` is set on every module card and reflects `OK`, `MISSING`, `PENDING`, `STALE`, `PARTIAL`, or `FAILED`.
 
 ## Four-State Empty Handling

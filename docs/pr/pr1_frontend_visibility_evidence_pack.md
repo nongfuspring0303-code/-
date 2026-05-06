@@ -19,6 +19,9 @@
 - `scripts/config_api_server.py`
 - `tests/test_project_trace_api.py`
 - `docs/pr/pr1_frontend_visibility_evidence_pack.md`
+- `canvas/index.html`
+- `canvas/app.js`
+- `canvas/styles.css`
 
 ## API Contract Impact
 
@@ -62,6 +65,42 @@
 - B sample verified: `trace_scorecard.jsonl` uses `scores.total_score` / `scores.grade`; API adapter maps them to `traceDetail.scorecard.totalScore` / `grade`. A should confirm whether field matrix `backend_path` needs update.
 - B sample verified: `pipeline_stage.jsonl` uses `logged_at`; API adapter maps it to `traceDetail.pipeline.timestamp`. A should confirm whether field matrix `backend_path` needs update.
 
+## C Side Frontend Deliverables
+
+- Trace Detail Panel
+- LifecycleFatigueCard
+- ExecutionSuggestionCard
+- PathQualityEvalCard
+- TraceScorecardCard
+- PipelineStageCard
+- ApiErrorCard
+- EmptyStateCard
+
+## Frontend Evidence
+
+- `data-module="TraceDetailPanel"` is present on the trace detail root panel.
+- `data-key="execution_suggestion.trade_type"` is present in the ExecutionSuggestionCard.
+- `data-key="path_quality_eval.composite_score"` is present in the PathQualityEvalCard.
+- `data-key="trace_scorecard.final_action"` is present in the TraceScorecardCard.
+- `data-key="pipeline_stage.stage"` is present in the PipelineStageCard.
+- `data-state` is set on every module card and reflects `OK`, `MISSING`, `PENDING`, `STALE`, `PARTIAL`, or `FAILED`.
+
+## Four-State Empty Handling
+
+- `MISSING`: upstream optional fields or modules are not produced, so the card shows `字段未产出 / 当前 trace 无该模块输出`.
+- `PENDING`: logs are not ready yet or the latest trace has no module output yet, so the card shows `等待下一轮产出`.
+- `STALE`: data exists but is older than the freshness threshold, so the card shows a stale state and keeps the latest visible timestamp.
+- `FAILED`: API error or network failure, so the card shows `code`, `message`, and `request_id` only.
+
+## Manual Acceptance
+
+1. Open `canvas/index.html`.
+2. Click `最新` to load the latest Trace.
+3. Verify Trace Detail Panel, TraceScorecardCard, PipelineStageCard, LifecycleFatigueCard, ExecutionSuggestionCard, PathQualityEvalCard, ApiErrorCard, and EmptyStateCard are visible as appropriate.
+4. Verify missing modules render `MISSING` instead of white space.
+5. Verify API errors render `FAILED` with `code`, `message`, and `request_id`.
+6. Verify the advisory-only banner is visible and does not expose any execution trigger.
+
 ## Log Sample Notes
 
 - Local sample logs were present for `logs/trace_scorecard.jsonl` and `logs/pipeline_stage.jsonl`.
@@ -86,11 +125,17 @@
 
 ## Risk / Rollback
 
-- Risk is limited to read-only visibility endpoints and server routing.
+- C side only changes display logic and does not modify backend contract behavior.
+- `lifecycle_fatigue_contract`, `execution_suggestion`, and `path_quality_eval` will show `MISSING` if the current API does not emit them yet.
+- B already completed the API layer, and A should still confirm the final field matrix / contract mapping.
+- Risk is limited to read-only visibility endpoints, server routing, and frontend rendering.
 - Rollback is straightforward:
   - revert `scripts/project_trace_reader.py`
   - revert `scripts/config_api_server.py`
   - revert `tests/test_project_trace_api.py`
+- revert `canvas/index.html`
+- revert `canvas/app.js`
+- revert `canvas/styles.css`
 - No trading logic rollback is required because the execution path was not changed.
 
 ## Remaining Notes

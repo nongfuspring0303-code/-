@@ -1,15 +1,15 @@
 {
   "summary": {
     "window_start_utc": "2026-05-06T00:00:00Z",
-    "window_end_utc": "2026-05-06T18:27:06.628433Z",
+    "window_end_utc": "2026-05-06T18:29:32.168752Z",
     "anchor_utc": "2026-05-07T01:51:38Z",
-    "hit_with_sector_and_stock_count": 42,
+    "hit_with_sector_and_stock_count": 43,
     "stock_sector_consistency_rate": 1.0,
-    "opportunity_field_consistency_rows": 11,
+    "opportunity_field_consistency_rows": 13,
     "opportunity_field_consistency_mismatch_rows": 0,
     "opportunity_field_consistency_match_rate": 1.0,
-    "primary_sector_only_eligible_traces": 3,
-    "primary_sector_only_pass_rate": 0.6667
+    "primary_sector_only_eligible_traces": 4,
+    "primary_sector_only_pass_rate": 0.75
   },
   "details": [
     {
@@ -2759,6 +2759,53 @@
         }
       ],
       "stock_sector_consistent": true
+    },
+    {
+      "trace_id": "evt_live_e883f2458e3b",
+      "first_ts_utc": "2026-05-07T02:27:18.840082Z",
+      "headline": "Anthropic strikes SpaceX deal to fuel Claude Code growth — and for data centers in space",
+      "ai_reason": "Anthropic's partnership with SpaceX to boost compute capacity for Claude Code signals positive sector-specific growth in AI infrastructure.",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        },
+        {
+          "sector": "Communication Services",
+          "direction": "WATCH",
+          "impact_score": 0.74,
+          "confidence": 0.74
+        }
+      ],
+      "opportunities": [
+        {
+          "trace_id": "evt_live_e883f2458e3b",
+          "request_id": "evt_live_e883f2458e3b",
+          "batch_id": "BATCH-evt_live_e883f2458e3b",
+          "symbol": "NVDA",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_e883f2458e3b",
+          "outer_request_id": "evt_live_e883f2458e3b",
+          "outer_batch_id": "BATCH-evt_live_e883f2458e3b"
+        },
+        {
+          "trace_id": "evt_live_e883f2458e3b",
+          "request_id": "evt_live_e883f2458e3b",
+          "batch_id": "BATCH-evt_live_e883f2458e3b",
+          "symbol": "AVGO",
+          "sector": "Technology",
+          "action": "WATCH",
+          "confidence": 0.45,
+          "outer_trace_id": "evt_live_e883f2458e3b",
+          "outer_request_id": "evt_live_e883f2458e3b",
+          "outer_batch_id": "BATCH-evt_live_e883f2458e3b"
+        }
+      ],
+      "stock_sector_consistent": true
     }
   ],
   "opportunity_field_consistency": [
@@ -2827,6 +2874,18 @@
       "symbol": "XOM",
       "mismatch": [],
       "timestamp_utc": "2026-05-07T02:21:12.807175Z"
+    },
+    {
+      "trace_id": "evt_live_e883f2458e3b",
+      "symbol": "NVDA",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T02:27:54.244991Z"
+    },
+    {
+      "trace_id": "evt_live_e883f2458e3b",
+      "symbol": "AVGO",
+      "mismatch": [],
+      "timestamp_utc": "2026-05-07T02:27:54.244991Z"
     }
   ],
   "primary_sector_only": [
@@ -2858,6 +2917,15 @@
       ],
       "primary_sector_only_pass": true,
       "timestamp_utc": "2026-05-07T02:21:12.807175Z"
+    },
+    {
+      "trace_id": "evt_live_e883f2458e3b",
+      "primary_sector": "Technology",
+      "opportunity_sectors": [
+        "Technology"
+      ],
+      "primary_sector_only_pass": true,
+      "timestamp_utc": "2026-05-07T02:27:54.244991Z"
     }
   ]
 }

@@ -576,7 +576,16 @@ class OpportunityScorer:
         prefetched_prices = self._batch_prefetch_prices(stock_candidates)
         opportunities: List[Dict[str, Any]] = []
 
-        for sector_idx, sector in enumerate(sectors):
+        ordered_sectors = list(sectors)
+        if primary_sector_only:
+            # When only primary sector opportunities are allowed, derive primary
+            # by impact score instead of trusting incoming array order.
+            ordered_sectors.sort(
+                key=lambda s: self._safe_float((s or {}).get("impact_score", 0.0), 0.0),
+                reverse=True,
+            )
+
+        for sector_idx, sector in enumerate(ordered_sectors):
             if primary_sector_only and sector_idx > 0:
                 continue
             sector_name = str(sector.get("name", "未知板块"))

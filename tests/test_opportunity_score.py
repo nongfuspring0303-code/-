@@ -376,3 +376,52 @@ def test_opportunity_handles_invalid_asset_validation_shape_defensively():
     }
     out = scorer.build_opportunity_update(payload)
     assert out["action"] in {"WATCH", "NO_ACTION", "TRADE"}
+
+
+def test_primary_sector_only_uses_highest_impact_not_input_order(tmp_path):
+    config_path = tmp_path / "pool.yaml"
+    _write_pool_config(
+        config_path,
+        dynamic_cache_dir=str(tmp_path / "stock_cache"),
+        stocks=[
+            {
+                "symbol": "XOM",
+                "name": "Exxon Mobil",
+                "sector": "Energy",
+                "roe": 20.0,
+                "market_cap_billion": 500.0,
+                "liquidity_score": 0.9,
+                "last_price": 100.0,
+            },
+            {
+                "symbol": "NVDA",
+                "name": "NVIDIA",
+                "sector": "Technology",
+                "roe": 20.0,
+                "market_cap_billion": 500.0,
+                "liquidity_score": 0.9,
+                "last_price": 100.0,
+            },
+        ],
+    )
+    cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    cfg.setdefault("opportunity_rules", {})["primary_sector_only"] = True
+    config_path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    scorer = OpportunityScorer(pool_config_path=str(config_path))
+    payload = {
+        "trace_id": "evt_primary_sector_order",
+        "schema_version": "v1.0",
+        "sectors": [
+            {"name": "Technology", "direction": "LONG", "impact_score": 0.2, "confidence": 0.8},
+            {"name": "Energy", "direction": "LONG", "impact_score": 0.9, "confidence": 0.8},
+        ],
+        "stock_candidates": [
+            {"symbol": "XOM", "sector": "Energy", "direction": "LONG", "event_beta": 1.0},
+            {"symbol": "NVDA", "sector": "Technology", "direction": "LONG", "event_beta": 1.0},
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+    assert out["opportunities"]
+    assert {opp["sector"] for opp in out["opportunities"]} == {"Energy"}

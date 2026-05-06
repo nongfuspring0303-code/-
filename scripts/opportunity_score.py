@@ -572,10 +572,13 @@ class OpportunityScorer:
 
         max_per_sector = int(self.pool.rules.get("max_candidates_per_sector", 5))
         max_global_candidates = int(self._safe_float(self._gp("signal_grade.max_stock_candidates", 5), 5))
+        primary_sector_only = bool(self.pool.rules.get("primary_sector_only", False))
         prefetched_prices = self._batch_prefetch_prices(stock_candidates)
         opportunities: List[Dict[str, Any]] = []
 
-        for sector in sectors:
+        for sector_idx, sector in enumerate(sectors):
+            if primary_sector_only and sector_idx > 0:
+                continue
             sector_name = str(sector.get("name", "未知板块"))
             norm_sector = _norm_sector(self.pool.canonical_sector(sector_name))
             sector_direction = self._normalize_direction(sector.get("direction", "WATCH"))
@@ -585,9 +588,13 @@ class OpportunityScorer:
             seeded_candidates = candidates_by_sector.get(norm_sector, [])
             selected_stocks = self.pool.filter_candidates(seeded_candidates)
 
-            if not selected_stocks:
+            if not selected_stocks and sector_idx == 0:
                 selected_stocks = self.pool.pick_by_sector(sector_name, limit=max_per_sector)
                 seeded_candidates = [{"symbol": s.symbol, "sector": s.sector, "direction": sector_direction, "event_beta": 1.0} for s in selected_stocks]
+            elif not selected_stocks:
+                # Keep secondary sectors visible in sector_update, but avoid generic
+                # fallback-stock leakage when there is no event-grounded candidate.
+                continue
 
             for stock in selected_stocks[:max_per_sector]:
                 match_candidate = next((c for c in seeded_candidates if str(c.get("symbol", "")).upper() == stock.symbol), {})

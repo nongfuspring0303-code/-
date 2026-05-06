@@ -19,6 +19,7 @@ opportunity_rules:
   support_buffer_pct: 0.03
   resistance_buffer_pct: 0.03
   max_candidates_per_sector: 5
+  primary_sector_only: true
 stocks:
 - symbol: NVDA
   name: 英伟达

@@ -116,11 +116,15 @@ def test_project_trace_api_normal_and_empty_paths(project_server, logs_dir: Path
     status, body, raw = _request(project_server, "GET", "/api/project/traces/latest")
     assert status == 200
     assert body["schema_version"] == "project.api.v1"
-    assert body["status"] == "ok"
+    assert body["status"] in {"ok", "partial"}
     assert body["trace_id"] == "ME-PR-1-002"
+    assert isinstance(body["data"]["items"], list)
+    assert body["data"]["items"][0]["trace_id"] == "ME-PR-1-002"
     assert body["data"]["scorecard"]["trace_id"] == "ME-PR-1-002"
     assert body["data"]["scorecard"]["total_score"] == 82.0
     assert body["data"]["pipeline_stages"] == []
+    assert body["data"]["count"] == len(body["data"]["items"])
+    assert body["data"]["next_cursor"] is None
     assert "Traceback" not in raw
     assert "evt_" not in raw
 
@@ -148,7 +152,7 @@ def test_project_trace_api_normal_and_empty_paths(project_server, logs_dir: Path
 
 def test_project_trace_api_empty_and_partial_and_bad_jsonl(project_server, logs_dir: Path):
     _write_text(logs_dir / "trace_scorecard.jsonl", '{"broken": true}\n{"logged_at": "2026-05-06T10:00:00Z"}\n')
-    _write_text(logs_dir / "pipeline_stage.jsonl", '{"trace_id":"ME-PR-1-003","stage":"intel_ingest","status":"success"}\n')
+    _write_text(logs_dir / "pipeline_stage.jsonl", '{"trace_id":"ME-PR-1-003","stage":"intel_ingest","status":"success"}\nnot-json\n')
 
     status, body, raw = _request(project_server, "GET", "/api/project/scorecards/latest")
     assert status == 200
@@ -274,12 +278,72 @@ def test_project_trace_api_latest_trace_id_matches_snapshot_or_empty(logs_dir: P
         assert body["status"] == "empty"
         assert body["trace_id"] is None
         assert body["data"]["scorecard"] is None
+        assert body["data"]["items"] == []
         assert body["data"]["pipeline_stages"] == []
         assert "evt_" not in raw
     finally:
         empty_server.shutdown()
         empty_server.server_close()
         thread.join(timeout=2)
+
+
+def test_project_trace_api_latest_list_limit_and_fallback(project_server, logs_dir: Path):
+    _write_jsonl(
+        logs_dir / "trace_scorecard.jsonl",
+        [
+            _sample_scorecard("ME-PR-1-001", "2026-05-06T09:00:00Z"),
+            _sample_scorecard("ME-PR-1-002", "2026-05-06T10:00:00Z"),
+            _sample_scorecard("ME-PR-1-003", "2026-05-06T11:00:00Z"),
+        ],
+    )
+    _write_jsonl(
+        logs_dir / "pipeline_stage.jsonl",
+        [
+            _sample_pipeline_stage("ME-PR-1-003", "intel_ingest", "2026-05-06T11:00:01Z", 1),
+            _sample_pipeline_stage("ME-PR-1-002", "intel_ingest", "2026-05-06T10:00:01Z", 1),
+            _sample_pipeline_stage("ME-PR-1-001", "intel_ingest", "2026-05-06T09:00:01Z", 1),
+        ],
+    )
+
+    status, body, raw = _request(project_server, "GET", "/api/project/traces/latest?limit=2")
+    assert status == 200
+    assert body["schema_version"] == "project.api.v1"
+    assert body["status"] in {"ok", "partial"}
+    assert isinstance(body["data"]["items"], list)
+    assert len(body["data"]["items"]) <= 2
+    assert body["data"]["items"][0]["trace_id"] == "ME-PR-1-003"
+    assert body["data"]["limit"] == 2
+    assert body["data"]["count"] == len(body["data"]["items"])
+    assert body["data"]["next_cursor"] is None
+    assert "Traceback" not in raw
+    assert "/Users/" not in raw
+    assert "evt_" not in raw
+
+    status, body, raw = _request(project_server, "GET", "/api/project/traces/latest?limit=bad")
+    assert status == 200
+    assert body["schema_version"] == "project.api.v1"
+    assert body["data"]["limit"] == 20
+    assert isinstance(body["data"]["items"], list)
+    assert "Traceback" not in raw
+    assert "evt_" not in raw
+
+    status, body, raw = _request(project_server, "GET", "/api/project/traces/latest?limit=999")
+    assert status == 200
+    assert body["schema_version"] == "project.api.v1"
+    assert body["data"]["limit"] == 100
+    assert len(body["data"]["items"]) <= 100
+    assert "Traceback" not in raw
+    assert "evt_" not in raw
+
+    status, body, raw = _request(project_server, "GET", "/api/project/traces/latest")
+    assert status == 200
+    assert body["schema_version"] == "project.api.v1"
+    assert isinstance(body["data"]["items"], list)
+    assert body["data"]["items"][0]["trace_id"] == "ME-PR-1-003"
+    assert body["data"]["scorecard"]["trace_id"] == "ME-PR-1-003"
+    assert body["data"]["pipeline_stages"][0]["trace_id"] == "ME-PR-1-003"
+    assert "Traceback" not in raw
+    assert "evt_" not in raw
 
 
 def test_project_trace_api_error_path_is_safely_wrapped(monkeypatch, logs_dir: Path):

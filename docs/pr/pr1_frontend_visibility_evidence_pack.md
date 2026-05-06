@@ -30,10 +30,12 @@
 - Added `GET /api/project/scorecards/latest`
 - Added `GET /api/project/gap-report`
 - Added `GET /api/project/system-health`
-- `GET /api/project/traces/latest` is intentionally a single latest snapshot endpoint, not a paginated list endpoint.
-- It is the data source for the Trace Detail Panel “加载最新 Trace” button.
-- If a future requirement needs pagination, it should be handled in a separate PR or a separate endpoint such as `GET /api/project/traces?limit=50`.
-- The field matrix / baseline has a semantic mismatch around latest-list wording; this PR deliberately converges on single latest snapshot behavior and asks A to confirm the final contract.
+- `GET /api/project/traces/latest?limit=N` now supports latest-list semantics.
+- `data.items[]` is the canonical list contract.
+- `data.scorecard` and `data.pipeline_stages` are retained as latest snapshot compatibility aliases for the Trace Detail Panel.
+- `limit` is sanitized and capped to a safe range.
+- `next_cursor` is currently `null`.
+- If a future requirement needs pagination beyond latest limit, it can use `next_cursor` in a later PR.
 - All responses use the project API envelope:
 
 ```json
@@ -52,7 +54,7 @@
 ```
 
 - `/api/project/*` is read-only.
-- Non-trace project endpoints return `trace_id: null`; only trace-detail endpoints return a real trace id.
+- Utility endpoints such as `gap-report` and `system-health` return `trace_id: null`; `GET /api/project/traces/latest` may expose the newest trace id as a compatibility alias for the trace panel.
 - Bad JSONL rows are skipped safely and do not produce HTTP 500.
 - Required-field gaps are surfaced via `errors[]`.
 - Optional fields remain `null` or `[]` when missing.
@@ -124,7 +126,7 @@
 
 ### Results Summary
 
-- `tests/test_project_trace_api.py`: passed, 4 passed.
+- `tests/test_project_trace_api.py`: latest-list + limit coverage passed, current suite is 6 passed.
 - `tests/test_full_workflow.py`: passed, 9 passed.
 - `scripts/verify_execution_no_pytest.py`: passed.
 - `py_compile`: the command is clean when run with a separate cache prefix; the default cache location in this sandbox is restricted.

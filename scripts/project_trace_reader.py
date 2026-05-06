@@ -173,67 +173,94 @@ class ProjectTraceReader:
     def _pipeline_rows(self) -> LoadResult:
         return self._read_jsonl("pipeline_stage.jsonl")
 
-    def latest_trace(self) -> dict[str, Any]:
+    def _timestamp_from_row(self, row: dict[str, Any]) -> str:
+        return _safe_timestamp(row.get("timestamp") or row.get("logged_at")) or ""
+
+    def latest_traces(self, limit: int = 20) -> dict[str, Any]:
         scorecards = self._scorecard_rows()
         pipeline = self._pipeline_rows()
         errors = scorecards.bad_lines + pipeline.bad_lines
-        if not scorecards.rows:
-            if pipeline.rows:
-                latest_pipeline = max(pipeline.rows, key=lambda row: _safe_timestamp(row.get("logged_at")) or "")
-                trace_id = _safe_str(latest_pipeline.get("trace_id"))
-                matching_pipeline = [
-                    self._pipeline_record(row)
-                    for row in pipeline.rows
-                    if _safe_str(row.get("trace_id")) == trace_id
-                ]
-                matching_pipeline.sort(
-                    key=lambda item: (item.get("stage_seq") is None, item.get("stage_seq") or 0, item.get("timestamp") or "")
-                )
-                return {
-                    "status": "partial" if errors or matching_pipeline else "empty",
-                    "message": "Pipeline trace loaded without scorecard.",
-                    "errors": errors,
-                    "data": {
-                        "scorecard": None,
-                        "pipeline_stages": matching_pipeline,
-                    },
-                    "trace_id": trace_id,
-                }
+        trace_ids = sorted({
+            _safe_str(row.get("trace_id"))
+            for row in (scorecards.rows + pipeline.rows)
+            if _safe_str(row.get("trace_id"))
+        })
+        if not trace_ids:
             return {
                 "status": "empty" if not errors else "partial",
                 "message": "No trace scorecards are available.",
                 "errors": errors,
+                "trace_id": None,
                 "data": {
+                    "items": [],
                     "scorecard": None,
                     "pipeline_stages": [],
+                    "limit": limit,
+                    "count": 0,
+                    "next_cursor": None,
                 },
-                "trace_id": None,
             }
 
-        latest_row = max(scorecards.rows, key=lambda row: _safe_timestamp(row.get("logged_at")) or "")
-        trace_id = _safe_str(latest_row.get("trace_id"))
-        matching_pipeline = [
-            self._pipeline_record(row)
-            for row in pipeline.rows
-            if _safe_str(row.get("trace_id")) == trace_id
-        ]
-        matching_pipeline.sort(key=lambda item: (item.get("stage_seq") is None, item.get("stage_seq") or 0, item.get("timestamp") or ""))
+        def _trace_sort_key(trace_id: str) -> tuple[str, str]:
+            scorecard_rows = [row for row in scorecards.rows if _safe_str(row.get("trace_id")) == trace_id]
+            pipeline_rows = [row for row in pipeline.rows if _safe_str(row.get("trace_id")) == trace_id]
+            latest_scorecard_ts = max((self._timestamp_from_row(row) for row in scorecard_rows), default="")
+            latest_pipeline_ts = max((self._timestamp_from_row(row) for row in pipeline_rows), default="")
+            latest_ts = max(latest_scorecard_ts, latest_pipeline_ts)
+            return (latest_ts, trace_id)
 
-        required_missing = self._scorecard_required_gaps(latest_row)
+        trace_ids.sort(key=_trace_sort_key, reverse=True)
+        items: list[dict[str, Any]] = []
+        required_missing_entries: list[dict[str, Any]] = []
+
+        for trace_id in trace_ids[:max(1, limit)]:
+            matching_scorecards = [row for row in scorecards.rows if _safe_str(row.get("trace_id")) == trace_id]
+            latest_scorecard = max(matching_scorecards, key=lambda row: self._timestamp_from_row(row)) if matching_scorecards else None
+            matching_pipeline = [
+                self._pipeline_record(row)
+                for row in pipeline.rows
+                if _safe_str(row.get("trace_id")) == trace_id
+            ]
+            matching_pipeline.sort(
+                key=lambda item: (item.get("stage_seq") is None, item.get("stage_seq") or 0, item.get("timestamp") or "")
+            )
+            item_scorecard = self._scorecard_record(latest_scorecard) if latest_scorecard else None
+            items.append({
+                "trace_id": trace_id,
+                "scorecard": item_scorecard,
+                "pipeline_stages": matching_pipeline,
+            })
+            if latest_scorecard is not None:
+                missing = self._scorecard_required_gaps(latest_scorecard)
+                if missing:
+                    required_missing_entries.append({
+                        "code": "MISSING_REQUIRED_FIELD",
+                        "trace_id": trace_id,
+                        "fields": missing,
+                    })
+
         status = "ok"
-        if errors or required_missing:
+        if errors or required_missing_entries:
             status = "partial"
 
+        top_item = items[0] if items else None
         return {
             "status": status,
-            "message": "Latest trace snapshot loaded.",
-            "errors": errors + [{"code": "MISSING_REQUIRED_FIELD", "fields": required_missing}] if required_missing else errors,
-            "trace_id": trace_id,
+            "message": "Latest trace list loaded.",
+            "errors": errors + required_missing_entries,
+            "trace_id": top_item["trace_id"] if top_item else None,
             "data": {
-                "scorecard": self._scorecard_record(latest_row),
-                "pipeline_stages": matching_pipeline,
+                "items": items,
+                "scorecard": top_item["scorecard"] if top_item else None,
+                "pipeline_stages": top_item["pipeline_stages"] if top_item else [],
+                "limit": limit,
+                "count": len(items),
+                "next_cursor": None,
             },
         }
+
+    def latest_trace(self) -> dict[str, Any]:
+        return self.latest_traces(limit=1)
 
     def trace_detail(self, trace_id: str) -> dict[str, Any]:
         lookup = _safe_str(trace_id)

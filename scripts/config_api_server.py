@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 import sys
 from typing import Optional
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
@@ -90,6 +90,18 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
         )
         self._send_json(status, payload)
 
+    def _project_limit_from_query(self, query: dict[str, list[str]]) -> int:
+        raw_limit = query.get("limit", ["20"])[0]
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return 20
+        if limit < 1:
+            return 1
+        if limit > 100:
+            return 100
+        return limit
+
     def _send_project_payload(self, payload: dict, *, default_status: int = 200):
         http_status = default_status
         if payload.get("status") == "error":
@@ -108,21 +120,24 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
 
     def _handle_project_get(self) -> bool:
         reader = self.project_reader
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
         try:
-            if self.path == "/api/project/traces/latest":
-                self._send_project_payload(reader.latest_trace())
+            if path == "/api/project/traces/latest":
+                self._send_project_payload(reader.latest_traces(limit=self._project_limit_from_query(query)))
                 return True
-            if self.path.startswith("/api/project/trace/"):
-                trace_id = unquote(self.path.rsplit("/", 1)[-1]).strip()
+            if path.startswith("/api/project/trace/"):
+                trace_id = unquote(path.rsplit("/", 1)[-1]).strip()
                 self._send_project_payload(reader.trace_detail(trace_id))
                 return True
-            if self.path == "/api/project/scorecards/latest":
+            if path == "/api/project/scorecards/latest":
                 self._send_project_payload(reader.latest_scorecard())
                 return True
-            if self.path == "/api/project/gap-report":
+            if path == "/api/project/gap-report":
                 self._send_project_payload(reader.gap_report())
                 return True
-            if self.path == "/api/project/system-health":
+            if path == "/api/project/system-health":
                 self._send_project_payload(reader.system_health())
                 return True
         except Exception as exc:  # noqa: BLE001
@@ -133,7 +148,7 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
                 errors=[{"code": "INTERNAL_ERROR"}],
             )
             return True
-        if self.path.startswith("/api/project/"):
+        if path.startswith("/api/project/"):
             self._project_error(404, "Project endpoint not found.", errors=[{"code": "NOT_FOUND"}])
             return True
         return False

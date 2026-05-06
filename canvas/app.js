@@ -182,10 +182,19 @@ function latestPipelineTimestamp(stages) {
 }
 
 function normalizeProjectEnvelope(payload) {
+  const status = safeText(payload?.status, 'error').toLowerCase();
+  const fallbackCode =
+    status === 'error'
+      ? 'API_ERROR'
+      : status === 'partial'
+        ? 'PARTIAL'
+        : status === 'empty'
+          ? 'EMPTY'
+          : 'OK';
   return {
     schema_version: safeText(payload?.schema_version, 'project.api.v1'),
-    status: safeText(payload?.status, 'error'),
-    code: safeText(payload?.code, 'OK'),
+    status,
+    code: safeText(payload?.code, fallbackCode),
     message: safeText(payload?.message, '项目 Trace 请求失败'),
     trace_id: payload?.trace_id ?? null,
     request_id: payload?.request_id ?? null,

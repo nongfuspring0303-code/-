@@ -15,9 +15,11 @@
 
 ## Files Changed
 
+- `.github/workflows/ci.yml`
 - `scripts/project_trace_reader.py`
 - `scripts/config_api_server.py`
 - `tests/test_project_trace_api.py`
+- `tests/test_project_trace_frontend_contract.py`
 - `docs/pr/pr1_frontend_visibility_evidence_pack.md`
 - `canvas/index.html`
 - `canvas/app.js`
@@ -42,9 +44,9 @@
 {
   "schema_version": "project.api.v1",
   "status": "ok|empty|partial|error",
-  "code": "OK",
+  "code": "OK|EMPTY|PARTIAL_*|METHOD_NOT_ALLOWED|TRACE_NOT_FOUND|INTERNAL_ERROR|GAP_REPORT_NOT_READY",
   "message": "human readable safe message",
-  "trace_id": "evt_xxx",
+  "trace_id": "evt_xxx|null",
   "request_id": "req_xxx",
   "generated_at": "UTC ISO timestamp",
   "retryable": false,
@@ -60,6 +62,26 @@
 - Optional fields remain `null` or `[]` when missing.
 - All generated timestamps are UTC.
 - Responses are sanitized and do not expose traceback text.
+
+## Gap Report Boundary
+
+`GET /api/project/gap-report` is intentionally a PR-1 placeholder.
+
+Current PR-1 behavior:
+
+- `status`: `empty`
+- `code`: `GAP_REPORT_NOT_READY`
+- `data`: `null`
+
+Formal `project_gap_report.v1`, including:
+
+- `overall_status`
+- `delta_vs_prev`
+- `top_blockers`
+- `findings`
+- module / field / data-key coverage
+
+belongs to PR-2 Project Gap Monitor and is not implemented in PR115.
 
 ## Field Matrix v1.2
 
@@ -120,16 +142,32 @@
 ### Commands Run
 
 - `python3 -m pytest -q tests/test_project_trace_api.py`
+- `python3 -m pytest -q tests/test_project_trace_frontend_contract.py`
 - `python3 -m pytest -q tests/test_full_workflow.py`
 - `python3 scripts/verify_execution_no_pytest.py`
 - `python3 -m py_compile scripts/project_trace_reader.py scripts/config_api_server.py tests/test_project_trace_api.py`
 
 ### Results Summary
 
-- `tests/test_project_trace_api.py`: latest-list + limit coverage passed, current suite is 6 passed.
+- `tests/test_project_trace_api.py`: 7 passed.
+- `tests/test_project_trace_frontend_contract.py`: 2 passed.
 - `tests/test_full_workflow.py`: passed, 9 passed.
 - `scripts/verify_execution_no_pytest.py`: passed.
 - `py_compile`: the command is clean when run with a separate cache prefix; the default cache location in this sandbox is restricted.
+
+## CI Evidence
+
+- Head SHA: `caa00c8e85c261e5f8f5ffa4e96113d49e55273f`
+- CI run: `25457378612`
+- Job: `test`
+- Conclusion: `success`
+- PR115 API tests: `7 passed`
+- PR115 frontend contract tests: `2 passed`
+
+## Frontend Test Boundary
+
+Current frontend contract test is source-marker based (`data-module` / `data-key` / `data-state` / four-state markers).
+Runtime browser smoke verification is deferred to PR-3 Web Console automation.
 
 ## Risk / Rollback
 

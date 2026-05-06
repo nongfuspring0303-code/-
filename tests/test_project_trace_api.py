@@ -164,13 +164,29 @@ def test_project_trace_api_empty_and_partial_and_bad_jsonl(project_server, logs_
     status, body, raw = _request(project_server, "GET", "/api/project/scorecards/latest")
     assert status == 200
     assert body["status"] == "partial"
+    assert body["code"] == "PARTIAL_SCORECARD"
+    assert body["code"] != "OK"
     assert body["errors"]
+    for error in body["errors"]:
+        assert "code" in error
+        assert "message" in error
+        assert "source" in error
+        assert "retryable" in error
+        assert "severity" in error
     assert "Traceback" not in raw
 
     status, body, raw = _request(project_server, "GET", "/api/project/traces/latest")
     assert status == 200
     assert body["status"] == "partial"
+    assert body["code"] == "PARTIAL_TRACE_LIST"
+    assert body["code"] != "OK"
     assert body["errors"]
+    for error in body["errors"]:
+        assert "code" in error
+        assert "message" in error
+        assert "source" in error
+        assert "retryable" in error
+        assert "severity" in error
     assert "Traceback" not in raw
 
     empty_logs_dir = logs_dir.parent / "empty_logs"
@@ -240,6 +256,9 @@ def test_project_trace_api_system_health_and_read_only_methods(project_server, l
     assert status == 200
     assert body["schema_version"] == "project.api.v1"
     assert body["status"] in {"ok", "partial"}
+    if body["status"] == "partial":
+        assert body["code"] == "PARTIAL_SYSTEM_HEALTH"
+        assert body["code"] != "OK"
     assert body["trace_id"] is None
     assert "system_health_daily" in body["data"]
     assert "daily_report_markdown" in body["data"]
@@ -289,6 +308,7 @@ def test_project_trace_api_latest_trace_id_matches_snapshot_or_empty(logs_dir: P
         assert status == 200
         assert body["schema_version"] == "project.api.v1"
         assert body["status"] == "empty"
+        assert body["code"] == "EMPTY"
         assert body["trace_id"] is None
         assert body["data"]["scorecard"] is None
         assert body["data"]["items"] == []
@@ -389,3 +409,43 @@ def test_project_trace_api_error_contract_fields(project_server, logs_dir: Path)
     assert "source" in first
     assert first.get("severity") in {"warning", "error"}
     assert first.get("retryable") in {True, False}
+
+
+def test_project_trace_api_required_field_missing_uses_uniform_error_schema(project_server, logs_dir: Path):
+    _write_jsonl(
+        logs_dir / "trace_scorecard.jsonl",
+        [
+            _sample_scorecard("ME-PR-1-REQ-001", "2026-05-06T10:00:00Z", final_action=None),
+        ],
+    )
+    _write_jsonl(
+        logs_dir / "pipeline_stage.jsonl",
+        [
+            _sample_pipeline_stage("ME-PR-1-REQ-001", "intel_ingest", "2026-05-06T10:00:01Z", 1),
+        ],
+    )
+    status, body, _ = _request(project_server, "GET", "/api/project/traces/latest")
+    assert status == 200
+    assert body["status"] == "partial"
+    assert body["code"] == "PARTIAL_TRACE_LIST"
+    required_errors = [e for e in body["errors"] if e["code"] == "REQUIRED_FIELD_MISSING"]
+    assert required_errors
+    for error in required_errors:
+        assert "message" in error
+        assert "source" in error
+        assert "field" in error
+        assert error["severity"] == "error"
+        assert error["retryable"] is False
+
+    status, body, _ = _request(project_server, "GET", "/api/project/scorecards/latest")
+    assert status == 200
+    assert body["status"] == "partial"
+    assert body["code"] == "PARTIAL_SCORECARD"
+    required_errors = [e for e in body["errors"] if e["code"] == "REQUIRED_FIELD_MISSING"]
+    assert required_errors
+    for error in required_errors:
+        assert "message" in error
+        assert "source" in error
+        assert "field" in error
+        assert error["severity"] == "error"
+        assert error["retryable"] is False

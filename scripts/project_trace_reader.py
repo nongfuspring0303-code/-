@@ -308,8 +308,10 @@ class ProjectTraceReader:
             if _safe_str(row.get("trace_id"))
         })
         if not trace_ids:
+            empty_status = "empty" if not errors else "partial"
             return {
-                "status": "empty" if not errors else "partial",
+                "status": empty_status,
+                "code": "PARTIAL_TRACE_LIST" if empty_status == "partial" else "EMPTY",
                 "message": "No trace scorecards are available.",
                 "errors": errors,
                 "trace_id": None,
@@ -355,11 +357,18 @@ class ProjectTraceReader:
             if latest_scorecard is not None:
                 missing = self._scorecard_required_gaps(latest_scorecard)
                 if missing:
-                    required_missing_entries.append({
-                        "code": "MISSING_REQUIRED_FIELD",
-                        "trace_id": trace_id,
-                        "fields": missing,
-                    })
+                    for field in missing:
+                        required_missing_entries.append(
+                            _error_item(
+                                code="REQUIRED_FIELD_MISSING",
+                                message=f"Required field {field} is missing.",
+                                source="trace_scorecard.jsonl",
+                                field=field,
+                                module="trace_scorecard",
+                                severity="error",
+                                retryable=False,
+                            )
+                        )
 
         status = "ok"
         if errors or required_missing_entries:
@@ -368,6 +377,7 @@ class ProjectTraceReader:
         top_item = items[0] if items else None
         return {
             "status": status,
+            "code": "PARTIAL_TRACE_LIST" if status == "partial" else ("EMPTY" if status == "empty" else "OK"),
             "message": "Latest trace list loaded.",
             "errors": errors + required_missing_entries,
             "trace_id": top_item["trace_id"] if top_item else None,
@@ -471,7 +481,7 @@ class ProjectTraceReader:
         ]
         return {
             "status": status,
-            "code": "PARTIAL_TRACE_DETAIL" if status == "partial" else "OK",
+            "code": "PARTIAL_TRACE_DETAIL" if status == "partial" else ("EMPTY" if status == "empty" else "OK"),
             "message": "Trace detail loaded.",
             "errors": errors + module_errors + missing_field_errors,
             "trace_id": lookup,
@@ -505,10 +515,23 @@ class ProjectTraceReader:
         status = "ok"
         if errors or required_missing:
             status = "partial"
+        required_errors = [
+            _error_item(
+                code="REQUIRED_FIELD_MISSING",
+                message=f"Required field {field} is missing.",
+                source="trace_scorecard.jsonl",
+                field=field,
+                module="trace_scorecard",
+                severity="error",
+                retryable=False,
+            )
+            for field in required_missing
+        ]
         return {
             "status": status,
+            "code": "PARTIAL_SCORECARD" if status == "partial" else ("EMPTY" if status == "empty" else "OK"),
             "message": "Latest scorecard loaded.",
-            "errors": errors + [{"code": "MISSING_REQUIRED_FIELD", "fields": required_missing}] if required_missing else errors,
+            "errors": errors + required_errors,
             "trace_id": _safe_str(latest_row.get("trace_id")),
             "data": {"scorecard": self._scorecard_record(latest_row)},
         }
@@ -568,6 +591,7 @@ class ProjectTraceReader:
 
         return {
             "status": status,
+            "code": "PARTIAL_SYSTEM_HEALTH" if status == "partial" else ("EMPTY" if status == "empty" else "OK"),
             "message": "System health snapshot loaded.",
             "errors": all_errors,
             "trace_id": None,

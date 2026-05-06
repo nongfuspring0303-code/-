@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 import sys
 from typing import Optional
+from urllib.parse import unquote
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
@@ -23,6 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.human_feedback_center import HumanFeedbackCenter
 from scripts.health_monitor import HealthMonitor
+from scripts.project_trace_reader import ProjectTraceReader, build_api_envelope
 from scripts.risk_gatekeeper import RiskGatekeeper, ActionType
 
 DEFAULT_API_TOKEN = os.getenv("EDT_API_TOKEN", os.getenv("EDT_WS_TOKEN", "edt-local-dev-token"))
@@ -33,6 +35,7 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
     center = HumanFeedbackCenter()
     monitor = HealthMonitor()
     gatekeeper = RiskGatekeeper()
+    project_reader = ProjectTraceReader()
     event_publisher = None
     auth_token = DEFAULT_API_TOKEN
     runtime_role = DEFAULT_RUNTIME_ROLE
@@ -44,7 +47,7 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-EDT-Token")
-        self.send_header("Access-Control-Allow-Methods", "GET,PUT,POST,OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET,PUT,POST,PATCH,DELETE,OPTIONS")
         self.end_headers()
         self.wfile.write(body)
 
@@ -75,8 +78,70 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):  # noqa: N802
         self._send_json(200, {"ok": True})
 
+    def _project_error(self, status: int, message: str, trace_id: str | None = None, errors: list[dict] | None = None):
+        payload = build_api_envelope(
+            status="error",
+            message=message,
+            data={},
+            trace_id=trace_id,
+            request_id=None,
+            errors=errors or [],
+            retryable=False,
+        )
+        self._send_json(status, payload)
+
+    def _send_project_payload(self, payload: dict, *, default_status: int = 200):
+        http_status = default_status
+        if payload.get("status") == "error":
+            http_status = 500
+        self._send_json(
+            http_status,
+            build_api_envelope(
+                status=payload.get("status", "error"),
+                message=payload.get("message", "Project trace request failed."),
+                data=payload.get("data", {}),
+                trace_id=payload.get("trace_id"),
+                errors=payload.get("errors", []),
+                retryable=False,
+            ),
+        )
+
+    def _handle_project_get(self) -> bool:
+        reader = self.project_reader
+        try:
+            if self.path == "/api/project/traces/latest":
+                self._send_project_payload(reader.latest_trace())
+                return True
+            if self.path.startswith("/api/project/trace/"):
+                trace_id = unquote(self.path.rsplit("/", 1)[-1]).strip()
+                self._send_project_payload(reader.trace_detail(trace_id))
+                return True
+            if self.path == "/api/project/scorecards/latest":
+                self._send_project_payload(reader.latest_scorecard())
+                return True
+            if self.path == "/api/project/gap-report":
+                self._send_project_payload(reader.gap_report())
+                return True
+            if self.path == "/api/project/system-health":
+                self._send_project_payload(reader.system_health())
+                return True
+        except Exception as exc:  # noqa: BLE001
+            self.log_error("project endpoint failed: %s", str(exc))
+            self._project_error(
+                500,
+                "Project endpoint failed to load safely.",
+                errors=[{"code": "INTERNAL_ERROR"}],
+            )
+            return True
+        if self.path.startswith("/api/project/"):
+            self._project_error(404, "Project endpoint not found.", errors=[{"code": "NOT_FOUND"}])
+            return True
+        return False
+
     def do_GET(self):  # noqa: N802
         if not self._require_auth():
+            return
+        if self._handle_project_get():
             return
         if self.path == "/api/config/sector-mapping":
             self._send_json(200, self.center.get_sector_mapping())
@@ -96,8 +161,20 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             return
         self._send_json(404, {"error": "not found"})
 
+    def _handle_project_method_not_allowed(self) -> bool:
+        if self.path.startswith("/api/project/"):
+            self._project_error(
+                405,
+                "Project endpoints are read-only.",
+                errors=[{"code": "METHOD_NOT_ALLOWED"}],
+            )
+            return True
+        return False
+
     def do_PUT(self):  # noqa: N802
         if not self._require_auth():
+            return
+        if self._handle_project_method_not_allowed():
             return
         payload = self._read_json()
         if self.path == "/api/config/sector-mapping":
@@ -112,6 +189,8 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802
         if not self._require_auth():
+            return
+        if self._handle_project_method_not_allowed():
             return
         if self.path == "/api/monitor/report":
             payload = self._read_json()
@@ -219,6 +298,20 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             return
         resp = self.center.submit_feedback(**payload)
         self._send_json(200, resp)
+
+    def do_PATCH(self):  # noqa: N802
+        if not self._require_auth():
+            return
+        if self._handle_project_method_not_allowed():
+            return
+        self._send_json(404, {"error": "not found"})
+
+    def do_DELETE(self):  # noqa: N802
+        if not self._require_auth():
+            return
+        if self._handle_project_method_not_allowed():
+            return
+        self._send_json(404, {"error": "not found"})
 
     def _publish_event(self, event_type: str, payload: dict, trace_id: Optional[str] = None):
         if not self.event_publisher:

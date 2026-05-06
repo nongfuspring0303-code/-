@@ -157,11 +157,11 @@ belongs to PR-2 Project Gap Monitor and is not implemented in PR115.
 
 ## CI Evidence
 
-- Head SHA: `caa00c8e85c261e5f8f5ffa4e96113d49e55273f`
-- CI run: `25457378612`
+- Head SHA: `86a1914`
+- CI run: `25459427883` (in progress at update time)
 - Job: `test`
-- Conclusion: `success`
-- PR115 API tests: `7 passed`
+- Conclusion: `pending` (latest successful before this head: `25458474968`)
+- PR115 API tests: `8 passed`
 - PR115 frontend contract tests: `2 passed`
 
 ## Frontend Test Boundary

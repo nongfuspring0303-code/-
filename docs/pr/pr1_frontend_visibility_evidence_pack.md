@@ -147,22 +147,56 @@ belongs to PR-2 Project Gap Monitor and is not implemented in PR115.
 - `python3 scripts/verify_execution_no_pytest.py`
 - `python3 -m py_compile scripts/project_trace_reader.py scripts/config_api_server.py tests/test_project_trace_api.py`
 
+## CI Evidence
+
+This Evidence Pack is committed as part of the PR branch, so the exact final head SHA and final CI run may change after this document update.
+
+Final merge evidence must be verified from the latest PR head and the latest GitHub Actions CI run before merge.
+
+Required final checks:
+
+- Latest PR head SHA must match the CI run head.
+- CI workflow: `ci`
+- Job: `test`
+- Conclusion: `success`
+- PR115 API tests must pass.
+- PR115 frontend contract tests must pass.
+- No additional commit may be pushed after the final successful CI without re-running this check.
+
+Latest local/CI-covered PR115 checks at the time of this evidence update:
+
+- `tests/test_project_trace_api.py`: 8 passed.
+- `tests/test_project_trace_frontend_contract.py`: 2 passed.
+
 ### Results Summary
 
-- `tests/test_project_trace_api.py`: 7 passed.
+- `tests/test_project_trace_api.py`: 8 passed.
 - `tests/test_project_trace_frontend_contract.py`: 2 passed.
+- Full CI job `test`: must be verified against the latest PR head before merge.
 - `tests/test_full_workflow.py`: passed, 9 passed.
 - `scripts/verify_execution_no_pytest.py`: passed.
 - `py_compile`: the command is clean when run with a separate cache prefix; the default cache location in this sandbox is restricted.
 
 ## CI Evidence
 
-- Head SHA: `86a1914`
-- CI run: `25459427883` (in progress at update time)
+This Evidence Pack is committed as part of the PR branch, so the exact final head SHA and final CI run may change after this document update.
+
+Final merge evidence must be verified from the latest PR head and the latest GitHub Actions CI run before merge.
+
+Required final checks:
+
+- Latest PR head SHA must match the CI run head.
+- CI workflow: `ci`
 - Job: `test`
-- Conclusion: `pending` (latest successful before this head: `25458474968`)
-- PR115 API tests: `8 passed`
-- PR115 frontend contract tests: `2 passed`
+- Conclusion: `success`
+- PR115 API tests must pass.
+- PR115 frontend contract tests must pass.
+- No additional commit may be pushed after the final successful CI without re-running this check.
+
+Latest local/CI-covered PR115 checks at the time of this evidence update:
+
+- `tests/test_project_trace_api.py`: 8 passed.
+- `tests/test_project_trace_frontend_contract.py`: 2 passed.
 
 ## Frontend Test Boundary
 

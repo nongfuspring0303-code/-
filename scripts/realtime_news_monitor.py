@@ -546,13 +546,33 @@ class RealtimeNewsMonitor:
             # 推送 opportunity-update
             opportunities = analysis.get("opportunity_update", {}).get("opportunities", [])
             if opportunities:
+                normalized_opportunities = []
+                for opp in opportunities:
+                    if not isinstance(opp, dict):
+                        continue
+                    item = dict(opp)
+                    # Force live-context identity fields to avoid stale trace/timestamp leakage.
+                    item["trace_id"] = trace_id
+                    item["request_id"] = request_id
+                    item["batch_id"] = batch_id
+                    item["timestamp"] = ts
+                    normalized_opportunities.append(item)
+
+                if len(normalized_opportunities) != len(opportunities):
+                    logger.warning(
+                        "⚠️ opportunity 条目存在非dict对象，已跳过: trace_id=%s original=%d normalized=%d",
+                        trace_id,
+                        len(opportunities),
+                        len(normalized_opportunities),
+                    )
+
                 opp_data = {
                     "type": "opportunity_update",
                     "trace_id": trace_id,
                     "request_id": request_id,
                     "batch_id": batch_id,
                     "schema_version": "v1.0",
-                    "opportunities": opportunities,
+                    "opportunities": normalized_opportunities,
                     "timestamp": ts,
                 }
                 

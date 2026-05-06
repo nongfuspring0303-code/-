@@ -196,12 +196,28 @@ def test_project_trace_api_empty_and_partial_and_bad_jsonl(project_server, logs_
         status, body, raw = _request(empty_server, "GET", "/api/project/scorecards/latest")
         assert status == 200
         assert body["status"] == "empty"
+        assert body["code"] == "EMPTY"
         assert body["data"]["scorecard"] is None
         assert "Traceback" not in raw
     finally:
         empty_server.shutdown()
         empty_server.server_close()
         thread.join(timeout=2)
+
+    partial_logs_dir = logs_dir.parent / "partial_logs"
+    partial_logs_dir.mkdir(parents=True, exist_ok=True)
+    _write_text(partial_logs_dir / "trace_scorecard.jsonl", "bad-json\n")
+    partial_server, partial_thread = _serve(partial_logs_dir)
+    try:
+        status, body, _ = _request(partial_server, "GET", "/api/project/scorecards/latest")
+        assert status == 200
+        assert body["status"] == "partial"
+        assert body["code"] == "PARTIAL_SCORECARD"
+        assert body["errors"]
+    finally:
+        partial_server.shutdown()
+        partial_server.server_close()
+        partial_thread.join(timeout=2)
 
 
 def test_project_trace_api_system_health_and_read_only_methods(project_server, logs_dir: Path):

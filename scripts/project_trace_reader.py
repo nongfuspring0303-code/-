@@ -502,8 +502,10 @@ class ProjectTraceReader:
         scorecards = self._scorecard_rows()
         errors = scorecards.bad_lines
         if not scorecards.rows:
+            empty_status = "empty" if not errors else "partial"
             return {
-                "status": "empty" if not errors else "partial",
+                "status": empty_status,
+                "code": "PARTIAL_SCORECARD" if empty_status == "partial" else "EMPTY",
                 "message": "No scorecards are available.",
                 "errors": errors,
                 "trace_id": None,

@@ -78,6 +78,10 @@ jobs:
         run: |
           python -m pytest tests/test_project_trace_frontend_contract.py -q
 
+      - name: Run PR2 project gap monitor tests
+        run: |
+          python -m pytest tests/test_project_gap_monitor.py -q
+
       - name: Run healthcheck
         run: |
           python scripts/system_healthcheck.py --mode dev

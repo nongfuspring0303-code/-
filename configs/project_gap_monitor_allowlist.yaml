@@ -1,0 +1,26 @@
+schema_version: project_gap_monitor.allowlist.v1
+rules:
+  - category: "logs"
+    module: "project_gap_monitor"
+    code: "LOG_FILE_MISSING"
+    evidence_file: "logs/project_gap_report.json"
+    normalized_field: "*"
+    reason: "Expected before the first Project Gap Monitor run."
+    expires_at: null
+    allow_p0: false
+  - category: "logs"
+    module: "project_gap_monitor"
+    code: "LOG_FILE_MISSING"
+    evidence_file: "logs/project_gap_report.md"
+    normalized_field: "*"
+    reason: "Expected before the first Project Gap Monitor run."
+    expires_at: null
+    allow_p0: false
+  - category: "logs"
+    module: "project_gap_monitor"
+    code: "LOG_FILE_MISSING"
+    evidence_file: "logs/project_gap_state.json"
+    normalized_field: "*"
+    reason: "Expected before the first Project Gap Monitor run."
+    expires_at: null
+    allow_p0: false

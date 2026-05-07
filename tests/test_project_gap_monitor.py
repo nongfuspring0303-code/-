@@ -112,10 +112,45 @@ def test_dedupe_key_joins_required_dimensions() -> None:
 
 
 def test_finding_serializes_line_hint_and_repro_command() -> None:
-    finding = _f(line_hint=23, repro_command="python3 scripts/project_gap_monitor.py --logs-dir logs")
+    finding = _f(line_hint=12, repro_command="python3 -m pytest -q tests/test_project_gap_monitor.py")
     payload = finding.as_dict()
-    assert payload["line_hint"] == 23
-    assert payload["repro_command"] == "python3 scripts/project_gap_monitor.py --logs-dir logs"
+    assert payload["line_hint"] == 12
+    assert payload["repro_command"] == "python3 -m pytest -q tests/test_project_gap_monitor.py"
+
+
+def test_markdown_report_includes_line_hint_and_repro_command() -> None:
+    finding = _f(
+        line_hint=12,
+        repro_command="python3 -m pytest -q tests/test_project_gap_monitor.py",
+        message="gap | markdown",
+        suggested_fix="run | monitor",
+    )
+    report = {
+        "generated_at": "2026-05-08T00:00:00Z",
+        "overall_status": "YELLOW",
+        "summary": {"p0_count": 0, "p1_count": 1, "p2_count": 0, "total_count": 1},
+        "delta_vs_prev": {"new_count": 1, "resolved_count": 0, "unchanged_count": 0, "suppressed_count": 0},
+        "top_blockers": [finding.as_dict()],
+        "findings": [finding.as_dict()],
+    }
+    markdown = pgm._render_markdown(report)
+    assert "line_hint" in markdown
+    assert "repro_command" in markdown
+    assert "12" in markdown
+    assert "python3 -m pytest -q tests/test_project_gap_monitor.py" in markdown
+    assert "gap \\| markdown" in markdown
+    assert "run \\| monitor" in markdown
+
+
+def test_state_persists_line_hint_and_repro_command() -> None:
+    finding = _f(
+        line_hint=12,
+        repro_command="python3 -m pytest -q tests/test_project_gap_monitor.py",
+    )
+    state = pgm._build_state([finding])
+    key = finding.dedupe_key
+    assert state["findings_by_key"][key]["line_hint"] == 12
+    assert state["findings_by_key"][key]["repro_command"] == "python3 -m pytest -q tests/test_project_gap_monitor.py"
 
 
 def test_delta_vs_prev_tracks_new_resolved_unchanged_and_suppressed() -> None:

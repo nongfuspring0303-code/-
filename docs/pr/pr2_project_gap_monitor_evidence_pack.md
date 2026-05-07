@@ -76,6 +76,9 @@ These are runtime artifacts and are not committed.
 
 ## Findings Metadata
 
+- Markdown report now renders `line_hint` and `repro_command`.
+- State JSON now persists `line_hint` and `repro_command`.
+- This closes the write-only metadata / Ghost Logic gap raised by Member C.
 - Each finding now serializes `line_hint` when available.
 - Each finding now serializes a non-empty `repro_command`.
 - Log scanning uses a tail window instead of full-file `read_text()` to avoid loading large logs into memory.
@@ -96,8 +99,8 @@ Required final checks:
 
 Local verification at the time of this Evidence Pack update:
 
-- `tests/test_project_gap_monitor.py`: 11 passed.
-- Combined regression: `30 passed`.
+- `tests/test_project_gap_monitor.py`: 14 passed.
+- Combined regression: `33 passed`.
 - `scripts/verify_execution_no_pytest.py`: passed.
 - `py_compile`: passed.
 

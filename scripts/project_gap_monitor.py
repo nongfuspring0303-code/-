@@ -1181,6 +1181,8 @@ def _build_state(findings: list[Finding]) -> dict[str, Any]:
             "message": finding.message,
             "evidence_file": finding.evidence_file,
             "normalized_field": finding.normalized_field,
+            "line_hint": finding.line_hint,
+            "repro_command": finding.repro_command,
             "suppressed": finding.suppressed,
             "seen_days": finding.seen_days,
             "occurrence_count": finding.occurrence_count,
@@ -1258,13 +1260,21 @@ def _render_markdown(report: dict[str, Any]) -> str:
             "",
             "## Findings",
             "",
-            "| severity | category | module | code | message | evidence_file | normalized_field | suppressed | suggested_fix |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            "| severity | category | module | code | message | evidence_file | normalized_field | line_hint | repro_command | suppressed | suggested_fix |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
     )
     for finding in findings:
+        line_hint = finding["line_hint"] if finding["line_hint"] is not None else "-"
+        repro_command = finding["repro_command"] or _default_repro_command(
+            category=finding["category"],
+            code=finding["code"],
+            evidence_file=finding["evidence_file"],
+            normalized_field=finding["normalized_field"],
+            source=finding.get("source", ""),
+        )
         lines.append(
-            "| {severity} | {category} | {module} | {code} | {message} | {evidence_file} | {normalized_field} | {suppressed} | {suggested_fix} |".format(
+            "| {severity} | {category} | {module} | {code} | {message} | {evidence_file} | {normalized_field} | {line_hint} | {repro_command} | {suppressed} | {suggested_fix} |".format(
                 severity=finding["severity"],
                 category=finding["category"],
                 module=finding["module"],
@@ -1272,6 +1282,8 @@ def _render_markdown(report: dict[str, Any]) -> str:
                 message=finding["message"].replace("|", "\\|"),
                 evidence_file=finding["evidence_file"],
                 normalized_field=finding["normalized_field"],
+                line_hint=line_hint,
+                repro_command=repro_command.replace("|", "\\|"),
                 suppressed=str(finding["suppressed"]).lower(),
                 suggested_fix=finding["suggested_fix"].replace("|", "\\|"),
             )

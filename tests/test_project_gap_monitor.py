@@ -30,6 +30,8 @@ def _f(
     seen_days: int = 1,
     occurrence_count: int = 1,
     suppressed: bool = False,
+    line_hint: int | str | None = None,
+    repro_command: str | None = None,
 ) -> pgm.Finding:
     finding = pgm.Finding(
         dedupe_key="",
@@ -46,6 +48,8 @@ def _f(
         seen_days=seen_days,
         occurrence_count=occurrence_count,
         suppressed=suppressed,
+        line_hint=line_hint,
+        repro_command=repro_command,
     )
     finding.dedupe_key = pgm._dedupe_key(finding)
     return finding
@@ -105,6 +109,13 @@ def test_finding_sorting_prefers_severity_new_category_then_history() -> None:
 def test_dedupe_key_joins_required_dimensions() -> None:
     finding = _f(category="logs", module="trace_scorecard", code="BAD_JSONL", evidence_file="logs/x.jsonl", normalized_field="line")
     assert pgm._dedupe_key(finding) == "logs|trace_scorecard|BAD_JSONL|logs/x.jsonl|line"
+
+
+def test_finding_serializes_line_hint_and_repro_command() -> None:
+    finding = _f(line_hint=23, repro_command="python3 scripts/project_gap_monitor.py --logs-dir logs")
+    payload = finding.as_dict()
+    assert payload["line_hint"] == 23
+    assert payload["repro_command"] == "python3 scripts/project_gap_monitor.py --logs-dir logs"
 
 
 def test_delta_vs_prev_tracks_new_resolved_unchanged_and_suppressed() -> None:
@@ -188,6 +199,24 @@ def test_scan_canvas_finds_missing_dom_contract_markers(tmp_path: Path, monkeypa
     assert "FOUR_STATE_MARKER_MISSING" in codes
 
 
+def test_scan_canvas_requires_data_state_attribute_markers(tmp_path: Path, monkeypatch) -> None:
+    canvas_text = "FAILED MISSING PENDING STALE but no data-state markers"
+    canvas_dir = tmp_path / "canvas"
+    _write(canvas_dir / "index.html", "<html></html>")
+    _write(canvas_dir / "app.js", "const x = 1;\n")
+    _write(canvas_dir / "styles.css", "body{}\n")
+
+    def _fake_read(path: Path) -> str:
+        return canvas_text
+
+    monkeypatch.setattr(pgm, "_safe_read_text", _fake_read)
+
+    findings = pgm.scan_canvas(tmp_path)
+    codes = [finding.code for finding in findings]
+    assert "FOUR_STATE_MARKER_MISSING" in codes
+    assert all('data-state="' not in finding.message for finding in findings if finding.code == "FOUR_STATE_MARKER_MISSING")
+
+
 def test_scan_configs_finds_hardcoded_secret_like_values(tmp_path: Path, monkeypatch) -> None:
     configs_dir = tmp_path / "configs"
     _write(configs_dir / "bad.yaml", "password: supersecret\napi_key: abc123\n")
@@ -213,6 +242,30 @@ def test_scan_scripts_finds_splitlines_log_risk(tmp_path: Path, monkeypatch) -> 
     assert "LARGE_LOG_READTEXT_SPLITLINES" in codes
 
 
+def test_scan_logs_uses_tail_window_for_large_files(tmp_path: Path, monkeypatch) -> None:
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for idx in range(3100):
+        if idx < 1000:
+            rows.append(f'{{"trace_id":"T{idx}","message":"Traceback /Users/jia/secret"}}')
+        else:
+            rows.append(f'{{"trace_id":"T{idx}","logged_at":"2026-05-06T10:00:00Z"}}')
+    _write(logs_dir / "trace_scorecard.jsonl", "\n".join(rows) + "\n")
+
+    def _boom(*_args, **_kwargs):
+        raise AssertionError("scan_logs should not call _safe_read_text for log payloads")
+
+    monkeypatch.setattr(pgm, "_safe_read_text", _boom)
+    findings = pgm.scan_logs(tmp_path, logs_dir)
+    codes = {finding.code for finding in findings}
+    assert "BAD_JSONL" not in codes
+    assert "RAW_TRACEBACK_LEAK" not in codes
+    assert "LOCAL_PATH_LEAK" not in codes
+    assert "SECRET_LITERAL_LEAK" not in codes
+    assert "LOG_FILE_MISSING" in codes
+
+
 def test_missing_health_source_reports_p2_without_upgrading_status(tmp_path: Path, monkeypatch) -> None:
     for name in ("scan_module_registry", "scan_schemas", "scan_configs", "scan_tests", "scan_scripts", "scan_canvas", "scan_logs"):
         monkeypatch.setattr(pgm, name, lambda *args, **kwargs: [])
@@ -222,4 +275,3 @@ def test_missing_health_source_reports_p2_without_upgrading_status(tmp_path: Pat
     assert report["summary"]["p0_count"] == 0
     assert report["summary"]["p1_count"] == 0
     assert any(finding["code"] == "HEALTH_SOURCE_MISSING" and finding["severity"] == "P2" for finding in report["findings"])
-

@@ -69,10 +69,17 @@ These are runtime artifacts and are not committed.
 
 ## Test Result
 
-- `tests/test_project_gap_monitor.py`: 11 passed
-- Combined regression: `30 passed`
+- `tests/test_project_gap_monitor.py`: 14 passed
+- Combined regression: `33 passed`
 - `scripts/verify_execution_no_pytest.py`: passed
 - `py_compile`: passed
+
+## Findings Metadata
+
+- Each finding now serializes `line_hint` when available.
+- Each finding now serializes a non-empty `repro_command`.
+- Log scanning uses a tail window instead of full-file `read_text()` to avoid loading large logs into memory.
+- Canvas state validation prefers attribute-level markers such as `data-state="FAILED"` and falls back to dynamic template anchors only when those literal markers are not present.
 
 ## CI Evidence Policy
 

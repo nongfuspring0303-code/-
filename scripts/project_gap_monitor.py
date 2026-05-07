@@ -27,6 +27,7 @@ SCHEMA_VERSION = "project_gap_report.v1"
 STATE_SCHEMA_VERSION = "project_gap_state.v1"
 ALLOWLIST_SCHEMA_VERSION = "project_gap_monitor.allowlist.v1"
 STALE_AFTER_DAYS = 2
+MAX_LOG_SCAN_TAIL_LINES = 2000
 
 SEVERITY_ORDER = {"P0": 0, "P1": 1, "P2": 2}
 CATEGORY_WEIGHTS = {
@@ -55,6 +56,8 @@ class Finding:
     normalized_field: str
     source: str
     suggested_fix: str
+    line_hint: int | str | None = None
+    repro_command: str | None = None
     new: bool = True
     seen_days: int = 1
     occurrence_count: int = 1
@@ -72,6 +75,8 @@ class Finding:
             "message": self.message,
             "evidence_file": self.evidence_file,
             "normalized_field": self.normalized_field,
+            "line_hint": self.line_hint,
+            "repro_command": self.repro_command,
             "new": self.new,
             "seen_days": self.seen_days,
             "occurrence_count": self.occurrence_count,
@@ -129,6 +134,61 @@ def _safe_read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _read_tail_text(path: Path, max_lines: int = MAX_LOG_SCAN_TAIL_LINES) -> str:
+    if max_lines <= 0 or not path.exists():
+        return ""
+    with path.open("rb") as fp:
+        fp.seek(0, 2)
+        pos = fp.tell()
+        chunks: list[bytes] = []
+        newline_count = 0
+        chunk_size = 65536
+        while pos > 0 and newline_count <= max_lines:
+            read_size = chunk_size if pos >= chunk_size else pos
+            pos -= read_size
+            fp.seek(pos)
+            chunk = fp.read(read_size)
+            chunks.append(chunk)
+            newline_count += chunk.count(b"\n")
+        content = b"".join(reversed(chunks)).decode("utf-8", errors="replace")
+        lines = content.splitlines()
+        if len(lines) > max_lines:
+            lines = lines[-max_lines:]
+        return "\n".join(lines)
+
+
+def _line_hint_from_text(text: str, needle: str | re.Pattern[str]) -> int | None:
+    for index, line in enumerate(text.splitlines(), start=1):
+        if isinstance(needle, re.Pattern):
+            if needle.search(line):
+                return index
+        elif needle in line:
+            return index
+    return None
+
+
+def _default_repro_command(*, category: str, code: str, evidence_file: str, normalized_field: str, source: str) -> str:
+    if category == "frontend":
+        return "grep -Rni 'data-state=' canvas/"
+    if category == "logs":
+        return "python3 scripts/project_gap_monitor.py --logs-dir logs"
+    if category == "health":
+        return "python3 scripts/project_gap_monitor.py --logs-dir logs"
+    if category == "security":
+        return "grep -RniE 'token|secret|password|api[_-]?key|authorization|/Users/' configs/ scripts/ logs/"
+    if code == "LARGE_LOG_READTEXT_SPLITLINES":
+        return "grep -Rni 'read_text(.*splitlines' scripts/"
+    if category == "schema":
+        return "python3 scripts/project_gap_monitor.py --root ."
+    if category == "module":
+        return "python3 scripts/project_gap_monitor.py --root ."
+    if category == "test":
+        return "python3 scripts/project_gap_monitor.py --root ."
+    if category == "config":
+        return "python3 scripts/project_gap_monitor.py --root ."
+    return f"python3 scripts/project_gap_monitor.py --root .  # evidence: {evidence_file} {normalized_field} {source}"
+
+
 def _relative_path(path: Path, root: Path) -> str:
     try:
         return path.relative_to(root).as_posix()
@@ -176,6 +236,8 @@ def _make_finding(
     normalized_field: str,
     source: str,
     suggested_fix: str,
+    line_hint: int | str | None = None,
+    repro_command: str | None = None,
 ) -> Finding:
     finding = Finding(
         dedupe_key="",
@@ -188,6 +250,14 @@ def _make_finding(
         normalized_field=normalized_field,
         source=source,
         suggested_fix=suggested_fix,
+        line_hint=line_hint,
+        repro_command=repro_command or _default_repro_command(
+            category=category,
+            code=code,
+            evidence_file=evidence_file,
+            normalized_field=normalized_field,
+            source=source,
+        ),
     )
     finding.dedupe_key = _dedupe_key(finding)
     return finding
@@ -473,6 +543,7 @@ def scan_configs(root: Path) -> list[Finding]:
         text = _safe_read_text(path)
         secret_match = re.search(r"(?i)\b(?:token|secret|password|api[_-]?key|authorization)\b\s*[:=]\s*['\"]?[^'\"\s#]+", text)
         if secret_match:
+            line_hint = _line_hint_from_text(text, re.compile(r"(?i)\b(?:token|secret|password|api[_-]?key|authorization)\b"))
             findings.append(
                 _make_finding(
                     severity="P0",
@@ -484,9 +555,11 @@ def scan_configs(root: Path) -> list[Finding]:
                     normalized_field="literal",
                     source=rel,
                     suggested_fix="Move secrets to environment variables or secret storage and keep only placeholders in config.",
+                    line_hint=line_hint,
                 )
             )
         if "/Users/" in text:
+            line_hint = _line_hint_from_text(text, "/Users/")
             findings.append(
                 _make_finding(
                     severity="P1",
@@ -498,6 +571,7 @@ def scan_configs(root: Path) -> list[Finding]:
                     normalized_field="/Users/",
                     source=rel,
                     suggested_fix="Replace the absolute path with a repository-relative or environment-derived path.",
+                    line_hint=line_hint,
                 )
             )
 
@@ -641,9 +715,11 @@ def scan_scripts(root: Path) -> list[Finding]:
 
     for path in sorted(p for p in scripts_dir.rglob("*.py") if p.is_file()):
         rel = _relative_path(path, root)
+        line_hint: int | str | None = None
         try:
             text = _safe_read_text(path)
         except Exception as exc:  # noqa: BLE001
+            line_hint = getattr(exc, "lineno", None)
             findings.append(
                 _make_finding(
                     severity="P0",
@@ -672,13 +748,14 @@ def scan_scripts(root: Path) -> list[Finding]:
                     normalized_field="syntax",
                     source=rel,
                     suggested_fix="Fix the Python syntax error.",
+                    line_hint=line_hint,
                 )
             )
             continue
 
         tree = ast.parse(text, filename=str(path))
-        bare_except = any(isinstance(node, ast.ExceptHandler) and node.type is None for node in ast.walk(tree))
-        if bare_except:
+        bare_except_lines = [int(node.lineno) for node in ast.walk(tree) if isinstance(node, ast.ExceptHandler) and node.type is None]
+        if bare_except_lines:
             findings.append(
                 _make_finding(
                     severity="P1",
@@ -690,9 +767,11 @@ def scan_scripts(root: Path) -> list[Finding]:
                     normalized_field="except",
                     source=rel,
                     suggested_fix="Replace bare except with specific exceptions and avoid swallowing errors.",
+                    line_hint=bare_except_lines[0],
                 )
             )
         if "/Users/" in text:
+            line_hint = _line_hint_from_text(text, "/Users/")
             findings.append(
                 _make_finding(
                     severity="P1",
@@ -704,9 +783,14 @@ def scan_scripts(root: Path) -> list[Finding]:
                     normalized_field="/Users/",
                     source=rel,
                     suggested_fix="Replace the absolute path with a repo-relative or environment-derived path.",
+                    line_hint=line_hint,
                 )
             )
         if "read_text(" in text and "splitlines()" in text and "logs" in text:
+            line_hint = _line_hint_from_text(
+                text,
+                re.compile(r"read_text\(.+splitlines\("),
+            ) or _line_hint_from_text(text, "splitlines()")
             findings.append(
                 _make_finding(
                     severity="P1",
@@ -718,6 +802,7 @@ def scan_scripts(root: Path) -> list[Finding]:
                     normalized_field="read_text.splitlines",
                     source=rel,
                     suggested_fix="Stream the file or use a tail reader instead of loading all lines at once.",
+                    line_hint=line_hint,
                 )
             )
     return findings
@@ -772,11 +857,17 @@ def scan_canvas(root: Path) -> list[Finding]:
                     normalized_field=normalized_field,
                     source="canvas",
                     suggested_fix="Add the missing data-module/data-key marker to the trace detail DOM contract.",
+                    line_hint=_line_hint_from_text(canvas_text, re.compile(r"data-(module|key)\s*=")),
                 )
             )
 
-    for state in ("MISSING", "FAILED", "PENDING", "STALE"):
-        if state not in canvas_text:
+    exact_state_markers = [f'data-state="{state}"' for state in ("MISSING", "FAILED", "PENDING", "STALE")]
+    has_exact_state_markers = all(marker in canvas_text for marker in exact_state_markers)
+    has_dynamic_state_marker = 'data-state="${' in canvas_text or "data-state='${" in canvas_text
+    has_state_enum = all(state in canvas_text for state in ("MISSING", "FAILED", "PENDING", "STALE"))
+    if not has_exact_state_markers and not (has_dynamic_state_marker and has_state_enum):
+        line_hint = _line_hint_from_text(canvas_text, re.compile(r"data-state\s*="))
+        for state in ("MISSING", "FAILED", "PENDING", "STALE"):
             findings.append(
                 _make_finding(
                     severity="P1",
@@ -785,9 +876,10 @@ def scan_canvas(root: Path) -> list[Finding]:
                     code="FOUR_STATE_MARKER_MISSING",
                     message=f"Canvas does not contain required state marker {state}.",
                     evidence_file="canvas/app.js",
-                    normalized_field="data-state",
+                    normalized_field=f"data-state:{state}",
                     source="canvas",
                     suggested_fix="Render the full four-state contract in the trace detail panel.",
+                    line_hint=line_hint,
                 )
             )
 
@@ -803,6 +895,7 @@ def scan_canvas(root: Path) -> list[Finding]:
                 normalized_field="failed_state",
                 source="canvas",
                 suggested_fix="Render API/network failures as FAILED with code/message/request_id instead of empty-state text.",
+                line_hint=_line_hint_from_text(canvas_text, "暂无数据"),
             )
         )
     return findings
@@ -859,7 +952,7 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
             continue
 
         try:
-            text = _safe_read_text(path)
+            text = _read_tail_text(path)
         except Exception as exc:  # noqa: BLE001
             findings.append(
                 _make_finding(
@@ -872,6 +965,7 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                     normalized_field="file",
                     source=rel,
                     suggested_fix="Fix permissions or encoding so the log file can be inspected.",
+                    line_hint=getattr(exc, "lineno", None),
                 )
             )
             continue
@@ -887,12 +981,20 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                     normalized_field="file",
                     source=rel,
                     suggested_fix="Ensure the producer writes at least one record or suppress the expected empty state.",
+                    line_hint=1,
                 )
             )
             continue
         if name.endswith(".jsonl"):
             bad_lines = _jsonl_bad_lines(path, text)
             if bad_lines:
+                bad_line_hint = None
+                for line_no, raw_line in enumerate(text.splitlines(), start=1):
+                    try:
+                        json.loads(raw_line)
+                    except Exception:  # noqa: BLE001
+                        bad_line_hint = line_no
+                        break
                 findings.append(
                     _make_finding(
                         severity="P1",
@@ -904,9 +1006,12 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                         normalized_field="jsonl",
                         source=rel,
                         suggested_fix="Repair or drop malformed JSONL lines so the monitor can parse the log safely.",
+                        line_hint=bad_line_hint,
+                        repro_command="python3 scripts/project_gap_monitor.py --logs-dir logs",
                     )
                 )
             if "Traceback" in text or "traceback" in text.lower():
+                line_hint = _line_hint_from_text(text, re.compile(r"Traceback|traceback"))
                 findings.append(
                     _make_finding(
                         severity="P0",
@@ -918,9 +1023,11 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                         normalized_field="traceback",
                         source=rel,
                         suggested_fix="Sanitize exception output before it reaches logs.",
+                        line_hint=line_hint,
                     )
                 )
             if "/Users/" in text:
+                line_hint = _line_hint_from_text(text, "/Users/")
                 findings.append(
                     _make_finding(
                         severity="P0",
@@ -932,9 +1039,11 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                         normalized_field="/Users/",
                         source=rel,
                         suggested_fix="Strip local filesystem paths before persisting or publishing logs.",
+                        line_hint=line_hint,
                     )
                 )
             if re.search(r"(?i)\b(?:token|secret|password|authorization)\b", text):
+                line_hint = _line_hint_from_text(text, re.compile(r"(?i)\b(?:token|secret|password|authorization)\b"))
                 findings.append(
                     _make_finding(
                         severity="P0",
@@ -946,11 +1055,13 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                         normalized_field="secret",
                         source=rel,
                         suggested_fix="Redact token/secret/password values before logging them.",
+                        line_hint=line_hint,
                     )
                 )
         if name == "system_health_daily_report.md":
             latest = _latest_timestamp_from_text(text)
             if latest is not None and (_now_utc() - latest) > timedelta(days=STALE_AFTER_DAYS):
+                line_hint = _line_hint_from_text(text, re.compile(r"generated_at_utc|generated_at"))
                 findings.append(
                     _make_finding(
                         severity="P1",
@@ -962,11 +1073,13 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                         normalized_field="generated_at",
                         source=rel,
                         suggested_fix="Regenerate the health report from the latest logs.",
+                        line_hint=line_hint,
                     )
                 )
             for line in text.splitlines():
                 if "status=critical" in line or "status=degraded" in line:
                     severity = "P0" if "status=critical" in line else "P1"
+                    line_hint = _line_hint_from_text(text, line.strip())
                     findings.append(
                         _make_finding(
                             severity=severity,
@@ -978,6 +1091,7 @@ def scan_logs(root: Path, logs_dir: Path) -> list[Finding]:
                             normalized_field="status",
                             source=rel,
                             suggested_fix="Address the underlying system-health issue or annotate the expected non-green state.",
+                            line_hint=line_hint,
                         )
                     )
                     break
@@ -998,6 +1112,7 @@ def scan_system_health_source(root: Path, logs_dir: Path) -> list[Finding]:
                 normalized_field="source",
                 source="system_health_daily_report.md",
                 suggested_fix="Create a system health report source or suppress this expected absence.",
+                line_hint=None,
             )
         ]
     return []

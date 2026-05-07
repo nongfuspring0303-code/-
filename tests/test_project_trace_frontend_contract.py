@@ -47,3 +47,7 @@ def test_trace_detail_ui_safe_render_guard_exists():
     assert "safeNumber" in js
     assert "safePercent" in js
     assert "API_RESPONSE_INVALID" in js
+    assert "currentTraceAnalysis" in js
+    assert "moduleState" in js
+    assert "moduleHasError" in js
+    assert "FAILED" in js

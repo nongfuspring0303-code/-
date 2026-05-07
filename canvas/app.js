@@ -140,7 +140,7 @@ function safeDate(value, fallback = '—') {
   if (!value) return fallback;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return fallback;
-  return date.toLocaleString('zh-CN', { hour12: false, timeZone: 'UTC' }) + ' UTC';
+  return date.toLocaleString('zh-CN', { hour12: false });
 }
 
 function safeList(value, fallback = []) {
@@ -724,6 +724,32 @@ function traceStateClass(state) {
   return traceStatusLabel(state);
 }
 
+function currentTraceAnalysis() {
+  const data = STATE.projectTrace.data || {};
+  if (data.analysis && typeof data.analysis === 'object') {
+    return data.analysis;
+  }
+  return data;
+}
+
+function moduleHasError(moduleKey) {
+  const errors = Array.isArray(STATE.projectTrace.errors) ? STATE.projectTrace.errors : [];
+  return errors.some((err) => {
+    const mod = safeText(err?.module, '').toLowerCase();
+    const src = safeText(err?.source, '').toLowerCase();
+    const field = safeText(err?.field, '').toLowerCase();
+    const key = moduleKey.toLowerCase();
+    return mod === key || src.includes(key) || field.includes(key);
+  });
+}
+
+function moduleState(moduleKey, data) {
+  if (moduleHasError(moduleKey)) return 'FAILED';
+  if (data) return 'OK';
+  if (traceStatusLabel(STATE.projectTrace.status) === 'PENDING') return 'PENDING';
+  return 'MISSING';
+}
+
 function renderEmptyStateCard({ moduleName, keyName, state, title, message, detail }) {
   const stateLabel = traceStateClass(state);
   return `
@@ -816,8 +842,9 @@ function renderTraceModuleCard({ moduleName, keyName, title, state, summary, fie
 }
 
 function renderLifecycleFatigueCard() {
-  const data = STATE.projectTrace.data?.lifecycle_fatigue_contract;
-  const state = data ? 'OK' : 'MISSING';
+  const analysis = currentTraceAnalysis();
+  const data = analysis?.lifecycle_fatigue_contract;
+  const state = moduleState('lifecycle_fatigue_contract', data);
   const fields = data ? [
     renderKeyValueRow('schema_version', 'lifecycle_fatigue_contract.schema_version', data.schema_version),
     renderKeyValueRow('lifecycle_state', 'lifecycle_fatigue_contract.lifecycle_state', data.lifecycle_state),
@@ -859,8 +886,9 @@ function renderLifecycleFatigueCard() {
 }
 
 function renderExecutionSuggestionCard() {
-  const data = STATE.projectTrace.data?.execution_suggestion;
-  const state = data ? 'OK' : 'MISSING';
+  const analysis = currentTraceAnalysis();
+  const data = analysis?.execution_suggestion;
+  const state = moduleState('execution_suggestion', data);
   const fields = data ? [
     renderKeyValueRow('trade_type', 'execution_suggestion.trade_type', data.trade_type),
     renderKeyValueRow('position_sizing.mode', 'execution_suggestion.position_sizing.mode', data?.position_sizing?.mode),
@@ -908,8 +936,9 @@ function renderExecutionSuggestionCard() {
 }
 
 function renderPathQualityEvalCard() {
-  const data = STATE.projectTrace.data?.path_quality_eval;
-  const state = data ? 'OK' : 'MISSING';
+  const analysis = currentTraceAnalysis();
+  const data = analysis?.path_quality_eval;
+  const state = moduleState('path_quality_eval', data);
   const fields = data ? [
     renderKeyValueRow('path_accuracy', 'path_quality_eval.path_accuracy', data.path_accuracy),
     renderKeyValueRow('validation_accuracy', 'path_quality_eval.validation_accuracy', data.validation_accuracy),
@@ -951,9 +980,11 @@ function renderPathQualityEvalCard() {
 }
 
 function renderTraceScorecardCard() {
-  const scorecard = STATE.projectTrace.data?.scorecard;
+  const analysis = currentTraceAnalysis();
+  const scorecard = STATE.projectTrace.data?.scorecard || analysis?.trace_scorecard;
   const stale = scorecard ? isTraceStale(scorecard.logged_at) : false;
-  const state = scorecard ? (stale ? 'STALE' : (STATE.projectTrace.status === 'partial' ? 'PARTIAL' : 'OK')) : 'MISSING';
+  let state = moduleState('trace_scorecard', scorecard);
+  if (state === 'OK' && stale) state = 'STALE';
   const fields = scorecard ? [
     renderKeyValueRow('trace_id', 'trace_scorecard.trace_id', scorecard.trace_id),
     renderKeyValueRow('final_action', 'trace_scorecard.final_action', scorecard.final_action),
@@ -998,7 +1029,9 @@ function renderPipelineStageCard() {
   const traceId = STATE.projectTrace.trace_id || STATE.projectTrace.data?.scorecard?.trace_id || STATE.selectedNews?.id || '';
   const latestStageTimestamp = latestPipelineTimestamp(stages);
   const stale = latestStageTimestamp ? isTraceStale(latestStageTimestamp) : false;
-  const state = stages.length > 0 ? (stale ? 'STALE' : (STATE.projectTrace.status === 'partial' ? 'PARTIAL' : 'OK')) : 'PENDING';
+  let state = moduleState('pipeline_stage', stages.length > 0 ? stages : null);
+  if (state === 'OK' && stale) state = 'STALE';
+  if (state === 'MISSING') state = 'PENDING';
   if (stages.length === 0) {
     return renderEmptyStateCard({
       moduleName: 'PipelineStageCard',

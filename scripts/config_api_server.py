@@ -13,6 +13,7 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from socketserver import ThreadingMixIn
 import sys
 from typing import Optional
 from urllib.parse import parse_qs, unquote, urlparse
@@ -367,13 +368,17 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             return False
 
 
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
+
 def create_server(host: str = "127.0.0.1", port: int = 18787, event_publisher=None) -> HTTPServer:
     if event_publisher is not None:
         ConfigAPIHandler.event_publisher = staticmethod(event_publisher)
     ConfigAPIHandler.auth_token = DEFAULT_API_TOKEN
     if DEFAULT_RUNTIME_ROLE:
         ConfigAPIHandler.runtime_role = DEFAULT_RUNTIME_ROLE
-    return HTTPServer((host, port), ConfigAPIHandler)
+    return ThreadingHTTPServer((host, port), ConfigAPIHandler)
 
 
 def run(host: str = "127.0.0.1", port: int = 18787):

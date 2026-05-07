@@ -15,6 +15,7 @@ from system_log_evaluator import build_daily_report_md, build_provider_health_ho
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOGS_DIR = ROOT / "logs"
 API_SCHEMA_VERSION = "project.api.v1"
+MAX_JSONL_TAIL_LINES = 2000
 
 
 def _error_item(
@@ -114,6 +115,29 @@ class ProjectTraceReader:
     def __init__(self, logs_dir: Path | None = None):
         self.logs_dir = Path(logs_dir) if logs_dir else DEFAULT_LOGS_DIR
 
+    def _read_jsonl_tail_lines(self, path: Path, max_lines: int = MAX_JSONL_TAIL_LINES) -> list[str]:
+        """Read only tail lines to avoid loading large JSONL files fully into memory."""
+        if max_lines <= 0:
+            return []
+        with path.open("rb") as fp:
+            fp.seek(0, 2)
+            pos = fp.tell()
+            chunks: list[bytes] = []
+            newline_count = 0
+            chunk_size = 65536
+            while pos > 0 and newline_count <= max_lines:
+                read_size = chunk_size if pos >= chunk_size else pos
+                pos -= read_size
+                fp.seek(pos)
+                chunk = fp.read(read_size)
+                chunks.append(chunk)
+                newline_count += chunk.count(b"\n")
+            content = b"".join(reversed(chunks)).decode("utf-8", errors="replace")
+            lines = content.splitlines()
+            if len(lines) > max_lines:
+                lines = lines[-max_lines:]
+            return lines
+
     def _read_jsonl(self, filename: str) -> LoadResult:
         path = self.logs_dir / filename
         if not path.exists():
@@ -121,7 +145,7 @@ class ProjectTraceReader:
 
         rows: list[dict[str, Any]] = []
         bad_lines: list[dict[str, Any]] = []
-        for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for line_no, raw_line in enumerate(self._read_jsonl_tail_lines(path), start=1):
             line = raw_line.strip()
             if not line:
                 continue
@@ -479,6 +503,15 @@ class ProjectTraceReader:
             )
             for field in required_missing
         ]
+        analysis_payload = {
+            "event": modules["event"],
+            "lifecycle_fatigue_contract": modules["lifecycle_fatigue_contract"],
+            "execution_suggestion": modules["execution_suggestion"],
+            "path_quality_eval": modules["path_quality_eval"],
+            "trace_scorecard": modules["trace_scorecard"],
+            "risk_blocker_reason": modules["risk_blocker_reason"],
+        }
+        is_advisory_only = bool(modules["execution_suggestion"] is not None)
         return {
             "status": status,
             "code": "PARTIAL_TRACE_DETAIL" if status == "partial" else ("EMPTY" if status == "empty" else "OK"),
@@ -487,6 +520,8 @@ class ProjectTraceReader:
             "trace_id": lookup,
             "data": {
                 "request_id": _safe_str(trace_payload.get("request_id")) if isinstance(trace_payload, dict) else None,
+                "is_advisory_only": is_advisory_only,
+                "analysis": analysis_payload,
                 "event": modules["event"],
                 "lifecycle_fatigue_contract": modules["lifecycle_fatigue_contract"],
                 "execution_suggestion": modules["execution_suggestion"],

@@ -28,6 +28,7 @@ def _write_text(path: Path, text: str) -> None:
 def _serve(logs_dir: Path):
     ConfigAPIHandler.project_reader = ProjectTraceReader(logs_dir)
     server = create_server("127.0.0.1", 0)
+    assert server.__class__.__name__ == "ThreadingHTTPServer"
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, thread
@@ -135,6 +136,10 @@ def test_project_trace_api_normal_and_empty_paths(project_server, logs_dir: Path
     assert body["trace_id"] == trace_id
     assert len(body["data"]["pipeline_stages"]) == 2
     assert body["data"]["scorecard"]["grade"] == "A"
+    assert "analysis" in body["data"]
+    assert body["data"]["analysis"]["trace_scorecard"]["grade"] == "A"
+    assert "is_advisory_only" in body["data"]
+    assert isinstance(body["data"]["is_advisory_only"], bool)
     assert "lifecycle_fatigue_contract" in body["data"]
     assert "execution_suggestion" in body["data"]
     assert "path_quality_eval" in body["data"]
@@ -465,3 +470,15 @@ def test_project_trace_api_required_field_missing_uses_uniform_error_schema(proj
         assert "field" in error
         assert error["severity"] == "error"
         assert error["retryable"] is False
+
+
+def test_project_trace_reader_tail_limits_large_jsonl(logs_dir: Path):
+    rows = [
+        _sample_scorecard(f"ME-TAIL-{idx}", "2026-05-06T10:00:00Z")
+        for idx in range(3100)
+    ]
+    _write_jsonl(logs_dir / "trace_scorecard.jsonl", rows)
+    reader = ProjectTraceReader(logs_dir)
+    out = reader._read_jsonl("trace_scorecard.jsonl")
+    assert len(out.rows) <= 2000
+    assert out.rows[-1]["trace_id"] == "ME-TAIL-3099"

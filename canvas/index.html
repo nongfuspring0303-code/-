@@ -8,67 +8,99 @@
 </head>
 <body>
   <div id="app">
-    <!-- 左栏：新闻雷达 -->
-    <div class="panel left-panel" id="newsPanel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <span class="icon">📰</span>
-          新闻雷达
-          <span class="badge badge-live">LIVE</span>
+    <div class="workspace-grid">
+      <!-- 左栏：新闻雷达 -->
+      <div class="panel left-panel" id="newsPanel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="icon">📰</span>
+            新闻雷达
+            <span class="badge badge-live">LIVE</span>
+          </div>
+          <div class="panel-status">
+            <span class="status-dot"></span>
+            <span id="connectionStatus">连接中...</span>
+            <span id="lastNewsAt" class="last-news-at">最近新闻: --</span>
+          </div>
         </div>
-        <div class="panel-status">
-          <span class="status-dot"></span>
-          <span id="connectionStatus">连接中...</span>
-          <span id="lastNewsAt" class="last-news-at">最近新闻: --</span>
+        <div class="news-list" id="newsList">
+          <!-- 新闻卡片由 JS 动态渲染 -->
         </div>
       </div>
-      <div class="news-list" id="newsList">
-        <!-- 新闻卡片由 JS 动态渲染 -->
+
+      <!-- 中栏：板块热力图 -->
+      <div class="panel center-panel" id="sectorPanel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="icon">🔥</span>
+            板块热力图
+          </div>
+          <div class="panel-filter">
+            <select id="sectorFilter">
+              <option value="all">全部板块</option>
+              <option value="LONG">只看多头</option>
+              <option value="SHORT">只看空头</option>
+            </select>
+          </div>
+        </div>
+        <div class="sector-list" id="sectorList">
+          <!-- 板块卡片由 JS 动态渲染 -->
+          <div class="empty-state">
+            <p>点击左侧新闻查看板块影响</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右栏：优质股机会池 -->
+      <div class="panel right-panel" id="opportunityPanel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="icon">🎯</span>
+            优质股机会池
+          </div>
+          <div class="panel-actions">
+            <button class="btn-icon" title="刷新" onclick="refreshOpportunities()">🔄</button>
+            <button class="btn-icon" title="配置" onclick="openConfig()">⚙️</button>
+          </div>
+        </div>
+        <div class="opportunity-list" id="opportunityList">
+          <!-- 机会卡由 JS 动态渲染 -->
+          <div class="empty-state">
+            <p>选择板块查看股票机会</p>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- 中栏：板块热力图 -->
-    <div class="panel center-panel" id="sectorPanel">
+    <!-- Trace Detail Panel -->
+    <section
+      class="panel trace-panel"
+      id="traceDetailPanel"
+      data-module="TraceDetailPanel"
+      data-key="trace_detail.panel"
+      data-state="PENDING"
+    >
       <div class="panel-header">
         <div class="panel-title">
-          <span class="icon">🔥</span>
-          板块热力图
-        </div>
-        <div class="panel-filter">
-          <select id="sectorFilter">
-            <option value="all">全部板块</option>
-            <option value="LONG">只看多头</option>
-            <option value="SHORT">只看空头</option>
-          </select>
-        </div>
-      </div>
-      <div class="sector-list" id="sectorList">
-        <!-- 板块卡片由 JS 动态渲染 -->
-        <div class="empty-state">
-          <p>点击左侧新闻查看板块影响</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 右栏：优质股机会池 -->
-    <div class="panel right-panel" id="opportunityPanel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <span class="icon">🎯</span>
-          优质股机会池
+          <span class="icon">🧭</span>
+          Trace Detail Panel
+          <span class="badge badge-live" id="traceDetailStateBadge">PENDING</span>
         </div>
         <div class="panel-actions">
-          <button class="btn-icon" title="刷新" onclick="refreshOpportunities()">🔄</button>
-          <button class="btn-icon" title="配置" onclick="openConfig()">⚙️</button>
+          <button class="btn-icon" id="loadLatestTraceBtn" title="加载最新 Trace">最新</button>
+          <button class="btn-icon" id="refreshTraceBtn" title="刷新当前 Trace">刷新</button>
         </div>
       </div>
-      <div class="opportunity-list" id="opportunityList">
-        <!-- 机会卡由 JS 动态渲染 -->
-        <div class="empty-state">
-          <p>选择板块查看股票机会</p>
+      <div class="trace-detail-shell">
+        <div class="trace-detail-summary" id="traceDetailSummary">
+          <div class="trace-detail-title" id="traceDetailTitle">等待 Trace 加载</div>
+          <div class="trace-detail-meta" id="traceDetailMeta">点击“最新”或新闻卡查看 Trace 详情</div>
+        </div>
+        <div class="trace-detail-body" id="traceDetailBody">
+          <!-- Trace detail cards由 JS 动态渲染 -->
         </div>
       </div>
-    </div>
+    </section>
   </div>
 
   <!-- 底部时间轴 -->

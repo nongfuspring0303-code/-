@@ -511,18 +511,14 @@ class SemanticAnalyzer:
                 "reason": "deterministic keyword match",
             }
 
-        # Deterministic fallback: keep provider contract explicit even when
-        # no provider strategy/keyword branch is matched.
-        return {
-            "event_type": "other",
-            "sentiment": "neutral",
-            "confidence": 0,
-            "recommended_chain": "",
-            "recommended_stocks": [],
-            "reason": "deterministic fallback: provider strategy not matched",
-            "fallback_reason": "provider_unsupported",
-            "provider": provider_lower or "unknown",
-        }
+        # DEEP AUDIT: Explicitly return an abstain response when no provider strategy is matched, 
+        # avoiding silent fallback to an arbitrary event type.
+        return self._abstain_response(
+            fallback_reason="provider_unsupported",
+            fallback_detail=f"strategy not matched for {provider_lower}",
+            provider=provider_lower or "unknown",
+            model=model or self.model_name
+        )
 
     @staticmethod
     def _safe_json(response: requests.Response) -> Dict[str, Any]:

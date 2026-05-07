@@ -186,6 +186,24 @@ class MarketValidator(EDTModule):
         if divergence_score < 20:
             failed_checks.append("winner_loser_divergence")
 
+        # DEEP AUDIT: Enforcement of MEMORY.md L176 (Multi-source check for high volatility)
+        max_abs_move = max([abs(v) for v in price_changes.values()] + [0])
+        needs_multi_source = False
+        if max_abs_move >= 5.0:
+            needs_multi_source = True
+            source_count_required = 3
+        elif max_abs_move >= 3.0:
+            needs_multi_source = True
+            source_count_required = 2
+        else:
+            source_count_required = 1
+
+        # Current implementation only has single source from Yahoo via payloader
+        multi_source_confirmed = (not needs_multi_source) or (market_data_source == "multi_verified")
+        if needs_multi_source and not multi_source_confirmed:
+            failed_checks.append(f"multi_source_verification_required_{source_count_required}")
+            a1 = int(a1 * 0.7) # Penalty for unverified high volatility
+
         if a1 >= 80:
             state = "validated"
         elif a1 >= 60:

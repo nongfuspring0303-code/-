@@ -52,9 +52,10 @@ This file backfills the unified post-merge evidence for PR115 and serves as a pr
 - Output summary: `12 passed` on the latest approved PR115 head (`af57755676a72b10f3e175b3954052d2bee079ac`), as recorded in the final A-side approval review.
 
 ### CI Verification
-- Command / workflow coverage: `gh run view 25460237452 --json status,conclusion,headSha,jobs,url`
+- Command / workflow coverage: `gh run view 25498785274 --json status,conclusion,headSha,jobs,url`
 - Output summary: `status=completed`, `conclusion=success`, `job=test success`
-- CI run head SHA captured from the run record: `fc4cbcb3dfcb9490a9ae11400fe4601e57db102b`
+- CI run head SHA captured from the run record: `af57755676a72b10f3e175b3954052d2bee079ac`
+- CI run includes PR115 project trace API tests and PR115 frontend contract tests.
 
 ## 8. CI Evidence
 - Workflow name: `ci`

@@ -74,6 +74,26 @@ These are runtime artifacts and are not committed.
 - `scripts/verify_execution_no_pytest.py`: passed
 - `py_compile`: passed
 
+## CI Evidence Policy
+
+Final merge evidence must be verified from the latest PR head and the latest GitHub Actions CI run before merge.
+
+Required final checks:
+
+- Latest PR head SHA must match the CI run head.
+- CI workflow: `ci`
+- Job: `test`
+- Conclusion: `success`
+- PR2 project gap monitor tests must pass.
+- No additional commit may be pushed after the final successful CI without re-running this check.
+
+Local verification at the time of this Evidence Pack update:
+
+- `tests/test_project_gap_monitor.py`: 11 passed.
+- Combined regression: `30 passed`.
+- `scripts/verify_execution_no_pytest.py`: passed.
+- `py_compile`: passed.
+
 ## Safety Boundary
 
 - Read-only scanning only.
@@ -88,3 +108,26 @@ These are runtime artifacts and are not committed.
 - The default allowlist only suppresses expected first-run missing report/state artifacts.
 - The monitor emits gap findings for missing logs, schema/test/config coverage, frontend contract markers, and health source issues.
 - Review by A is still required before merge.
+
+## Rollback Plan
+
+If PR-2 causes CI instability or unexpected runtime behavior:
+
+1. Revert this PR commit.
+2. Remove the CI step `Run PR2 project gap monitor tests`.
+3. Remove the read-only monitor files:
+   - `scripts/project_gap_monitor.py`
+   - `configs/project_gap_monitor_allowlist.yaml`
+   - `tests/test_project_gap_monitor.py`
+   - `docs/system/project_gap_monitor_design.md`
+   - `docs/pr/pr2_project_gap_monitor_evidence_pack.md`
+4. Delete local runtime artifacts if generated:
+   - `logs/project_gap_report.json`
+   - `logs/project_gap_report.md`
+   - `logs/project_gap_state.json`
+
+Rollback does not affect:
+
+- main trading algorithm
+- broker/execution path
+- `/api/project/*` read-only endpoints

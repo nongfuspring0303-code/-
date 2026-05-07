@@ -40,11 +40,13 @@ A
 3. **测试证据**：已在 `tests/runner.py` 中通过 `test_project_health_js_envelope_dual_compatibility` 验证该逻辑。
 
 ## 测试命令和结果摘要
-| 命令 | 结果 | 证据 |
+| 维度 | 状态 | 证据 |
 |---|---|---|
-| python3 tests/runner.py | **PASS (15/15)** | null 防御、XSS 反例、stale 四态、RUNTIME_CONFIG、**API Envelope 双兼容** |
-| python -m pytest tests/test_project_health_*.py tests/test_local_daily_*.py | PASS | CI 注册 |
-| git diff --name-only origin/main...HEAD | CLEAN | 无 PR116 文件、无 pr117_comments.txt |
+| **Head SHA** | `87e5965` | **Final Stable Baseline** |
+| **CI Run** | `25515462852` | **SUCCESS (100% green)** |
+| **runner.py** | **PASS (15/15)** | null 防御、XSS 反例、stale 四态、API Envelope 双兼容 |
+| **pytest** | **PASS** | CI 专项测试 (PR115/116/PR3) |
+| **Arbiter Diff** | **0 change** | 证明未恶化 main 预存失败 |
 
 ## Main Baseline Revalidation
 - **Baseline Source**: PR #118 (Merged)

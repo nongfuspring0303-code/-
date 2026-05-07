@@ -77,9 +77,128 @@ class FullWorkflowRunner:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
+    def _upsert_jsonl_record(self, path: Path, record: Dict[str, Any], key_fields: tuple[str, ...]) -> None:
+        """Append or merge a JSONL record by stable key fields."""
+        with self._evidence_lock:
+            rows: list[dict[str, Any]] = []
+            if path.exists():
+                for line in path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        rows.append({"_raw": line})
+            record_key = tuple(str(record.get(field, "")) for field in key_fields)
+            replaced = False
+            for idx, row in enumerate(rows):
+                row_key = tuple(str(row.get(field, "")) for field in key_fields)
+                if row_key == record_key:
+                    merged = dict(row)
+                    merged.update(record)
+                    rows[idx] = merged
+                    replaced = True
+                    break
+            if not replaced:
+                rows.append(record)
+            with open(path, "w", encoding="utf-8") as f:
+                for row in rows:
+                    if set(row.keys()) == {"_raw"}:
+                        f.write(f"{row['_raw']}\n")
+                    else:
+                        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
     @staticmethod
     def _utc_now() -> str:
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def _build_market_data_provenance_record(
+        self,
+        *,
+        trace_id: str,
+        request_id: str | None,
+        batch_id: str | None,
+        event_id: str,
+        event_hash: str,
+        validation_out: Dict[str, Any],
+        payload: Dict[str, Any],
+        derived_symbols_requested: list[str] | None = None,
+        derived_symbols_returned: list[str] | None = None,
+        provider_meta: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        def _normalize_symbols(value: Any) -> list[str]:
+            if value is None:
+                return []
+            if isinstance(value, str):
+                raw_items = [value]
+            elif isinstance(value, (list, tuple, set)):
+                raw_items = list(value)
+            else:
+                raw_items = [value]
+            return sorted({str(sym).strip().upper() for sym in raw_items if str(sym).strip()})
+
+        payload_symbols_requested = _normalize_symbols(payload.get("symbols_requested")) if "symbols_requested" in payload else None
+        payload_symbols_returned = _normalize_symbols(payload.get("symbols_returned")) if "symbols_returned" in payload else None
+        symbols_requested = payload_symbols_requested if payload_symbols_requested is not None else (derived_symbols_requested or [])
+        symbols_returned = payload_symbols_returned if payload_symbols_returned is not None else (derived_symbols_returned or [])
+        provider_meta = provider_meta or {}
+        record = {
+            "logged_at": self._utc_now(),
+            "trace_id": trace_id,
+            "event_trace_id": trace_id,
+            "request_id": request_id,
+            "batch_id": batch_id,
+            "event_id": event_id,
+            "event_hash": event_hash,
+            "market_data_source": validation_out.get("market_data_source", "unknown"),
+            "market_data_present": bool(validation_out.get("market_data_present", False)),
+            "market_data_stale": bool(validation_out.get("market_data_stale", False)),
+            "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
+            "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
+            "validation_state": validation_out.get("validation_state"),
+            "provider_chain": list(provider_meta.get("provider_chain", []) or []),
+            "providers_attempted": list(provider_meta.get("providers_attempted", []) or []),
+            "providers_succeeded": list(provider_meta.get("providers_succeeded", []) or []),
+            "providers_failed": list(provider_meta.get("providers_failed", []) or []),
+            "provider_failure_reasons": dict(provider_meta.get("provider_failure_reasons", {}) or {}),
+            "fallback_used": bool(provider_meta.get("fallback_used", False)),
+            "fallback_reason": str(provider_meta.get("fallback_reason", "") or ""),
+            "unresolved_symbols": list(provider_meta.get("unresolved_symbols", []) or []),
+            "unresolved_symbol_count": len(provider_meta.get("unresolved_symbols", []) or []),
+            "market_data_provider": payload.get("market_data_provider"),
+            "provider_path": payload.get("provider_path"),
+            "symbols_requested": symbols_requested,
+            "symbols_returned": symbols_returned,
+            "request_mode": payload.get("request_mode"),
+            "fetch_latency_ms": payload.get("fetch_latency_ms"),
+            "market_data_ts": payload.get("market_timestamp"),
+            "market_data_delay_seconds": payload.get("market_data_delay_seconds"),
+            "rate_limited": payload.get("rate_limited"),
+            "http_status": payload.get("http_status"),
+            "error_code": payload.get("error_code"),
+            "used_by_module": "MarketValidator",
+        }
+        missing_fields = []
+        for field in (
+            "market_data_provider",
+            "provider_path",
+            "request_mode",
+            "fetch_latency_ms",
+            "market_data_ts",
+            "market_data_delay_seconds",
+            "rate_limited",
+            "http_status",
+            "error_code",
+        ):
+            if self._is_missing_provenance_value(record.get(field)):
+                missing_fields.append(field)
+        if not symbols_requested:
+            missing_fields.append("symbols_requested")
+        if not symbols_returned:
+            missing_fields.append("symbols_returned")
+        record["provenance_field_missing"] = missing_fields
+        return record
 
     def _log_pipeline_stage(
         self,
@@ -755,71 +874,21 @@ class FullWorkflowRunner:
                 if str(sym).strip() and value is not None
             }
         )
-        def _normalize_symbols(value: Any) -> list[str]:
-            if value is None:
-                return []
-            if isinstance(value, str):
-                raw_items = [value]
-            elif isinstance(value, (list, tuple, set)):
-                raw_items = list(value)
-            else:
-                raw_items = [value]
-            return sorted({str(sym).strip().upper() for sym in raw_items if str(sym).strip()})
-
-        payload_symbols_requested = _normalize_symbols(payload.get("symbols_requested")) if "symbols_requested" in payload else None
-        payload_symbols_returned = _normalize_symbols(payload.get("symbols_returned")) if "symbols_returned" in payload else None
-        symbols_requested = payload_symbols_requested if payload_symbols_requested is not None else derived_symbols_requested
-        symbols_returned = payload_symbols_returned if payload_symbols_returned is not None else derived_symbols_returned
-        provenance_record = {
-            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "trace_id": trace_id,
-            "event_trace_id": trace_id,
-            "request_id": request_id,
-            "batch_id": batch_id,
-            "event_id": event_id,
-            "event_hash": event_hash,
-            "market_data_source": validation_out.get("market_data_source", "unknown"),
-            "market_data_present": bool(validation_out.get("market_data_present", False)),
-            "market_data_stale": bool(validation_out.get("market_data_stale", False)),
-            "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
-            "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
-            "validation_state": validation_out.get("validation_state"),
-            "market_data_provider": payload.get("market_data_provider"),
-            "provider_path": payload.get("provider_path"),
-            "symbols_requested": symbols_requested,
-            "symbols_returned": symbols_returned,
-            "request_mode": payload.get("request_mode"),
-            "fetch_latency_ms": payload.get("fetch_latency_ms"),
-            "market_data_ts": payload.get("market_timestamp"),
-            "market_data_delay_seconds": payload.get("market_data_delay_seconds"),
-            "rate_limited": payload.get("rate_limited"),
-            "http_status": payload.get("http_status"),
-            "error_code": payload.get("error_code"),
-            "used_by_module": "MarketValidator",
-            "provenance_field_missing": [],
-        }
-        missing_fields = []
-        for field in (
-            "market_data_provider",
-            "provider_path",
-            "request_mode",
-            "fetch_latency_ms",
-            "market_data_ts",
-            "market_data_delay_seconds",
-            "rate_limited",
-            "http_status",
-            "error_code",
-        ):
-            if self._is_missing_provenance_value(provenance_record.get(field)):
-                missing_fields.append(field)
-        if not symbols_requested:
-            missing_fields.append("symbols_requested")
-        if not symbols_returned:
-            missing_fields.append("symbols_returned")
-        provenance_record["provenance_field_missing"] = missing_fields
-        self._append_jsonl(
+        provenance_record = self._build_market_data_provenance_record(
+            trace_id=trace_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_id=event_id,
+            event_hash=event_hash,
+            validation_out=validation_out,
+            payload=payload,
+            derived_symbols_requested=derived_symbols_requested,
+            derived_symbols_returned=derived_symbols_returned,
+        )
+        self._upsert_jsonl_record(
             self.market_data_provenance_log_path,
             provenance_record,
+            ("trace_id", "request_id", "batch_id", "event_hash"),
         )
         self._log_pipeline_stage(
             trace_id=trace_id,
@@ -1082,32 +1151,22 @@ class FullWorkflowRunner:
                 }
         if not provider_meta:
             provider_meta = self._provider_meta_from_opportunity(self.opportunity)
-        self._append_jsonl(
+        enriched_record = self._build_market_data_provenance_record(
+            trace_id=trace_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_id=event_id,
+            event_hash=event_hash,
+            validation_out=validation_out,
+            payload=payload,
+            derived_symbols_requested=derived_symbols_requested,
+            derived_symbols_returned=derived_symbols_returned,
+            provider_meta=provider_meta,
+        )
+        self._upsert_jsonl_record(
             self.market_data_provenance_log_path,
-            {
-                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "trace_id": trace_id,
-                "event_trace_id": trace_id,
-                "request_id": request_id,
-                "batch_id": batch_id,
-                "event_id": event_id,
-                "event_hash": event_hash,
-                "provider_chain": provider_meta["provider_chain"],
-                "providers_attempted": provider_meta["providers_attempted"],
-                "providers_succeeded": provider_meta["providers_succeeded"],
-                "providers_failed": provider_meta["providers_failed"],
-                "provider_failure_reasons": provider_meta["provider_failure_reasons"],
-                "fallback_used": provider_meta["fallback_used"],
-                "fallback_reason": provider_meta["fallback_reason"],
-                "unresolved_symbols": provider_meta["unresolved_symbols"],
-                "unresolved_symbol_count": len(provider_meta["unresolved_symbols"]),
-                "market_data_source": validation_out.get("market_data_source", "unknown"),
-                "market_data_present": bool(validation_out.get("market_data_present", False)),
-                "market_data_stale": bool(validation_out.get("market_data_stale", False)),
-                "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
-                "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
-                "validation_state": validation_out.get("validation_state"),
-            },
+            enriched_record,
+            ("trace_id", "request_id", "batch_id", "event_hash"),
         )
         self._log_pipeline_stage(
             trace_id=trace_id,

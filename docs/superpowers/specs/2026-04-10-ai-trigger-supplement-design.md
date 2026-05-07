@@ -93,7 +93,7 @@ runtime:
 
 ## 与现有脚本借鉴点
 
-来源：`/Users/workmac/.openclaw/脚本/6.新浪时事新闻分析gemini flash lite关键词版/新浪时事新闻分析gemini flash lite关键词版.py`
+来源：`<LOCAL_WORKSPACE>/脚本/6.新浪时事新闻分析gemini flash lite关键词版/新浪时事新闻分析gemini flash lite关键词版.py`
 
 复用思路：
 1. 保留关键词预筛，减少 AI 调用成本；

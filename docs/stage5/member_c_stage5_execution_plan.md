@@ -7,11 +7,11 @@ Scope: Stage5 implementation ownership only; A/B sign-off remains required.
 ## 1) C-side task extraction from the 5 canonical task files
 
 Source files:
-- `/Users/workmac/.openclaw/workspace/阶段五项目任务/EDT_施工顺序表_v1.0.2_2026-04-21.md`
-- `/Users/workmac/.openclaw/workspace/阶段五项目任务/EDT_施工准备清单_开工门禁_v1.0.2_2026-04-21.md`
-- `/Users/workmac/.openclaw/workspace/阶段五项目任务/EDT_三成员分工表_联审触点_v1.0.2_2026-04-21.md`
-- `/Users/workmac/.openclaw/workspace/阶段五项目任务/EDT_阶段-负责人矩阵_v1.0_2026-04-21.md`
-- `/Users/workmac/.openclaw/workspace/阶段五项目任务/EDT_施工顺序表_施工准备清单_三成员分工表_正式冻结版_v1.0.2_2026-04-21 (1).md`
+- `<LOCAL_WORKSPACE>/阶段五项目任务/EDT_施工顺序表_v1.0.2_2026-04-21.md`
+- `<LOCAL_WORKSPACE>/阶段五项目任务/EDT_施工准备清单_开工门禁_v1.0.2_2026-04-21.md`
+- `<LOCAL_WORKSPACE>/阶段五项目任务/EDT_三成员分工表_联审触点_v1.0.2_2026-04-21.md`
+- `<LOCAL_WORKSPACE>/阶段五项目任务/EDT_阶段-负责人矩阵_v1.0_2026-04-21.md`
+- `<LOCAL_WORKSPACE>/阶段五项目任务/EDT_施工顺序表_施工准备清单_三成员分工表_正式冻结版_v1.0.2_2026-04-21 (1).md`
 
 C-side implementation tasks:
 1. stage log full coverage: `pipeline_stage.jsonl`

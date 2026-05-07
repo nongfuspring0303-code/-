@@ -5,7 +5,7 @@
   "total_traces": 4,
   "duplicate_traces": 0,
   "current_value": 0.0,
-  "baseline_path": "/Users/workmac/.openclaw/workspace/事件驱动交易模块阶段二/artifacts/baseline/metrics_snapshot_2026-04-21.json",
+  "baseline_path": "<LOCAL_WORKSPACE>/事件驱动交易模块阶段二/artifacts/baseline/metrics_snapshot_2026-04-21.json",
   "baseline_value": 0.0,
   "comparison": "improved_or_equal"
 }

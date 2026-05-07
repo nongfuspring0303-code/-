@@ -13,7 +13,7 @@ This file confirms whether `main` remains a valid baseline for PR117 after PR115
   - PR116
 
 ## 3. Validation Commands
-Validation was run in a clean temporary worktree at `/private/tmp/pr117-baseline` to avoid contamination from pre-existing local runtime artifacts.
+Validation was run in a clean temporary worktree at `<TEMP_WORKTREE>` to avoid contamination from pre-existing local runtime artifacts.
 
 - `python3 -m pytest -q`
 - `python3 -m pytest -q tests/test_project_gap_monitor.py tests/test_project_trace_api.py tests/test_project_trace_frontend_contract.py`

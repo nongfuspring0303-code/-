@@ -82,6 +82,11 @@ jobs:
         run: |
           python -m pytest tests/test_project_gap_monitor.py -q
 
+      - name: Run final-freeze market provenance tests
+        run: |
+          python -m pytest tests/test_stage5_log_outputs.py -q
+          python -m pytest tests/test_residual_evidence_logging_gaps.py -q
+
       - name: Run PR3 project health static contract tests
         run: |
           python -m pytest tests/test_project_health_static_contract.py tests/test_local_daily_project_monitor_static.py tests/test_project_health_security_rendering.py -q

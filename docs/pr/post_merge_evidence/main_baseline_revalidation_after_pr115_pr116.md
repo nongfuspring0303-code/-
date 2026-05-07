@@ -62,8 +62,11 @@ Confirmed present:
 
 ## 7. Gate Decision for PR117
 - Is PR117 allowed to merge before this PR? NO
-- Is PR117 allowed to merge after this PR if baseline PASS? YES
-- Required action for PR117: rebase / update from latest main after this evidence PR is merged
+- Is PR117 allowed to merge immediately after this PR? NO, unless the full-suite failure is triaged, waived by A/Gatekeeper, or fixed.
+- Required action for PR117:
+  1. Rebase / update from latest main after PR118 is merged.
+  2. Prove PR117 does not introduce or worsen `tests/test_multi_event_arbiter.py::test_multi_event_dedup_and_conflict`.
+  3. Either fix the full pytest failure or add a formal A/Gatekeeper waiver explaining why this unrelated pre-existing failure does not block PR117.
 
 ## 8. Final Conclusion
 - WARN

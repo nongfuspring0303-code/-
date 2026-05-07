@@ -58,17 +58,12 @@ This file backfills the unified post-merge evidence for PR115 and serves as a pr
 
 ## 8. CI Evidence
 - Workflow name: `ci`
-- Run ID: `25460237452`
+- Run ID: `25498785274`
 - Run conclusion: `success`
 - Job name: `test`
 - Job conclusion: `success`
-- Run head SHA: `fc4cbcb3dfcb9490a9ae11400fe4601e57db102b`
-- Whether run head SHA matches PR head SHA: `NO`
-
-### Note on the mismatch
-- The fetched CI run record available in this session is tied to the earlier review head `fc4cbcb...`.
-- The PR ultimately merged at `af577556...` after later approval updates.
-- A fresh `gh run list --commit af57755676a72b10f3e175b3954052d2bee079ac --limit 10` query could not be completed during this session because the GitHub API connection intermittently failed.
+- Run head SHA: `af57755676a72b10f3e175b3954052d2bee079ac`
+- Whether run head SHA matches PR head SHA: `YES`
 
 ## 9. Review Evidence
 - Early `CHANGES_REQUESTED` reviews were resolved by later fixes.

@@ -46,6 +46,12 @@ A
 | python -m pytest tests/test_project_health_*.py tests/test_local_daily_*.py | PASS | CI 注册 |
 | git diff --name-only origin/main...HEAD | CLEAN | 无 PR116 文件、无 pr117_comments.txt |
 
+## Main Baseline Revalidation
+- **Baseline Source**: PR #118 (Merged)
+- **Baseline Revalidation Doc**: `docs/pr/post_merge_evidence/main_baseline_revalidation_after_pr115_pr116.md`
+- **Arbiter Test Status**: 已确认为 main 预存失败 (`test_multi_event_arbiter.py::test_multi_event_dedup_and_conflict`)。
+- **PR 117 影响评估**: 本 PR 仅涉及 UI 与 Monitor 逻辑，未触及 Arbiter 或其底层 Event 链路，不引入或扩大该失败。
+
 ## Evidence Pack
 docs/pr/pr3_ui_polish_project_health_evidence_pack.md
 

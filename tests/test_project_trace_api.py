@@ -482,3 +482,76 @@ def test_project_trace_reader_tail_limits_large_jsonl(logs_dir: Path):
     out = reader._read_jsonl("trace_scorecard.jsonl")
     assert len(out.rows) <= 2000
     assert out.rows[-1]["trace_id"] == "ME-TAIL-3099"
+
+
+def test_trace_detail_module_required_fields_emit_errors(project_server, logs_dir: Path):
+    trace_id = "ME-PR-1-MODULE-REQ"
+    _write_jsonl(
+        logs_dir / "trace_scorecard.jsonl",
+        [_sample_scorecard(trace_id, "2026-05-06T10:00:00Z")],
+    )
+    _write_jsonl(
+        logs_dir / "pipeline_stage.jsonl",
+        [_sample_pipeline_stage(trace_id, "intel_ingest", "2026-05-06T10:00:01Z", 1)],
+    )
+    _write_jsonl(
+        logs_dir / "event_bus_live.jsonl",
+        [
+            {
+                "trace_id": trace_id,
+                "request_id": "REQ-MODULE-001",
+                "analysis": {
+                    "lifecycle_fatigue_contract": {
+                        "schema_version": "stage6.lifecycle_fatigue_contract.v1",
+                        # lifecycle_state intentionally missing
+                    },
+                    "execution_suggestion": {
+                        "position_sizing": {"mode": "range"},
+                        # trade_type intentionally missing
+                    },
+                    "path_quality_eval": {
+                        # composite_score intentionally missing
+                        "path_accuracy": 0.88,
+                        # grade intentionally missing
+                    },
+                },
+            }
+        ],
+    )
+
+    status, body, _ = _request(project_server, "GET", f"/api/project/trace/{trace_id}")
+    assert status == 200
+    assert body["status"] == "partial"
+    assert body["code"] == "PARTIAL_TRACE_DETAIL"
+
+    required_errors = [e for e in body["errors"] if e["code"] == "REQUIRED_FIELD_MISSING"]
+    assert required_errors
+
+    assert any(
+        e.get("module") == "lifecycle_fatigue_contract"
+        and e.get("field") == "lifecycle_fatigue_contract.lifecycle_state"
+        and e.get("severity") == "error"
+        and e.get("retryable") is False
+        for e in required_errors
+    )
+    assert any(
+        e.get("module") == "execution_suggestion"
+        and e.get("field") == "execution_suggestion.trade_type"
+        and e.get("severity") == "error"
+        and e.get("retryable") is False
+        for e in required_errors
+    )
+    assert any(
+        e.get("module") == "path_quality_eval"
+        and e.get("field") == "path_quality_eval.composite_score"
+        and e.get("severity") == "error"
+        and e.get("retryable") is False
+        for e in required_errors
+    )
+    assert any(
+        e.get("module") == "path_quality_eval"
+        and e.get("field") == "path_quality_eval.grade"
+        and e.get("severity") == "error"
+        and e.get("retryable") is False
+        for e in required_errors
+    )

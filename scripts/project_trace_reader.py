@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOGS_DIR = ROOT / "logs"
 API_SCHEMA_VERSION = "project.api.v1"
 MAX_JSONL_TAIL_LINES = 2000
+MODULE_REQUIRED_FIELDS: dict[str, list[str]] = {
+    "lifecycle_fatigue_contract": ["lifecycle_state"],
+    "execution_suggestion": ["trade_type"],
+    "path_quality_eval": ["composite_score", "grade"],
+}
 
 
 def _error_item(
@@ -215,6 +220,40 @@ class ProjectTraceReader:
             if value in ("", None):
                 missing.append(field)
         return missing
+
+    def _get_nested_value(self, data: dict[str, Any], path: str) -> Any:
+        cur: Any = data
+        for part in path.split("."):
+            if not isinstance(cur, dict):
+                return None
+            cur = cur.get(part)
+        return cur
+
+    def _module_required_gaps(
+        self,
+        *,
+        module_name: str,
+        data: dict[str, Any] | None,
+        required_fields: list[str],
+    ) -> list[dict[str, Any]]:
+        if not isinstance(data, dict):
+            return []
+        out: list[dict[str, Any]] = []
+        for field in required_fields:
+            value = self._get_nested_value(data, field)
+            if value in ("", None):
+                out.append(
+                    _error_item(
+                        code="REQUIRED_FIELD_MISSING",
+                        message=f"Required field {module_name}.{field} is missing.",
+                        source=module_name,
+                        module=module_name,
+                        field=f"{module_name}.{field}",
+                        severity="error",
+                        retryable=False,
+                    )
+                )
+        return out
 
     def _scorecard_required_gaps(self, row: dict[str, Any]) -> list[str]:
         # Field matrix v1.2 keeps the scorecard required set minimal for PR-1.
@@ -486,12 +525,21 @@ class ProjectTraceReader:
             scorecard_row=latest_scorecard,
             trace_payload=trace_payload,
         )
+        module_required_errors: list[dict[str, Any]] = []
+        for module_name, required_fields in MODULE_REQUIRED_FIELDS.items():
+            module_required_errors.extend(
+                self._module_required_gaps(
+                    module_name=module_name,
+                    data=modules.get(module_name),
+                    required_fields=required_fields,
+                )
+            )
 
         status = "ok"
-        if errors or required_missing or module_errors:
+        if errors or required_missing or module_errors or module_required_errors:
             status = "partial"
         if latest_scorecard is None and not matching_pipeline:
-            status = "partial" if errors or module_errors else "empty"
+            status = "partial" if errors or module_errors or module_required_errors else "empty"
 
         missing_field_errors = [
             _error_item(
@@ -516,7 +564,7 @@ class ProjectTraceReader:
             "status": status,
             "code": "PARTIAL_TRACE_DETAIL" if status == "partial" else ("EMPTY" if status == "empty" else "OK"),
             "message": "Trace detail loaded.",
-            "errors": errors + module_errors + missing_field_errors,
+            "errors": errors + module_errors + missing_field_errors + module_required_errors,
             "trace_id": lookup,
             "data": {
                 "request_id": _safe_str(trace_payload.get("request_id")) if isinstance(trace_payload, dict) else None,

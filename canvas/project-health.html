@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDT Project Health Console</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="theme-dark">
+  <div class="institutional-header">
+    <div class="logo">EDT KERNEL <span>v2.1</span></div>
+    <nav class="main-nav">
+      <a href="index.html">LIVE CONSOLE</a>
+      <a href="project-health.html" class="active">PROJECT HEALTH</a>
+    </nav>
+    <div class="user-profile">
+      <span class="user-role">MEMBER C</span>
+    </div>
+  </div>
+
+  <div id="app" data-module="ProjectHealthDashboard" data-state="LOADING">
+    <!-- Top HUD -->
+    <header class="status-bar" id="healthHeader" data-key="health.overall_status">
+      <div class="overall-status" id="overallStatusContainer">
+        <span class="status-indicator"></span>
+        <span id="statusText">PROJECT STATUS: LOADING...</span>
+      </div>
+      <div class="header-meta">
+        <span id="lastScanAt" data-key="health.last_generated_at">Last Scan: --:--:--</span>
+        <button class="btn-icon" id="goHomeBtn" title="返回主控制台">🖥️</button>
+      </div>
+    </header>
+
+    <main class="health-grid">
+      <!-- Row 1: Primary Metrics -->
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.p0_count" data-state="MISSING">
+        <div class="kpi-label">P0 BLOCKERS</div>
+        <div class="kpi-value" id="p0Count">--</div>
+        <div class="kpi-trend">STRICT GATE</div>
+      </div>
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.p1_count" data-state="MISSING">
+        <div class="kpi-label">P1 MAJOR GAPS</div>
+        <div class="kpi-value" id="p1Count">--</div>
+        <div class="kpi-trend">DEBT TO PAY</div>
+      </div>
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.p2_count" data-state="MISSING">
+        <div class="kpi-label">P2 ITEMS</div>
+        <div class="kpi-value" id="p2Count">--</div>
+        <div class="kpi-trend">LOW PRIO</div>
+      </div>
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.current_commit" data-state="MISSING">
+        <div class="kpi-label">CURRENT COMMIT</div>
+        <div class="kpi-value" id="currentCommit" style="font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis;">--</div>
+        <div class="kpi-trend">SHA-1 REFERENCE</div>
+      </div>
+
+      <!-- Row 2: Coverage & Freshness -->
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.frontend_coverage" data-state="MISSING">
+        <div class="kpi-label">FE COVERAGE</div>
+        <div class="kpi-value" id="feCoverage">--%</div>
+        <div class="kpi-trend">MATRIX ALIGNED</div>
+      </div>
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.contract_coverage" data-state="MISSING">
+        <div class="kpi-label">CONTRACT COVERAGE</div>
+        <div class="kpi-value" id="contractCoverage">--%</div>
+        <div class="kpi-trend">SCHEMA COMPLIANCE</div>
+      </div>
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.log_freshness" data-state="MISSING">
+        <div class="kpi-label">LOG FRESHNESS</div>
+        <div class="kpi-value" id="logFreshness">--</div>
+        <div class="kpi-trend">STALE DETECTOR</div>
+      </div>
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.test_health" data-state="MISSING">
+        <div class="kpi-label">TEST HEALTH</div>
+        <div class="kpi-value" id="testHealth">--%</div>
+        <div class="kpi-trend">CI STATUS</div>
+      </div>
+      <div class="kpi-card" data-module="ProjectHealth" data-key="health.hardcoded_risk" data-state="MISSING">
+        <div class="kpi-label">HARDCODED RISK</div>
+        <div class="kpi-value" id="hardcodedRisk">--</div>
+        <div class="kpi-trend">STATIC AUDIT</div>
+      </div>
+
+      <!-- Row 3: Findings -->
+      <section class="panel blocker-list-panel" data-module="FindingList" data-state="PENDING">
+        <div class="panel-header">
+          <div class="panel-title">Active Project Gaps (Real-time Monitor)</div>
+          <div class="panel-filter">
+             <input type="text" id="findingSearch" placeholder="搜索组件/错误码..." class="search-input">
+          </div>
+        </div>
+        <div class="finding-header finding-row" style="font-weight: bold; background: rgba(255,255,255,0.05);">
+          <span>SEVERITY</span>
+          <span>CATEGORY</span>
+          <span>MODULE</span>
+          <span>DESCRIPTION</span>
+          <span>ACTION</span>
+        </div>
+        <div id="findingList" class="finding-body"></div>
+      </section>
+
+      <!-- Sidebar: Delta & Actions -->
+      <aside class="side-control-panel">
+        <div class="panel" data-key="health.delta_stats">
+          <div class="panel-header"><div class="panel-title">Delta vs Prev</div></div>
+          <div class="panel-body">
+            <div class="delta-stat">New: <span id="newCount" class="text-warning">--</span></div>
+            <div class="delta-stat">Resolved: <span id="resolvedCount" class="text-success">--</span></div>
+            <div class="delta-stat">Unchanged: <span id="unchangedCount">--</span></div>
+          </div>
+        </div>
+        
+        <div class="panel" style="flex: 0 0 150px; margin-bottom: 15px;" data-key="health.p0_blockers">
+          <div class="panel-header" style="background: rgba(255, 68, 68, 0.1);"><div class="panel-title text-danger">P0 BLOCKERS (STRICT)</div></div>
+          <div id="p0BlockerBox" class="panel-body" style="font-size: 0.8rem; font-weight: bold;">
+            Waiting...
+          </div>
+        </div>
+
+        <div class="panel" style="flex: 1;" data-key="health.recommendations">
+          <div class="panel-header"><div class="panel-title">Recommended Next Actions</div></div>
+          <div id="suggestionBox" class="panel-body" style="font-size: 0.85rem; line-height: 1.6; color: #ccc;">
+            等待扫描结果...
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./runtime-config.js"></script>
+  <script src="project-health.js"></script>
+</body>
+</html>

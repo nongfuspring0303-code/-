@@ -817,10 +817,9 @@ class FullWorkflowRunner:
         if not symbols_returned:
             missing_fields.append("symbols_returned")
         provenance_record["provenance_field_missing"] = missing_fields
-        self._append_jsonl(
-            self.market_data_provenance_log_path,
-            provenance_record,
-        )
+        # DEFER: Do not write to JSONL here. Consolidate with provider_meta later to avoid duplication.
+        self.last_provenance_record = provenance_record
+
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -1082,32 +1081,25 @@ class FullWorkflowRunner:
                 }
         if not provider_meta:
             provider_meta = self._provider_meta_from_opportunity(self.opportunity)
+        
+        # Consolidate validation info from earlier and provider_meta from now
+        final_provenance = {
+            **(getattr(self, "last_provenance_record", {})),
+            "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "provider_chain": provider_meta["provider_chain"],
+            "providers_attempted": provider_meta["providers_attempted"],
+            "providers_succeeded": provider_meta["providers_succeeded"],
+            "providers_failed": provider_meta["providers_failed"],
+            "provider_failure_reasons": provider_meta["provider_failure_reasons"],
+            "fallback_used": provider_meta["fallback_used"],
+            "fallback_reason": provider_meta["fallback_reason"],
+            "unresolved_symbols": provider_meta["unresolved_symbols"],
+            "unresolved_symbol_count": len(provider_meta["unresolved_symbols"]),
+            "validation_state": validation_out.get("validation_state"),
+        }
         self._append_jsonl(
             self.market_data_provenance_log_path,
-            {
-                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "trace_id": trace_id,
-                "event_trace_id": trace_id,
-                "request_id": request_id,
-                "batch_id": batch_id,
-                "event_id": event_id,
-                "event_hash": event_hash,
-                "provider_chain": provider_meta["provider_chain"],
-                "providers_attempted": provider_meta["providers_attempted"],
-                "providers_succeeded": provider_meta["providers_succeeded"],
-                "providers_failed": provider_meta["providers_failed"],
-                "provider_failure_reasons": provider_meta["provider_failure_reasons"],
-                "fallback_used": provider_meta["fallback_used"],
-                "fallback_reason": provider_meta["fallback_reason"],
-                "unresolved_symbols": provider_meta["unresolved_symbols"],
-                "unresolved_symbol_count": len(provider_meta["unresolved_symbols"]),
-                "market_data_source": validation_out.get("market_data_source", "unknown"),
-                "market_data_present": bool(validation_out.get("market_data_present", False)),
-                "market_data_stale": bool(validation_out.get("market_data_stale", False)),
-                "market_data_default_used": bool(validation_out.get("market_data_default_used", False)),
-                "market_data_fallback_used": bool(validation_out.get("market_data_fallback_used", False)),
-                "validation_state": validation_out.get("validation_state"),
-            },
+            final_provenance,
         )
         self._log_pipeline_stage(
             trace_id=trace_id,

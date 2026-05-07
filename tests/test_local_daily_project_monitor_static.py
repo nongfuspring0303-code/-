@@ -3,7 +3,8 @@ from pathlib import Path
 
 def test_local_monitor_script_security_policy():
     """Verify that local_daily_project_monitor.sh does not contain forbidden mutation commands."""
-    script_path = Path("scripts/local_daily_project_monitor.sh")
+    root = Path(__file__).resolve().parent.parent
+    script_path = root / "scripts" / "local_daily_project_monitor.sh"
     assert script_path.exists()
     content = script_path.read_text()
 
@@ -22,7 +23,8 @@ def test_local_monitor_script_security_policy():
 
 def test_local_monitor_script_read_only_checks():
     """Verify that the script correctly calls the monitor and redirects to logs."""
-    content = Path("scripts/local_daily_project_monitor.sh").read_text()
+    root = Path(__file__).resolve().parent.parent
+    content = (root / "scripts" / "local_daily_project_monitor.sh").read_text()
     assert 'python3' in content
     assert 'project_gap_monitor.py' in content
     assert 'logs/local_project_monitor.log' in content

@@ -86,6 +86,28 @@ def test_redacted_preview_masks_traceback_and_secrets(tmp_path):
     assert len(preview) <= 2000
 
 
+def test_redacted_preview_dynamic_traceback_and_secrets_input(tmp_path):
+    payload = (
+        "Traceback (most recent call last):\n"
+        "  File \"/Users/runtime/private/script.py\", line 3, in <module>\n"
+        "RuntimeError: crash\n"
+        "token=REAL_TOKEN_ABC\n"
+        "api_key=REAL_API_KEY_123\n"
+        "secret=REAL_SECRET_456\n"
+        "tmp=/private/tmp/runtime-file\n"
+    )
+    out = _analyzer(tmp_path)._parse_ai_content(payload)
+    preview = out["redacted_raw_response_preview"]
+    assert out["parse_status"] == "parse_failed"
+    assert "Traceback (most recent call last):" not in preview
+    assert "/Users/" not in preview
+    assert "/private/tmp/" not in preview
+    assert "REAL_TOKEN_ABC" not in preview
+    assert "REAL_API_KEY_123" not in preview
+    assert "REAL_SECRET_456" not in preview
+    assert len(preview) <= 2000
+
+
 def test_parse_multiple_json_candidates_prefers_schema_valid_object(tmp_path):
     payload = (
         "prefix {\"recommended_stocks\":\"AAPL\"} "

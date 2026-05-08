@@ -1029,12 +1029,27 @@ class FullWorkflowRunner:
 
         sectors = []
         for item in conduction_out.get("sector_impacts", []):
+            driver_type = str(item.get("driver_type", "")).strip().lower()
+            if driver_type == "legacy_event_broadcast":
+                sector_score_source = "legacy_event_broadcast"
+            elif driver_type in {"template", "semantic_sector"}:
+                sector_score_source = "semantic_sector"
+            elif driver_type in {"beta_alpha", "rule_adjusted", "tier1_weight"}:
+                sector_score_source = "rule_adjusted"
+            else:
+                sector_score_source = "sector_marginal"
+            try:
+                raw_confidence = float(item.get("confidence", conduction_out.get("confidence", 0)))
+            except (TypeError, ValueError):
+                raw_confidence = float(conduction_out.get("confidence", 0) or 0.0)
+            confidence_value = raw_confidence / 100.0 if raw_confidence > 1.0 else raw_confidence
             sectors.append(
                 {
                     "name": item.get("sector", "未知板块"),
                     "direction": "LONG" if item.get("direction") == "benefit" else "SHORT",
-                    "impact_score": round(min(1.0, max(0.0, float(validation_out.get("A1", 0)) / 100.0)), 2),
-                    "confidence": round(min(1.0, max(0.0, float(conduction_out.get("confidence", 0)) / 100.0)), 2),
+                    "impact_score": round(min(1.0, max(0.0, float(item.get("impact_score", 0.0)))), 2),
+                    "confidence": round(min(1.0, max(0.0, confidence_value)), 2),
+                    "sector_score_source": sector_score_source,
                 }
             )
 

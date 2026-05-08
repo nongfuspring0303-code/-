@@ -194,9 +194,9 @@ def test_opportunity_card_fields_complete_and_premium_only():
             {"name": "金融", "direction": "SHORT", "impact_score": 0.75, "confidence": 0.80},
         ],
         "stock_candidates": [
-            {"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.3},
-            {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.1},
-            {"symbol": "CAT", "sector": "工业", "direction": "SHORT", "event_beta": 1.2},
+            {"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.3, "supporting_sector": "科技", "rationale": "NVDA GPUs are directly exposed to AI server demand."},
+            {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.1, "supporting_sector": "金融", "rationale": "JPM is a direct financial sector proxy for rates and credit spreads."},
+            {"symbol": "CAT", "sector": "工业", "direction": "SHORT", "event_beta": 1.2, "supporting_sector": "工业", "rationale": "CAT is directly exposed to industrial equipment demand."},
         ],
     }
 
@@ -220,7 +220,7 @@ def test_direction_consistency_rate_meets_target():
             "trace_id": f"bull_{i}",
             "schema_version": "v1.0",
             "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.8, "confidence": 0.85}],
-            "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.2}],
+            "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.2, "supporting_sector": "科技", "rationale": "NVDA GPUs are directly exposed to AI server demand."}],
         }
         for i in range(20)
     ]
@@ -229,7 +229,7 @@ def test_direction_consistency_rate_meets_target():
             "trace_id": f"bear_{i}",
             "schema_version": "v1.0",
             "sectors": [{"name": "科技", "direction": "SHORT", "impact_score": 0.8, "confidence": 0.85}],
-            "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "SHORT", "event_beta": 1.2}],
+            "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "SHORT", "event_beta": 1.2, "supporting_sector": "科技", "rationale": "NVDA GPUs are directly exposed to AI server demand."}],
         }
         for i in range(20)
     ]
@@ -250,6 +250,8 @@ def test_missing_realtime_price_forces_watch_with_risk_flag():
                 "sector": "科技",
                 "direction": "LONG",
                 "event_beta": 1.3,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
             }
         ],
     }
@@ -275,6 +277,8 @@ def test_entry_zone_uses_realtime_price_first():
                 "direction": "LONG",
                 "event_beta": 1.3,
                 "realtime_price": 500.0,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
             }
         ],
     }
@@ -311,6 +315,8 @@ def test_price_fetch_disabled_does_not_call_adapter():
                 "sector": "科技",
                 "direction": "LONG",
                 "event_beta": 1.3,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
             }
         ],
     }
@@ -342,7 +348,7 @@ def test_opportunity_output_contains_gate_and_score_fields():
         "schema_version": "v1.1",
         "news_timestamp": "2026-04-11T00:00:00Z",
         "sectors": [{"name": "Technology", "direction": "LONG", "impact_score": 0.8, "confidence": 0.9}],
-        "stock_candidates": [{"symbol": "NVDA", "sector": "Technology", "direction": "LONG", "event_beta": 1.2}],
+        "stock_candidates": [{"symbol": "NVDA", "sector": "Technology", "direction": "LONG", "event_beta": 1.2, "supporting_sector": "Technology", "rationale": "NVDA GPUs are directly exposed to AI server demand."}],
         "asset_validation": {"score": 80},
         "mixed_regime": False,
     }
@@ -371,7 +377,7 @@ def test_opportunity_handles_invalid_asset_validation_shape_defensively():
         "schema_version": "v1.1",
         "news_timestamp": "2026-04-11T00:00:00Z",
         "sectors": [{"name": "Technology", "direction": "LONG", "impact_score": 0.8, "confidence": 0.9}],
-        "stock_candidates": [{"symbol": "NVDA", "sector": "Technology", "direction": "LONG", "event_beta": 1.2}],
+        "stock_candidates": [{"symbol": "NVDA", "sector": "Technology", "direction": "LONG", "event_beta": 1.2, "supporting_sector": "Technology", "rationale": "NVDA GPUs are directly exposed to AI server demand."}],
         "asset_validation": "invalid-shape",
     }
     out = scorer.build_opportunity_update(payload)
@@ -525,3 +531,171 @@ def test_opportunity_update_policy_invalid_config_does_not_silently_enable_defau
     assert out["policy_state"]["primary_sector_only"] is False
     assert out["policy_state"]["policy_error_reason"] == "invalid_config"
     assert {opp["sector_role"] for opp in out["opportunities"]} == {"primary", "secondary"}
+
+
+def test_pr124_primary_sector_ticker_allowed_with_supporting_sector_and_rationale():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_pr124_ticker_allowed",
+        "event_hash": "evt_hash_pr124_ticker_allowed",
+        "semantic_trace_id": "evt_live_pr124_ticker_allowed",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.92, "confidence": 0.95, "role": "primary", "sector_score_source": "semantic_sector"},
+        ],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.4,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
+                "sector_score_source": "semantic_sector",
+            }
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["template_guard_state"]["policy_load_status"] == "loaded"
+    assert out["event_hash"] == "evt_hash_pr124_ticker_allowed"
+    assert out["semantic_trace_id"] == "evt_live_pr124_ticker_allowed"
+    assert out["opportunities"]
+    opp = out["opportunities"][0]
+    assert opp["symbol"] == "NVDA"
+    assert opp["ticker_guard_status"] == "ticker_allowed"
+    assert opp["ticker_guard_reason"] == ""
+    assert opp["supporting_sector"] == "科技"
+    assert opp["rationale"] == "NVDA GPUs are directly exposed to AI server demand."
+    assert opp["support_score"] is None
+    assert opp["sector_score_source"] == "semantic_sector"
+
+
+def test_pr124_missing_supporting_sector_or_rationale_falls_back_to_sector_only():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_pr124_sector_only",
+        "event_hash": "evt_hash_pr124_sector_only",
+        "semantic_trace_id": "evt_live_pr124_sector_only",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.88, "confidence": 0.91, "role": "primary", "sector_score_source": "semantic_sector"},
+        ],
+        "stock_candidates": [
+            {"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4, "sector_score_source": "semantic_sector"}
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["event_hash"] == "evt_hash_pr124_sector_only"
+    assert out["semantic_trace_id"] == "evt_live_pr124_sector_only"
+    assert out["opportunities"]
+    opp = out["opportunities"][0]
+    assert opp.get("symbol", "") == ""
+    assert opp["ticker_guard_status"] == "sector_only"
+    assert "missing_rationale" in opp["ticker_guard_reason"]
+    assert "missing_supporting_sector" in opp["ticker_guard_reason"]
+    assert opp["supporting_sector"] == "科技"
+    assert opp["rationale"].startswith("sector-only fallback:")
+
+
+def test_pr124_template_rationale_falls_back_to_sector_only():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_pr124_template_guard",
+        "event_hash": "evt_hash_pr124_template_guard",
+        "semantic_trace_id": "evt_live_pr124_template_guard",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.88, "confidence": 0.91, "role": "primary", "sector_score_source": "semantic_sector"},
+        ],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.4,
+                "supporting_sector": "科技",
+                "rationale": "该公司属于科技板块",
+                "sector_score_source": "semantic_sector",
+            }
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    opp = out["opportunities"][0]
+    assert opp.get("symbol", "") == ""
+    assert opp["ticker_guard_status"] == "sector_only"
+    assert "template_rationale" in opp["ticker_guard_reason"]
+    assert opp["rationale"].startswith("sector-only fallback:")
+
+
+def test_pr124_legacy_event_broadcast_does_not_enter_opportunity_output():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_pr124_legacy_broadcast",
+        "event_hash": "evt_hash_pr124_legacy_broadcast",
+        "semantic_trace_id": "evt_live_pr124_legacy_broadcast",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.86, "confidence": 0.9, "role": "primary", "sector_score_source": "semantic_sector"},
+        ],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.4,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
+                "legacy_event_broadcast": True,
+                "sector_score_source": "legacy_event_broadcast",
+            }
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    opp = out["opportunities"][0]
+    assert opp.get("symbol", "") == ""
+    assert opp["ticker_guard_status"] == "sector_only"
+    assert opp["sector_score_source"] != "legacy_event_broadcast"
+    assert "legacy_event_broadcast" in opp["ticker_guard_reason"]
+
+
+def test_pr124_support_score_missing_does_not_block_ticker():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_pr124_support_score_optional",
+        "event_hash": "evt_hash_pr124_support_score_optional",
+        "semantic_trace_id": "evt_live_pr124_support_score_optional",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.93, "confidence": 0.96, "role": "primary", "sector_score_source": "semantic_sector"},
+        ],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.4,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
+            }
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    opp = out["opportunities"][0]
+    assert opp["symbol"] == "NVDA"
+    assert opp["ticker_guard_status"] == "ticker_allowed"
+    assert opp["support_score"] is None

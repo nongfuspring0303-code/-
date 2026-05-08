@@ -573,6 +573,115 @@ def test_pr124_primary_sector_ticker_allowed_with_supporting_sector_and_rational
     assert opp["sector_score_source"] == "semantic_sector"
 
 
+def test_pr124_multi_sector_secondary_falls_back_to_sector_only_even_with_support():
+    scorer = OpportunityScorer()
+    scorer._semantic_chain_policy = {
+        "schema_version": "semantic_chain_policy.v1",
+        "threshold_status": "proposed",
+        "enforcement_mode": "observe_only",
+        "policy_load_status": "loaded",
+        "policy_error_reason": "",
+        "audit": {
+            "primary_sector_only": False,
+            "secondary_sector_audit_only": False,
+        },
+    }
+    payload = {
+        "trace_id": "evt_pr124_multi_sector_secondary_support",
+        "event_hash": "evt_hash_pr124_multi_sector_secondary_support",
+        "semantic_trace_id": "evt_live_pr124_multi_sector_secondary_support",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.93, "confidence": 0.96, "role": "primary", "sector_score_source": "semantic_sector"},
+            {"name": "金融", "direction": "SHORT", "impact_score": 0.88, "confidence": 0.92, "role": "secondary", "sector_score_source": "semantic_sector"},
+        ],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.4,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
+                "sector_score_source": "semantic_sector",
+            },
+            {
+                "symbol": "JPM",
+                "sector": "金融",
+                "direction": "SHORT",
+                "event_beta": 1.1,
+                "supporting_sector": "金融",
+                "rationale": "JPM is a direct financial sector proxy for rates and credit spreads.",
+                "sector_score_source": "semantic_sector",
+            },
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    secondary = next(opp for opp in out["opportunities"] if opp["sector_role"] == "secondary")
+    assert secondary.get("symbol", "") == ""
+    assert secondary["ticker_guard_status"] == "sector_only"
+    assert "secondary_sector_audit_only" in secondary["ticker_guard_reason"]
+    assert secondary["sector_score_source"] == "semantic_sector"
+
+
+def test_pr124_multi_sector_secondary_template_rationale_falls_back_to_sector_only():
+    scorer = OpportunityScorer()
+    scorer._semantic_chain_policy = {
+        "schema_version": "semantic_chain_policy.v1",
+        "threshold_status": "proposed",
+        "enforcement_mode": "observe_only",
+        "policy_load_status": "loaded",
+        "policy_error_reason": "",
+        "audit": {
+            "primary_sector_only": False,
+            "secondary_sector_audit_only": False,
+        },
+    }
+    payload = {
+        "trace_id": "evt_pr124_multi_sector_secondary_template",
+        "event_hash": "evt_hash_pr124_multi_sector_secondary_template",
+        "semantic_trace_id": "evt_live_pr124_multi_sector_secondary_template",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.93, "confidence": 0.96, "role": "primary", "sector_score_source": "semantic_sector"},
+            {"name": "金融", "direction": "SHORT", "impact_score": 0.88, "confidence": 0.92, "role": "secondary", "sector_score_source": "semantic_sector"},
+        ],
+        "stock_candidates": [
+            {
+                "symbol": "NVDA",
+                "sector": "科技",
+                "direction": "LONG",
+                "event_beta": 1.4,
+                "supporting_sector": "科技",
+                "rationale": "NVDA GPUs are directly exposed to AI server demand.",
+                "sector_score_source": "semantic_sector",
+            },
+            {
+                "symbol": "JPM",
+                "sector": "金融",
+                "direction": "SHORT",
+                "event_beta": 1.1,
+                "supporting_sector": "金融",
+                "rationale": "该公司属于科技板块",
+                "sector_score_source": "semantic_sector",
+            },
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    secondary = next(opp for opp in out["opportunities"] if opp["sector_role"] == "secondary")
+    assert secondary.get("symbol", "") == ""
+    assert secondary["ticker_guard_status"] == "sector_only"
+    assert "template_rationale" in secondary["ticker_guard_reason"]
+    assert "secondary_sector_audit_only" in secondary["ticker_guard_reason"]
+    assert secondary["sector_score_source"] == "semantic_sector"
+
+
 def test_pr124_missing_supporting_sector_or_rationale_falls_back_to_sector_only():
     scorer = OpportunityScorer()
     payload = {

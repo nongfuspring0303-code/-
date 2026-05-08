@@ -862,9 +862,11 @@ class OpportunityScorer:
         max_global_candidates = int(self._safe_float(self._gp("signal_grade.max_stock_candidates", 5), 5))
         prefetched_prices = self._batch_prefetch_prices(stock_candidates)
         opportunities: List[Dict[str, Any]] = []
+        is_multi_sector = len(audit_sectors) > 1
 
         for sector in audit_sectors:
-            if primary_sector_only and sector.get("role") != "primary":
+            sector_role = str(sector.get("role", "secondary"))
+            if primary_sector_only and sector_role != "primary":
                 continue
             sector_name = str(sector.get("name", "未知板块"))
             norm_sector = _norm_sector(self.pool.canonical_sector(sector_name))
@@ -875,6 +877,41 @@ class OpportunityScorer:
 
             seeded_candidates = candidates_by_sector.get(norm_sector, [])
             selected_stocks = self.pool.filter_candidates(seeded_candidates)
+
+            if is_multi_sector and sector_role == "secondary":
+                fallback_candidate = seeded_candidates[0] if seeded_candidates else {}
+                sector_only_guard = self._build_ticker_support_context(
+                    sector_name=sector_name,
+                    sector_score_source=sector_score_source,
+                    candidate=fallback_candidate,
+                )
+                guard_reasons = [reason for reason in [sector_only_guard.get("ticker_guard_reason", ""), "secondary_sector_audit_only"] if reason]
+                sector_only_guard = {
+                    **sector_only_guard,
+                    "ticker_allowed": False,
+                    "ticker_guard_status": "sector_only",
+                    "ticker_guard_reason": ",".join(sorted(set(guard_reasons))),
+                }
+                opportunities.append(
+                    self._build_opportunity(
+                        trace_id=trace_id,
+                        event_hash=event_hash,
+                        semantic_trace_id=semantic_trace_id,
+                        sector_name=sector_name,
+                        sector_role=sector_role,
+                        primary_sector=primary_sector,
+                        sector_direction=sector_direction,
+                        impact_score=impact_score,
+                        sector_confidence=sector_conf,
+                        stock=None,
+                        candidate=fallback_candidate,
+                        timestamp=timestamp,
+                        sector_score_source=sector_only_guard["sector_score_source"],
+                        ticker_guard=sector_only_guard,
+                        prefetched_prices=prefetched_prices,
+                    )
+                )
+                continue
 
             if not selected_stocks:
                 selected_stocks = self.pool.pick_by_sector(sector_name, limit=max_per_sector)

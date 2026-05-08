@@ -1,6 +1,6 @@
 {
   "generated_at_utc": "2026-04-24T15:41:47.343491Z",
-  "logs_dir": "/Users/workmac/.openclaw/workspace/事件驱动交易模块阶段二/logs/stage5_acceptance_window",
+  "logs_dir": "<LOCAL_WORKSPACE>/事件驱动交易模块阶段二/logs/stage5_acceptance_window",
   "scenario_count": 4,
   "finals": [
     {

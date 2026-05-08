@@ -375,7 +375,7 @@ git commit -m "test: add Sina integration test to test_ai_event_intel.py"
 
 - [ ] **Step 1: 测试 DataAdapter.fetch_news() 包含 Sina 数据**
 
-Run: `cd "/Users/workmac/.openclaw/workspace/事件驱动交易模块阶段二/scripts" && python3 -c "
+Run: `cd "<LOCAL_WORKSPACE>/事件驱动交易模块阶段二/scripts" && python3 -c "
 import sys
 sys.path.insert(0, '.')
 from data_adapter import DataAdapter

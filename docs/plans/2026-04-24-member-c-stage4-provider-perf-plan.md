@@ -2,7 +2,7 @@
 
 目标：完成阶段4主责交付（MarketDataAdapter、batch抓价、cache、failover、queue顺序语义、幂等语义、附加门禁测试）。
 
-规则基线：`/Users/workmac/.openclaw/workspace/pr-review-template-v2.1.md`
+规则基线：`<LOCAL_WORKSPACE>/pr-review-template-v2.1.md`
 
 ## R-S4-001 统一 Provider 适配层
 - 新增 `scripts/market_data_adapter.py`

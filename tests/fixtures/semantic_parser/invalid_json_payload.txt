@@ -1,0 +1,3 @@
+```json
+{"event_type":"tariff","recommended_stocks":["AAPL",}
+```

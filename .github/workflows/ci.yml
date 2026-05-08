@@ -26,6 +26,10 @@ jobs:
         run: |
           python -m pytest tests/test_ai_semantic_analyzer.py tests/test_ai_event_intel.py tests/test_ai_event_intel_sina.py tests/test_config_center.py -q
 
+      - name: Run PR123 semantic parser hardening tests
+        run: |
+          python -m pytest tests/test_ai_semantic_json_parser.py tests/test_ai_semantic_analyzer.py -q
+
       - name: Run news-chain pytest
         run: |
           python -m pytest tests/test_realtime_news_monitor.py tests/test_canary_source_health.py tests/test_verify_canary_source_health.py -q

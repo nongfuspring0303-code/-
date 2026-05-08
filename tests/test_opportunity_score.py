@@ -414,10 +414,11 @@ def test_opportunity_update_propagates_event_identity_and_primary_sector_only():
     assert all(opp["sector_role"] == "primary" for opp in out["opportunities"])
 
 
-def test_opportunity_update_backfills_identity_when_not_explicitly_provided():
+def test_opportunity_update_missing_event_hash_does_not_fallback():
     scorer = OpportunityScorer()
     payload = {
-        "trace_id": "evt_fallback_identity",
+        "trace_id": "evt_missing_event_hash",
+        "semantic_trace_id": "evt_live_missing_event_hash",
         "schema_version": "v1.0",
         "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.95}],
         "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4}],
@@ -425,6 +426,28 @@ def test_opportunity_update_backfills_identity_when_not_explicitly_provided():
 
     out = scorer.build_opportunity_update(payload)
 
-    assert out["event_hash"].startswith("evt_hash_")
-    assert out["semantic_trace_id"] == "evt_fallback_identity"
+    assert out["event_hash"] == ""
+    assert out["semantic_trace_id"] == "evt_live_missing_event_hash"
+    assert out["identity_incomplete"] is True
+    assert out["strict_join_ready"] is False
+    assert "missing_event_hash" in out["missing_identity_reasons"]
     assert out["opportunities"]
+
+
+def test_opportunity_update_missing_semantic_trace_id_does_not_fake_join():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_missing_semantic_trace",
+        "event_hash": "evt_hash_missing_semantic",
+        "schema_version": "v1.0",
+        "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.95}],
+        "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4}],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["event_hash"] == "evt_hash_missing_semantic"
+    assert out["semantic_trace_id"] == ""
+    assert out["identity_incomplete"] is True
+    assert out["strict_join_ready"] is False
+    assert "missing_semantic_trace_id" in out["missing_identity_reasons"]

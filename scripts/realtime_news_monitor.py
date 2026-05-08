@@ -48,6 +48,24 @@ def _default_config_path() -> str:
     return str(ROOT / "configs" / "edt-modules-config.yaml")
 
 
+def _normalize_text(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    return text
+
+
+def _timestamp_bucket(value: Any) -> str:
+    raw = _normalize_text(value)
+    if not raw:
+        return ""
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+        parsed = parsed.astimezone(timezone.utc).replace(second=0, microsecond=0)
+        return parsed.strftime("%Y-%m-%dT%H:%MZ")
+    except Exception:
+        return raw
+
+
 class RealtimeNewsMonitor:
     def __init__(self, config_path: Optional[str] = None, poll_interval: int = 60, api_url: Optional[str] = None):
         self.config_path = config_path or _default_config_path()
@@ -236,10 +254,21 @@ class RealtimeNewsMonitor:
         return f"{headline}|{timestamp}"
 
     def _build_event_hash(self, news: Optional[Dict[str, Any]] = None) -> str:
-        seed = self._trace_seed_from_news(news)
-        if not seed:
-            seed = "evt_live_unknown"
-        digest = hashlib.sha1(seed.encode("utf-8", errors="ignore")).hexdigest()[:16]
+        news_ctx = news if isinstance(news, dict) else {}
+        source = _normalize_text(news_ctx.get("source") or news_ctx.get("provider")).lower()
+        title = _normalize_text(news_ctx.get("headline") or news_ctx.get("title"))
+        timestamp_bucket = _timestamp_bucket(
+            news_ctx.get("news_timestamp")
+            or news_ctx.get("timestamp")
+            or news_ctx.get("published_at")
+        )
+        url_or_source_id = _normalize_text(
+            news_ctx.get("url")
+            or news_ctx.get("source_event_id")
+            or news_ctx.get("id")
+        )
+        raw = "|".join([source, title, timestamp_bucket, url_or_source_id])
+        digest = hashlib.sha256(raw.encode("utf-8", errors="ignore")).hexdigest()[:16]
         return f"evt_hash_{digest}"
 
     def _ensure_news_identity(self, news: Dict[str, Any]) -> Dict[str, str]:
@@ -484,11 +513,10 @@ class RealtimeNewsMonitor:
                 fallback_event_id=str(event_object.get("event_id") or ""),
             )
             resolved_event_hash = event_hash or str(result.get("event_hash") or "")
-            if not resolved_event_hash:
-                resolved_event_hash = self._build_event_hash(news or event_object)
             request_id = str(result.get("request_id") or trace_id)
             batch_id = str(result.get("batch_id") or f"BATCH-{request_id}")
-            
+            identity_incomplete = not bool(resolved_event_hash and trace_id)
+
             sectors = []
             for item in analysis.get("conduction", {}).get("sector_impacts", []):
                 direction_raw = str(item.get("direction", "WATCH")).lower()
@@ -517,6 +545,7 @@ class RealtimeNewsMonitor:
                 "sectors": sectors,
                 "conduction_chain": [],
                 "timestamp": ts,
+                "identity_incomplete": identity_incomplete,
             }
             
             import urllib.request
@@ -564,6 +593,7 @@ class RealtimeNewsMonitor:
                         or event_object.get("timestamp")
                     ),
                     "timestamp": ts,
+                    "identity_incomplete": identity_incomplete,
                     "ai_verdict": ai_verdict,
                     "ai_confidence": ai_confidence,
                     "ai_reason": ai_reason,
@@ -604,6 +634,7 @@ class RealtimeNewsMonitor:
                     "schema_version": "v1.0",
                     "opportunities": enriched_opportunities,
                     "timestamp": ts,
+                    "identity_incomplete": identity_incomplete,
                 }
                 
                 if not self._can_publish_main_chain():
@@ -636,7 +667,7 @@ class RealtimeNewsMonitor:
             return
 
         trace_id = str(news.get("semantic_trace_id") or self._build_live_trace_id(news))
-        event_hash = str(news.get("event_hash") or self._build_event_hash(news))
+        event_hash = str(news.get("event_hash") or "")
 
         payload = {
             "type": "event_update",
@@ -657,6 +688,7 @@ class RealtimeNewsMonitor:
             "ai_verdict": ai_verdict,
             "ai_confidence": ai_confidence,
             "ai_reason": ai_reason,
+            "identity_incomplete": not bool(event_hash and trace_id),
         }
 
         try:

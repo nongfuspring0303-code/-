@@ -1,4 +1,4 @@
-version: v1.0
+schema_version: semantic_chain_policy.v1
 threshold_status: proposed
 enforcement_mode: observe_only
 

@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Optional
 import json
 import logging
 import os
-import hashlib
 import time
 import urllib.request
 
@@ -381,14 +380,6 @@ class OpportunityScorer:
             return default
         return bool(value)
 
-    @staticmethod
-    def _hash_identity(seed: str) -> str:
-        raw = str(seed or "").strip()
-        if not raw:
-            raw = "evt_unknown"
-        digest = hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:16]
-        return f"evt_hash_{digest}"
-
     def _resolve_primary_sector(self, sectors: List[Dict[str, Any]]) -> str:
         explicit = ""
         for sector in sectors:
@@ -643,9 +634,9 @@ class OpportunityScorer:
         }
 
     def build_opportunity_update(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        trace_id = str(payload.get("semantic_trace_id") or payload.get("trace_id") or "evt_unknown")
-        event_hash = str(payload.get("event_hash") or self._hash_identity(trace_id))
-        semantic_trace_id = trace_id
+        trace_id = str(payload.get("trace_id") or "evt_unknown")
+        event_hash = str(payload.get("event_hash") or "")
+        semantic_trace_id = str(payload.get("semantic_trace_id") or "")
         schema_version = str(payload.get("schema_version", "v1.0"))
         timestamp = str(payload.get("timestamp", _utc_now_iso()))
         # Clear adapter meta at the beginning of each trace to avoid cross-trace provenance leakage.
@@ -661,6 +652,12 @@ class OpportunityScorer:
             self._semantic_chain_policy.get("audit", {}).get("primary_sector_only", True),
             True,
         )
+        identity_incomplete = not bool(event_hash and semantic_trace_id)
+        missing_identity_reasons: List[str] = []
+        if not event_hash:
+            missing_identity_reasons.append("missing_event_hash")
+        if not semantic_trace_id:
+            missing_identity_reasons.append("missing_semantic_trace_id")
         candidates_by_sector: Dict[str, List[Dict[str, Any]]] = {}
         for cand in stock_candidates:
             key = _norm_sector(self.pool.canonical_sector(cand.get("sector", "")))
@@ -757,6 +754,9 @@ class OpportunityScorer:
             "schema_version": schema_version,
             "primary_sector": primary_sector,
             "audit_sectors": audit_sectors,
+            "identity_incomplete": identity_incomplete,
+            "missing_identity_reasons": missing_identity_reasons,
+            "strict_join_ready": not identity_incomplete,
             "policy_state": {
                 "threshold_status": str(self._semantic_chain_policy.get("threshold_status", "proposed")),
                 "enforcement_mode": str(self._semantic_chain_policy.get("enforcement_mode", "observe_only")),

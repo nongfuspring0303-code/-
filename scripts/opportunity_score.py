@@ -281,27 +281,32 @@ class OpportunityScorer:
     def _load_semantic_chain_policy(self) -> Dict[str, Any]:
         path = _root_dir() / "configs" / "semantic_chain_policy.yaml"
         if not path.exists():
-            return {
-                "threshold_status": "proposed",
-                "enforcement_mode": "observe_only",
-                "audit": {
-                    "primary_sector_only": True,
-                    "secondary_sector_audit_only": True,
-                },
-            }
+            return self._semantic_chain_policy_failed("missing_config")
         try:
             with open(path, "r", encoding="utf-8") as handle:
                 payload = yaml.safe_load(handle) or {}
-            return payload if isinstance(payload, dict) else {}
+            if not isinstance(payload, dict):
+                return self._semantic_chain_policy_failed("invalid_config")
+            loaded = dict(payload)
+            loaded["policy_load_status"] = "loaded"
+            loaded["policy_error_reason"] = ""
+            return loaded
         except Exception:
-            return {
-                "threshold_status": "proposed",
-                "enforcement_mode": "observe_only",
-                "audit": {
-                    "primary_sector_only": True,
-                    "secondary_sector_audit_only": True,
-                },
-            }
+            return self._semantic_chain_policy_failed("invalid_config")
+
+    @staticmethod
+    def _semantic_chain_policy_failed(reason: str) -> Dict[str, Any]:
+        return {
+            "schema_version": "semantic_chain_policy.v1",
+            "threshold_status": "proposed",
+            "enforcement_mode": "disabled",
+            "policy_load_status": "failed",
+            "policy_error_reason": str(reason or "invalid_config"),
+            "audit": {
+                "primary_sector_only": False,
+                "secondary_sector_audit_only": False,
+            },
+        }
 
     @staticmethod
     def _empty_provider_meta() -> Dict[str, Any]:
@@ -648,9 +653,14 @@ class OpportunityScorer:
         stock_candidates = payload.get("stock_candidates", [])
         primary_sector = str(payload.get("primary_sector") or self._resolve_primary_sector(sectors))
         audit_sectors = self._build_audit_sectors(sectors, primary_sector)
-        primary_sector_only = self._safe_bool(
-            self._semantic_chain_policy.get("audit", {}).get("primary_sector_only", True),
-            True,
+        policy_load_status = str(self._semantic_chain_policy.get("policy_load_status", "failed"))
+        policy_error_reason = str(self._semantic_chain_policy.get("policy_error_reason", ""))
+        primary_sector_only = (
+            policy_load_status == "loaded"
+            and self._safe_bool(
+                self._semantic_chain_policy.get("audit", {}).get("primary_sector_only", False),
+                False,
+            )
         )
         identity_incomplete = not bool(event_hash and semantic_trace_id)
         missing_identity_reasons: List[str] = []
@@ -760,6 +770,8 @@ class OpportunityScorer:
             "policy_state": {
                 "threshold_status": str(self._semantic_chain_policy.get("threshold_status", "proposed")),
                 "enforcement_mode": str(self._semantic_chain_policy.get("enforcement_mode", "observe_only")),
+                "policy_load_status": policy_load_status,
+                "policy_error_reason": policy_error_reason,
                 "primary_sector_only": primary_sector_only,
             },
             "opportunities": opportunities,

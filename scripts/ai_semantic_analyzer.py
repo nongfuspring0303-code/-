@@ -345,6 +345,56 @@ class SemanticAnalyzer:
         return ""
 
     @staticmethod
+    def _extract_json_object_candidates(text: str) -> List[str]:
+        s = str(text or "")
+        candidates: List[str] = []
+        i = 0
+        while i < len(s):
+            start = s.find("{", i)
+            if start < 0:
+                break
+            depth = 0
+            in_str = False
+            escaped = False
+            end = -1
+            for idx in range(start, len(s)):
+                ch = s[idx]
+                if in_str:
+                    if escaped:
+                        escaped = False
+                    elif ch == "\\":
+                        escaped = True
+                    elif ch == '"':
+                        in_str = False
+                    continue
+                if ch == '"':
+                    in_str = True
+                    continue
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = idx + 1
+                        break
+            if end > 0:
+                candidates.append(s[start:end])
+                i = end
+            else:
+                break
+        return candidates
+
+    @staticmethod
+    def _is_min_schema_valid(parsed: Dict[str, Any]) -> bool:
+        if not isinstance(parsed, dict):
+            return False
+        if "event_type" not in parsed:
+            return False
+        if "recommended_stocks" in parsed and not isinstance(parsed.get("recommended_stocks"), list):
+            return False
+        return True
+
+    @staticmethod
     def _redact_raw_response_preview(raw: str, max_len: int = 2000) -> str:
         text = str(raw or "")
         replace_patterns = [
@@ -885,8 +935,8 @@ News text:
             direct_loaded = False
 
         if not direct_loaded:
-            candidate = self._extract_first_json_object(stripped)
-            if not candidate:
+            candidates = self._extract_json_object_candidates(stripped)
+            if not candidates:
                 parse_error = "truncated_response" if "{" in stripped else "no_json_object"
                 out = self._abstain_response(fallback_reason="json_parse_failed", provider="ai")
                 out["parse_status"] = "parse_failed"
@@ -895,15 +945,28 @@ News text:
                 out["reason"] = parse_error
                 return out
 
-            try:
-                parsed_any = json.loads(candidate.strip())
-            except json.JSONDecodeError:
+            last_json_error = "invalid_json_syntax"
+            best_parsed: Any = None
+            for candidate in candidates:
+                try:
+                    candidate_parsed = json.loads(candidate.strip())
+                except json.JSONDecodeError:
+                    last_json_error = "invalid_json_syntax"
+                    continue
+                if isinstance(candidate_parsed, dict) and self._is_min_schema_valid(candidate_parsed):
+                    best_parsed = candidate_parsed
+                    break
+                if best_parsed is None:
+                    best_parsed = candidate_parsed
+
+            if best_parsed is None:
                 out = self._abstain_response(fallback_reason="json_parse_failed", provider="ai")
                 out["parse_status"] = "parse_failed"
-                out["parse_error_type"] = "invalid_json_syntax"
+                out["parse_error_type"] = last_json_error
                 out["redacted_raw_response_preview"] = redacted_preview
-                out["reason"] = "invalid_json_syntax"
+                out["reason"] = last_json_error
                 return out
+            parsed_any = best_parsed
 
         if not isinstance(parsed_any, dict):
             out = self._abstain_response(fallback_reason="json_parse_failed", provider="ai")

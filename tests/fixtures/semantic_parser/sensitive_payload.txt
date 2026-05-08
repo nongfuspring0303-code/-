@@ -1,6 +1,6 @@
-Traceback (most recent call last):
-  File "/Users/demo/private/script.py", line 1, in <module>
-RuntimeError: boom
-token=abc123secret
-api_key=sk-test-98765
-secret=my-secret-value
+TRACEBACK_PLACEHOLDER: Traceback (most recent call last):
+LOCAL_PATH_PLACEHOLDER: /Users/placeholder/private/script.py
+TMP_PATH_PLACEHOLDER: /private/tmp/placeholder-run
+TOKEN_PLACEHOLDER: token=TEST_TOKEN_PLACEHOLDER
+API_KEY_PLACEHOLDER: api_key=TEST_API_KEY_PLACEHOLDER
+SECRET_PLACEHOLDER: secret=TEST_SECRET_PLACEHOLDER

@@ -59,18 +59,43 @@ def test_parse_empty_response(tmp_path):
     assert out["parse_error_type"] == "empty_response"
 
 
-def test_redacted_preview_masks_secrets_paths_traceback(tmp_path):
+def test_redacted_preview_masks_secrets_without_traceback(tmp_path):
+    payload = "token=RAW_TOKEN api_key=RAW_API_KEY secret=RAW_SECRET /Users/me/private /private/tmp/abc"
+    out = _analyzer(tmp_path)._parse_ai_content(payload)
+    preview = out["redacted_raw_response_preview"]
+    assert out["parse_status"] == "parse_failed"
+    assert "raw_token" not in preview.lower()
+    assert "raw_api_key" not in preview.lower()
+    assert "raw_secret" not in preview.lower()
+    assert "/Users/" not in preview
+    assert "/private/tmp/" not in preview
+    assert len(preview) <= 2000
+
+
+def test_redacted_preview_masks_traceback_and_secrets(tmp_path):
     payload = (FIXTURES / "sensitive_payload.txt").read_text(encoding="utf-8")
     out = _analyzer(tmp_path)._parse_ai_content(payload)
     preview = out["redacted_raw_response_preview"]
     assert out["parse_status"] == "parse_failed"
-    assert "token=" not in preview.lower()
-    assert "api_key=" not in preview.lower()
-    assert "secret=" not in preview.lower()
+    assert "test_token_placeholder" not in preview.lower()
+    assert "test_api_key_placeholder" not in preview.lower()
+    assert "test_secret_placeholder" not in preview.lower()
     assert "/Users/" not in preview
     assert "/private/tmp/" not in preview
     assert "Traceback (most recent call last):" not in preview
+    assert "<REDACTED_TRACEBACK>" in preview
     assert len(preview) <= 2000
+
+
+def test_parse_multiple_json_candidates_prefers_schema_valid_object(tmp_path):
+    payload = (
+        "prefix {\"recommended_stocks\":\"AAPL\"} "
+        "middle {\"event_type\":\"tariff\",\"recommended_stocks\":[\"AAPL\"],\"confidence\":80}"
+    )
+    out = _analyzer(tmp_path)._parse_ai_content(payload)
+    assert out["parse_status"] == "parse_success"
+    assert out["event_type"] == "tariff"
+    assert out["recommended_stocks"] == ["AAPL"]
 
 
 def test_parse_success_no_parse_error_type_required(tmp_path):

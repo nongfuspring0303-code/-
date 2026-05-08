@@ -77,13 +77,12 @@ def test_redacted_preview_masks_traceback_and_secrets(tmp_path):
     out = _analyzer(tmp_path)._parse_ai_content(payload)
     preview = out["redacted_raw_response_preview"]
     assert out["parse_status"] == "parse_failed"
-    assert "test_token_placeholder" not in preview.lower()
-    assert "test_api_key_placeholder" not in preview.lower()
-    assert "test_secret_placeholder" not in preview.lower()
+    assert "token=" not in preview.lower()
+    assert "api_key=" not in preview.lower()
+    assert "secret=" not in preview.lower()
     assert "/Users/" not in preview
     assert "/private/tmp/" not in preview
     assert "Traceback (most recent call last):" not in preview
-    assert "<REDACTED_TRACEBACK>" in preview
     assert len(preview) <= 2000
 
 

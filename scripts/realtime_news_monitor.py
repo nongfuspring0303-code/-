@@ -48,6 +48,24 @@ def _default_config_path() -> str:
     return str(ROOT / "configs" / "edt-modules-config.yaml")
 
 
+def _normalize_text(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    return text
+
+
+def _timestamp_bucket(value: Any) -> str:
+    raw = _normalize_text(value)
+    if not raw:
+        return ""
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+        parsed = parsed.astimezone(timezone.utc).replace(second=0, microsecond=0)
+        return parsed.strftime("%Y-%m-%dT%H:%MZ")
+    except Exception:
+        return raw
+
+
 class RealtimeNewsMonitor:
     def __init__(self, config_path: Optional[str] = None, poll_interval: int = 60, api_url: Optional[str] = None):
         self.config_path = config_path or _default_config_path()
@@ -235,6 +253,35 @@ class RealtimeNewsMonitor:
         timestamp = news.get("timestamp", "")
         return f"{headline}|{timestamp}"
 
+    def _build_event_hash(self, news: Optional[Dict[str, Any]] = None) -> str:
+        news_ctx = news if isinstance(news, dict) else {}
+        source = _normalize_text(news_ctx.get("source") or news_ctx.get("provider")).lower()
+        title = _normalize_text(news_ctx.get("headline") or news_ctx.get("title"))
+        timestamp_bucket = _timestamp_bucket(
+            news_ctx.get("news_timestamp")
+            or news_ctx.get("timestamp")
+            or news_ctx.get("published_at")
+        )
+        url_or_source_id = _normalize_text(
+            news_ctx.get("url")
+            or news_ctx.get("source_event_id")
+            or news_ctx.get("id")
+        )
+        raw = "|".join([source, title, timestamp_bucket, url_or_source_id])
+        digest = hashlib.sha256(raw.encode("utf-8", errors="ignore")).hexdigest()[:16]
+        return f"evt_hash_{digest}"
+
+    def _ensure_news_identity(self, news: Dict[str, Any]) -> Dict[str, str]:
+        """Create the event-level identity once and reuse it downstream."""
+        identity = {
+            "event_hash": str(news.get("event_hash") or self._build_event_hash(news)),
+            "semantic_trace_id": str(news.get("semantic_trace_id") or self._build_live_trace_id(news)),
+        }
+        news.setdefault("event_hash", identity["event_hash"])
+        news.setdefault("semantic_trace_id", identity["semantic_trace_id"])
+        news.setdefault("trace_id", identity["semantic_trace_id"])
+        return identity
+
     def _trace_seed_from_news(self, news: Optional[Dict[str, Any]]) -> str:
         """Single-source trace seed for all live updates (event/sector/opportunity)."""
         news_ctx = news if isinstance(news, dict) else {}
@@ -349,6 +396,8 @@ class RealtimeNewsMonitor:
             )
             return False
 
+        self._ensure_news_identity(news)
+
         # 新闻展示与触发解耦：先推送预览，再补充AI语义结果
         self._push_news_preview(news)
 
@@ -387,6 +436,7 @@ class RealtimeNewsMonitor:
             logger.info("🔄 触发A/B计算...")
             data_adapter = self._get_market_data_adapter()
             market = data_adapter.fetch_market_data() if data_adapter else {}
+            identity = self._ensure_news_identity(news)
 
             def _num_or_default(value, default=0):
                 try:
@@ -416,14 +466,27 @@ class RealtimeNewsMonitor:
                 opportunities = opportunity_update.get("opportunities", []) if opportunity_update else []
                 logger.info(f"   - 板块数: {len(sectors)}")
                 logger.info(f"   - 机会数: {len(opportunities)}")
-                self._push_sectors_to_c(result, news=news, publish_event_update=publish_event_update)
+                self._push_sectors_to_c(
+                    result,
+                    news=news,
+                    publish_event_update=publish_event_update,
+                    event_hash=identity["event_hash"],
+                    semantic_trace_id=identity["semantic_trace_id"],
+                )
             else:
                 logger.warning(f"⚠️ A/B计算异常: {result}")
                 
         except Exception as e:
             logger.error(f"A/B计算失败: {e}")
     
-    def _push_sectors_to_c(self, result: Dict[str, Any], news: Optional[Dict[str, Any]] = None, publish_event_update: bool = True):
+    def _push_sectors_to_c(
+        self,
+        result: Dict[str, Any],
+        news: Optional[Dict[str, Any]] = None,
+        publish_event_update: bool = True,
+        event_hash: str = "",
+        semantic_trace_id: str = "",
+    ):
         """推送板块和机会到C模块"""
         if not self.api_url:
             return
@@ -444,14 +507,16 @@ class RealtimeNewsMonitor:
             ai_confidence = intel.get("ai_confidence", 0)
             ai_reason = intel.get("ai_reason", "")
             ts = datetime.now(timezone.utc).isoformat()
-            trace_id = self._build_live_trace_id(
+            trace_id = semantic_trace_id or self._build_live_trace_id(
                 news,
                 fallback_trace=str(result.get("trace_id") or ""),
                 fallback_event_id=str(event_object.get("event_id") or ""),
             )
+            resolved_event_hash = event_hash or str(result.get("event_hash") or "")
             request_id = str(result.get("request_id") or trace_id)
             batch_id = str(result.get("batch_id") or f"BATCH-{request_id}")
-            
+            identity_incomplete = not bool(resolved_event_hash and trace_id)
+
             sectors = []
             for item in analysis.get("conduction", {}).get("sector_impacts", []):
                 direction_raw = str(item.get("direction", "WATCH")).lower()
@@ -471,6 +536,8 @@ class RealtimeNewsMonitor:
             
             data = {
                 "type": "sector_update",
+                "event_hash": resolved_event_hash,
+                "semantic_trace_id": trace_id,
                 "trace_id": trace_id,
                 "request_id": request_id,
                 "batch_id": batch_id,
@@ -478,6 +545,7 @@ class RealtimeNewsMonitor:
                 "sectors": sectors,
                 "conduction_chain": [],
                 "timestamp": ts,
+                "identity_incomplete": identity_incomplete,
             }
             
             import urllib.request
@@ -504,6 +572,8 @@ class RealtimeNewsMonitor:
                 headline_cn = event_object.get("headline_cn") or self._translate_headline(headline)
                 event_data = {
                     "type": "event_update",
+                    "event_hash": resolved_event_hash,
+                    "semantic_trace_id": trace_id,
                     "trace_id": trace_id,
                     "request_id": request_id,
                     "batch_id": batch_id,
@@ -523,6 +593,7 @@ class RealtimeNewsMonitor:
                         or event_object.get("timestamp")
                     ),
                     "timestamp": ts,
+                    "identity_incomplete": identity_incomplete,
                     "ai_verdict": ai_verdict,
                     "ai_confidence": ai_confidence,
                     "ai_reason": ai_reason,
@@ -546,14 +617,24 @@ class RealtimeNewsMonitor:
             # 推送 opportunity-update
             opportunities = analysis.get("opportunity_update", {}).get("opportunities", [])
             if opportunities:
+                enriched_opportunities = []
+                for opp in opportunities:
+                    enriched = dict(opp)
+                    enriched.setdefault("event_hash", resolved_event_hash)
+                    enriched.setdefault("semantic_trace_id", trace_id)
+                    enriched.setdefault("trace_id", trace_id)
+                    enriched_opportunities.append(enriched)
                 opp_data = {
                     "type": "opportunity_update",
+                    "event_hash": resolved_event_hash,
+                    "semantic_trace_id": trace_id,
                     "trace_id": trace_id,
                     "request_id": request_id,
                     "batch_id": batch_id,
                     "schema_version": "v1.0",
-                    "opportunities": opportunities,
+                    "opportunities": enriched_opportunities,
                     "timestamp": ts,
+                    "identity_incomplete": identity_incomplete,
                 }
                 
                 if not self._can_publish_main_chain():
@@ -585,10 +666,13 @@ class RealtimeNewsMonitor:
         if not self.api_url:
             return
 
-        trace_id = self._build_live_trace_id(news)
+        trace_id = str(news.get("semantic_trace_id") or self._build_live_trace_id(news))
+        event_hash = str(news.get("event_hash") or "")
 
         payload = {
             "type": "event_update",
+            "event_hash": event_hash,
+            "semantic_trace_id": trace_id,
             "trace_id": trace_id,
             "schema_version": "v1.0",
             "headline": news.get("headline", ""),
@@ -604,6 +688,7 @@ class RealtimeNewsMonitor:
             "ai_verdict": ai_verdict,
             "ai_confidence": ai_confidence,
             "ai_reason": ai_reason,
+            "identity_incomplete": not bool(event_hash and trace_id),
         }
 
         try:

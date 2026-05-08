@@ -270,12 +270,43 @@ class OpportunityScorer:
         self.config = ConfigCenter()
         self.config.register("gate_policy", _root_dir() / "configs" / "gate_policy.yaml")
         self._gate_policy = self.config.get_registered("gate_policy", {})
+        self._semantic_chain_policy = self._load_semantic_chain_policy()
         self._price_cache: Dict[str, Dict[str, Any]] = {}
         self._price_fetch_enabled = self._get_price_fetch_enabled()
         self._price_cache_ttl = self._get_price_cache_ttl()
         self._price_fetch_base = self._get_price_fetch_base()
         self._market_data_adapter = MarketDataAdapter(config_getter=self.config.get)
         self._last_provider_meta: Dict[str, Any] = self._empty_provider_meta()
+
+    def _load_semantic_chain_policy(self) -> Dict[str, Any]:
+        path = _root_dir() / "configs" / "semantic_chain_policy.yaml"
+        if not path.exists():
+            return self._semantic_chain_policy_failed("missing_config")
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = yaml.safe_load(handle) or {}
+            if not isinstance(payload, dict):
+                return self._semantic_chain_policy_failed("invalid_config")
+            loaded = dict(payload)
+            loaded["policy_load_status"] = "loaded"
+            loaded["policy_error_reason"] = ""
+            return loaded
+        except Exception:
+            return self._semantic_chain_policy_failed("invalid_config")
+
+    @staticmethod
+    def _semantic_chain_policy_failed(reason: str) -> Dict[str, Any]:
+        return {
+            "schema_version": "semantic_chain_policy.v1",
+            "threshold_status": "proposed",
+            "enforcement_mode": "disabled",
+            "policy_load_status": "failed",
+            "policy_error_reason": str(reason or "invalid_config"),
+            "audit": {
+                "primary_sector_only": False,
+                "secondary_sector_audit_only": False,
+            },
+        }
 
     @staticmethod
     def _empty_provider_meta() -> Dict[str, Any]:
@@ -339,6 +370,51 @@ class OpportunityScorer:
             return float(value)
         except (TypeError, ValueError):
             return default
+
+    @staticmethod
+    def _safe_bool(value: Any, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            raw = value.strip().lower()
+            if raw in {"1", "true", "yes", "y", "on"}:
+                return True
+            if raw in {"0", "false", "no", "n", "off"}:
+                return False
+        if value is None:
+            return default
+        return bool(value)
+
+    def _resolve_primary_sector(self, sectors: List[Dict[str, Any]]) -> str:
+        explicit = ""
+        for sector in sectors:
+            name = str(sector.get("name", "")).strip()
+            role = str(sector.get("role", "")).strip().lower()
+            if role == "primary" and name:
+                return name
+            if not explicit and name:
+                explicit = name
+        return explicit
+
+    def _build_audit_sectors(
+        self,
+        sectors: List[Dict[str, Any]],
+        primary_sector_name: str,
+    ) -> List[Dict[str, Any]]:
+        audit_rows: List[Dict[str, Any]] = []
+        for sector in sectors:
+            name = str(sector.get("name", "未知板块"))
+            role = "primary" if name and name == primary_sector_name else "secondary"
+            audit_rows.append(
+                {
+                    "name": name,
+                    "direction": self._normalize_direction(sector.get("direction", "WATCH")),
+                    "impact_score": self._safe_float(sector.get("impact_score", 0.0), 0.0),
+                    "confidence": self._safe_float(sector.get("confidence", 0.0), 0.0),
+                    "role": role,
+                }
+            )
+        return audit_rows
 
     def _normalize_direction(self, value: Any) -> str:
         raw = str(value or "WATCH").strip().upper()
@@ -489,7 +565,11 @@ class OpportunityScorer:
     def _build_opportunity(
         self,
         trace_id: str,
+        event_hash: str,
+        semantic_trace_id: str,
         sector_name: str,
+        sector_role: str,
+        primary_sector: str,
         sector_direction: str,
         impact_score: float,
         sector_confidence: float,
@@ -532,10 +612,14 @@ class OpportunityScorer:
             reasoning = reasoning[:50]
 
         return {
+            "event_hash": event_hash,
+            "semantic_trace_id": semantic_trace_id,
             "trace_id": trace_id,
             "symbol": stock.symbol,
             "name": stock.name,
             "sector": sector_name,
+            "sector_role": sector_role,
+            "primary_sector": primary_sector,
             "signal": target_signal,
             "entry_zone": self._build_entry_zone(realtime_price if realtime_price is not None else stock.last_price),
             "decision_price": realtime_price,
@@ -555,7 +639,9 @@ class OpportunityScorer:
         }
 
     def build_opportunity_update(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        trace_id = str(payload.get("trace_id", "evt_unknown"))
+        trace_id = str(payload.get("trace_id") or "evt_unknown")
+        event_hash = str(payload.get("event_hash") or "")
+        semantic_trace_id = str(payload.get("semantic_trace_id") or "")
         schema_version = str(payload.get("schema_version", "v1.0"))
         timestamp = str(payload.get("timestamp", _utc_now_iso()))
         # Clear adapter meta at the beginning of each trace to avoid cross-trace provenance leakage.
@@ -565,6 +651,23 @@ class OpportunityScorer:
 
         sectors = payload.get("sectors", [])
         stock_candidates = payload.get("stock_candidates", [])
+        primary_sector = str(payload.get("primary_sector") or self._resolve_primary_sector(sectors))
+        audit_sectors = self._build_audit_sectors(sectors, primary_sector)
+        policy_load_status = str(self._semantic_chain_policy.get("policy_load_status", "failed"))
+        policy_error_reason = str(self._semantic_chain_policy.get("policy_error_reason", ""))
+        primary_sector_only = (
+            policy_load_status == "loaded"
+            and self._safe_bool(
+                self._semantic_chain_policy.get("audit", {}).get("primary_sector_only", False),
+                False,
+            )
+        )
+        identity_incomplete = not bool(event_hash and semantic_trace_id)
+        missing_identity_reasons: List[str] = []
+        if not event_hash:
+            missing_identity_reasons.append("missing_event_hash")
+        if not semantic_trace_id:
+            missing_identity_reasons.append("missing_semantic_trace_id")
         candidates_by_sector: Dict[str, List[Dict[str, Any]]] = {}
         for cand in stock_candidates:
             key = _norm_sector(self.pool.canonical_sector(cand.get("sector", "")))
@@ -575,7 +678,9 @@ class OpportunityScorer:
         prefetched_prices = self._batch_prefetch_prices(stock_candidates)
         opportunities: List[Dict[str, Any]] = []
 
-        for sector in sectors:
+        for sector in audit_sectors:
+            if primary_sector_only and sector.get("role") != "primary":
+                continue
             sector_name = str(sector.get("name", "未知板块"))
             norm_sector = _norm_sector(self.pool.canonical_sector(sector_name))
             sector_direction = self._normalize_direction(sector.get("direction", "WATCH"))
@@ -594,7 +699,11 @@ class OpportunityScorer:
                 opportunities.append(
                     self._build_opportunity(
                         trace_id=trace_id,
+                        event_hash=event_hash,
+                        semantic_trace_id=semantic_trace_id,
                         sector_name=sector_name,
+                        sector_role=str(sector.get("role", "secondary")),
+                        primary_sector=primary_sector,
                         sector_direction=sector_direction,
                         impact_score=impact_score,
                         sector_confidence=sector_conf,
@@ -649,8 +758,22 @@ class OpportunityScorer:
 
         return {
             "type": "opportunity_update",
+            "event_hash": event_hash,
+            "semantic_trace_id": semantic_trace_id,
             "trace_id": trace_id,
             "schema_version": schema_version,
+            "primary_sector": primary_sector,
+            "audit_sectors": audit_sectors,
+            "identity_incomplete": identity_incomplete,
+            "missing_identity_reasons": missing_identity_reasons,
+            "strict_join_ready": not identity_incomplete,
+            "policy_state": {
+                "threshold_status": str(self._semantic_chain_policy.get("threshold_status", "proposed")),
+                "enforcement_mode": str(self._semantic_chain_policy.get("enforcement_mode", "observe_only")),
+                "policy_load_status": policy_load_status,
+                "policy_error_reason": policy_error_reason,
+                "primary_sector_only": primary_sector_only,
+            },
             "opportunities": opportunities,
             "timestamp": timestamp,
             "action": state_out["action"],

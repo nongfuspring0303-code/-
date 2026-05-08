@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from pathlib import Path
 from datetime import datetime, timezone
@@ -36,6 +37,17 @@ class SemanticAnalyzer:
         "natural_disaster",
         "pandemic",
         "other",
+    }
+    PARSE_ERROR_TYPES = {
+        "no_json_object",
+        "invalid_json_syntax",
+        "root_not_object",
+        "schema_failed",
+        "recommended_stocks_not_list",
+        "provider_error",
+        "timeout",
+        "truncated_response",
+        "empty_response",
     }
 
     def __init__(self, config_path: str | None = None):
@@ -286,7 +298,71 @@ class SemanticAnalyzer:
             "novelty_score": 0.0,
             "evidence_spans": [],
             "risk_flags": [fallback_reason] if fallback_reason else [],
+            "parse_status": "not_called",
+            "parse_error_type": "",
+            "redacted_raw_response_preview": "",
         }
+
+    @staticmethod
+    def _strip_code_fence(text: str) -> str:
+        clean = str(text or "").strip()
+        if clean.startswith("```json"):
+            clean = clean[7:]
+        if clean.startswith("```"):
+            clean = clean[3:]
+        if clean.endswith("```"):
+            clean = clean[:-3]
+        return clean.strip()
+
+    @staticmethod
+    def _extract_first_json_object(text: str) -> str:
+        s = str(text or "")
+        start = s.find("{")
+        if start < 0:
+            return ""
+        depth = 0
+        in_str = False
+        escaped = False
+        for idx in range(start, len(s)):
+            ch = s[idx]
+            if in_str:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return s[start : idx + 1]
+        return ""
+
+    @staticmethod
+    def _redact_raw_response_preview(raw: str, max_len: int = 2000) -> str:
+        text = str(raw or "")
+        replace_patterns = [
+            r"(?i)(api[_-]?key\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(token\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(secret\s*[:=]\s*)([^\s,;]+)",
+            r"(?i)(authorization\s*[:=]\s*)([^\s,;]+)",
+        ]
+        for pat in replace_patterns:
+            text = re.sub(pat, r"\1<REDACTED>", text)
+        text = re.sub(r"(?i)Bearer\s+[A-Za-z0-9._\-]+", "Bearer <REDACTED>", text)
+        text = re.sub(r"/Users/[^\s\"']+", "<LOCAL_PATH>", text)
+        text = re.sub(r"/private/tmp/[^\s\"']+", "<TMP_PATH>", text)
+        text = re.sub(r"(?is)Traceback \(most recent call last\):.*", "<REDACTED_TRACEBACK>", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) > max_len:
+            text = text[:max_len]
+        return text
 
     def _coerce_output(self, payload: Dict[str, Any], provider: str, latency_ms: int) -> Dict[str, Any]:
         try:
@@ -325,6 +401,9 @@ class SemanticAnalyzer:
             "novelty_score": self._normalize_novelty_score(payload.get("novelty_score", 0.0)),
             "evidence_spans": payload.get("evidence_spans", []),
             "risk_flags": payload.get("risk_flags", []),
+            "parse_status": str(payload.get("parse_status", "") or ""),
+            "parse_error_type": str(payload.get("parse_error_type", "") or ""),
+            "redacted_raw_response_preview": str(payload.get("redacted_raw_response_preview", "") or ""),
         }
         if not isinstance(output["transmission_candidates"], list):
             output["transmission_candidates"] = []
@@ -339,6 +418,15 @@ class SemanticAnalyzer:
         if not isinstance(output["risk_flags"], list):
             output["risk_flags"] = []
         output["risk_flags"] = [str(x) for x in output["risk_flags"] if str(x).strip()]
+        if output["parse_error_type"] and output["parse_error_type"] not in self.PARSE_ERROR_TYPES:
+            output["parse_error_type"] = "schema_failed"
+        if output["parse_status"] not in {"parse_success", "parse_failed", "not_called"}:
+            output["parse_status"] = "parse_failed" if output["parse_error_type"] else "not_called"
+        if output["parse_status"] == "parse_success":
+            output["parse_error_type"] = ""
+            output["redacted_raw_response_preview"] = ""
+        if output["parse_status"] == "parse_failed" and not output["parse_error_type"]:
+            output["parse_error_type"] = "schema_failed"
         return output
 
     @classmethod
@@ -779,37 +867,91 @@ News text:
 """
 
     def _parse_ai_content(self, content: str) -> Dict[str, Any]:
-        clean_content = content.strip()
-        if clean_content.startswith("```json"):
-            clean_content = clean_content[7:]
-        if clean_content.endswith("```"):
-            clean_content = clean_content[:-3]
-        if clean_content.startswith("```"):
-            clean_content = clean_content[3:]
-        
+        stripped = self._strip_code_fence(content)
+        redacted_preview = self._redact_raw_response_preview(stripped)
+        if not stripped:
+            out = self._abstain_response(fallback_reason="empty_response", provider="ai")
+            out["parse_status"] = "parse_failed"
+            out["parse_error_type"] = "empty_response"
+            out["redacted_raw_response_preview"] = redacted_preview
+            return out
+
+        parsed_any: Any = None
+        direct_loaded = False
         try:
-            parsed = json.loads(clean_content.strip())
-            return {
-                "event_type": self._normalize_event_type(parsed.get("event_type", "other")),
-                "sentiment": parsed.get("sentiment", "neutral"),
-                "confidence": parsed.get("confidence", 50),
-                "recommended_chain": parsed.get("recommended_chain", ""),
-                "recommended_stocks": parsed.get("recommended_stocks", []),
-                "a0_event_strength": parsed.get("a0_event_strength", parsed.get("confidence", 50)),
-                "expectation_gap": parsed.get("expectation_gap", 0),
-                "event_state": parsed.get("event_state", "Initial"),
-                "narrative_vs_fact": parsed.get("narrative_vs_fact", "mixed"),
-                "event_scope": parsed.get("event_scope", "Sector"),
-                "novelty_score": parsed.get("novelty_score", 0.0),
-                "entities": parsed.get("entities", []),
-                "transmission_path": parsed.get("transmission_path", []),
-                "transmission_candidates": parsed.get("transmission_candidates", []),
-                "evidence_spans": parsed.get("evidence_spans", []),
-                "risk_flags": parsed.get("risk_flags", []),
-                "reason": parsed.get("reason", "success"),
-            }
-        except:
-             return self._abstain_response(fallback_reason="json_parse_failed", provider="ai")
+            parsed_any = json.loads(stripped)
+            direct_loaded = True
+        except json.JSONDecodeError:
+            direct_loaded = False
+
+        if not direct_loaded:
+            candidate = self._extract_first_json_object(stripped)
+            if not candidate:
+                parse_error = "truncated_response" if "{" in stripped else "no_json_object"
+                out = self._abstain_response(fallback_reason="json_parse_failed", provider="ai")
+                out["parse_status"] = "parse_failed"
+                out["parse_error_type"] = parse_error
+                out["redacted_raw_response_preview"] = redacted_preview
+                out["reason"] = parse_error
+                return out
+
+            try:
+                parsed_any = json.loads(candidate.strip())
+            except json.JSONDecodeError:
+                out = self._abstain_response(fallback_reason="json_parse_failed", provider="ai")
+                out["parse_status"] = "parse_failed"
+                out["parse_error_type"] = "invalid_json_syntax"
+                out["redacted_raw_response_preview"] = redacted_preview
+                out["reason"] = "invalid_json_syntax"
+                return out
+
+        if not isinstance(parsed_any, dict):
+            out = self._abstain_response(fallback_reason="json_parse_failed", provider="ai")
+            out["parse_status"] = "parse_failed"
+            out["parse_error_type"] = "root_not_object"
+            out["redacted_raw_response_preview"] = redacted_preview
+            out["reason"] = "root_not_object"
+            return out
+
+        parsed = parsed_any
+        if "recommended_stocks" in parsed and not isinstance(parsed.get("recommended_stocks"), list):
+            out = self._abstain_response(fallback_reason="schema_failed", provider="ai")
+            out["parse_status"] = "parse_failed"
+            out["parse_error_type"] = "recommended_stocks_not_list"
+            out["redacted_raw_response_preview"] = redacted_preview
+            out["reason"] = "recommended_stocks_not_list"
+            return out
+
+        if "event_type" not in parsed:
+            out = self._abstain_response(fallback_reason="schema_failed", provider="ai")
+            out["parse_status"] = "parse_failed"
+            out["parse_error_type"] = "schema_failed"
+            out["redacted_raw_response_preview"] = redacted_preview
+            out["reason"] = "schema_failed"
+            return out
+
+        return {
+            "event_type": self._normalize_event_type(parsed.get("event_type", "other")),
+            "sentiment": parsed.get("sentiment", "neutral"),
+            "confidence": parsed.get("confidence", 50),
+            "recommended_chain": parsed.get("recommended_chain", ""),
+            "recommended_stocks": parsed.get("recommended_stocks", []),
+            "a0_event_strength": parsed.get("a0_event_strength", parsed.get("confidence", 50)),
+            "expectation_gap": parsed.get("expectation_gap", 0),
+            "event_state": parsed.get("event_state", "Initial"),
+            "narrative_vs_fact": parsed.get("narrative_vs_fact", "mixed"),
+            "event_scope": parsed.get("event_scope", "Sector"),
+            "novelty_score": parsed.get("novelty_score", 0.0),
+            "entities": parsed.get("entities", []),
+            "transmission_path": parsed.get("transmission_path", []),
+            "transmission_candidates": parsed.get("transmission_candidates", []),
+            "evidence_spans": parsed.get("evidence_spans", []),
+            "risk_flags": parsed.get("risk_flags", []),
+            "reason": parsed.get("reason", "success"),
+            "parse_status": "parse_success",
+            "parse_error_type": "",
+            "redacted_raw_response_preview": "",
+        }
 
     def _call_glm_api(self, text: str, timeout_ms: int, *, model: str = "") -> Dict[str, Any]:
         prompt = self._get_prompt(text)
@@ -846,81 +988,53 @@ News text:
 
             if "choices" in result and len(result["choices"]) > 0:
                 content = result["choices"][0]["message"]["content"]
-                content = content.strip()
-                if content.startswith("```json"):
-                    content = content[7:]
-                if content.endswith("```"):
-                    content = content[:-3]
-                if content.startswith("```"):
-                    content = content[3:]
-                content = content.strip()
-                try:
-                    parsed = json.loads(content)
-                    return {
-                        "event_type": self._normalize_event_type(parsed.get("event_type", "other")),
-                        "sentiment": parsed.get("sentiment", "neutral"),
-                        "confidence": parsed.get("confidence", 50),
-                        "recommended_chain": parsed.get("recommended_chain", ""),
-                        "recommended_stocks": parsed.get("recommended_stocks", []),
-                        "a0_event_strength": parsed.get("a0_event_strength", parsed.get("confidence", 50)),
-                        "expectation_gap": parsed.get("expectation_gap", 0),
-                        "event_state": parsed.get("event_state", parsed.get("narrative_stage", "Initial")),
-                        "narrative_vs_fact": parsed.get("narrative_vs_fact", "mixed"),
-                        "event_scope": parsed.get("event_scope", "Sector"),
-                        "novelty_score": parsed.get("novelty_score", 0.0),
-                        "entities": parsed.get("entities", []),
-                        "transmission_path": parsed.get("transmission_path", []),
-                        "transmission_candidates": parsed.get("transmission_candidates", []),
-                        "evidence_spans": parsed.get("evidence_spans", []),
-                        "risk_flags": parsed.get("risk_flags", []),
-                        "reason": parsed.get("reason", f"{self.model_name} api response"),
-                    }
-                except json.JSONDecodeError:
-                    return {
-                        "event_type": "other",
-                        "sentiment": "neutral",
-                        "confidence": 50,
-                        "recommended_chain": "",
-                        "recommended_stocks": [],
-                        "reason": f"{self.model_name} response parsing failed: {content[:200]}",
-                    }
+                parsed = self._parse_ai_content(str(content or ""))
+                parsed["provider"] = self._provider_name()
+                parsed["model"] = model or self.model_name
+                if not parsed.get("reason"):
+                    parsed["reason"] = f"{self.model_name} api response"
+                return parsed
 
-            return {
-                "event_type": "other",
-                "sentiment": "neutral",
-                "confidence": 50,
-                "recommended_chain": "",
-                "recommended_stocks": [],
-                "reason": f"{self.model_name} no choices returned",
-            }
+            out = self._abstain_response(
+                fallback_reason="empty_response",
+                provider=self._provider_name(),
+                model=model or self.model_name,
+            )
+            out["parse_status"] = "parse_failed"
+            out["parse_error_type"] = "empty_response"
+            out["reason"] = f"{self.model_name} no choices returned"
+            return out
 
         except requests.exceptions.Timeout:
-            return {
-                "event_type": "other",
-                "sentiment": "neutral",
-                "confidence": 50,
-                "recommended_chain": "",
-                "recommended_stocks": [],
-                "reason": f"{self.model_name} timeout",
-            }
+            out = self._abstain_response(
+                fallback_reason="timeout",
+                provider=self._provider_name(),
+                model=model or self.model_name,
+            )
+            out["parse_status"] = "not_called"
+            out["parse_error_type"] = "timeout"
+            out["reason"] = f"{self.model_name} timeout"
+            return out
         except requests.exceptions.RequestException as e:
-            return {
-                "event_type": "other",
-                "sentiment": "neutral",
-                "confidence": 50,
-                "recommended_chain": "",
-                "recommended_stocks": [],
-                "reason": f"{self.model_name} API error: {str(e)[:100]}",
-            }
+            out = self._abstain_response(
+                fallback_reason="provider_error",
+                fallback_detail=f"{self.model_name} API error: {str(e)[:100]}",
+                provider=self._provider_name(),
+                model=model or self.model_name,
+            )
+            out["parse_status"] = "not_called"
+            out["parse_error_type"] = "provider_error"
+            return out
         except Exception as e:
-            return {
-                "event_type": "other",
-                "sentiment": "neutral",
-                "confidence": 50,
-                "recommended_chain": "",
-                "recommended_stocks": [],
-                "reason": f"{self.model_name} error: {str(e)[:100]}",
-            }
+            out = self._abstain_response(
+                fallback_reason="provider_error",
+                fallback_detail=f"{self.model_name} error: {str(e)[:100]}",
+                provider=self._provider_name(),
+                model=model or self.model_name,
+            )
+            out["parse_status"] = "not_called"
+            out["parse_error_type"] = "provider_error"
+            return out
 
     def analyze(self, headline: str, raw_text: str = "") -> Dict[str, Any]:
         provider = self._provider_name()
@@ -972,6 +1086,8 @@ News text:
                 latency_ms=elapsed,
             )
             out.update(self.analyze_event(headline, raw_text))
+            out["parse_status"] = "not_called"
+            out["parse_error_type"] = "timeout"
             return out
         except Exception:
             elapsed = int((time.perf_counter() - started) * 1000.0)
@@ -982,6 +1098,8 @@ News text:
                 latency_ms=elapsed,
             )
             out.update(self.analyze_event(headline, raw_text))
+            out["parse_status"] = "not_called"
+            out["parse_error_type"] = "provider_error"
             return out
 
         elapsed = int((time.perf_counter() - started) * 1000.0)
@@ -995,6 +1113,8 @@ News text:
             if not out["reason"]:
                 out["reason"] = "confidence below threshold"
             out.update(self.analyze_event(headline, raw_text, semantic_output=out))
+            if not out.get("parse_status"):
+                out["parse_status"] = "parse_success"
             return out
 
         if out["recommended_chain"] or out.get("transmission_candidates"):
@@ -1005,6 +1125,8 @@ News text:
             if not out.get("fallback_reason"):
                 out["fallback_reason"] = ""
             out.update(self.analyze_event(headline, raw_text, semantic_output=out))
+            if not out.get("parse_status"):
+                out["parse_status"] = "parse_success"
             return out
 
         out["verdict"] = "abstain"
@@ -1014,6 +1136,8 @@ News text:
         if not out["reason"]:
             out["reason"] = "missing recommended chain"
         out.update(self.analyze_event(headline, raw_text, semantic_output=out))
+        if not out.get("parse_status"):
+            out["parse_status"] = "parse_success"
         return out
 
     def analyze_event(

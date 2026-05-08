@@ -376,3 +376,152 @@ def test_opportunity_handles_invalid_asset_validation_shape_defensively():
     }
     out = scorer.build_opportunity_update(payload)
     assert out["action"] in {"WATCH", "NO_ACTION", "TRADE"}
+
+
+def test_opportunity_update_propagates_event_identity_and_primary_sector_only():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_identity_primary",
+        "event_hash": "evt_hash_identity_primary",
+        "semantic_trace_id": "evt_live_identity_primary",
+        "schema_version": "v1.0",
+        "primary_sector": "科技",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.95, "role": "primary"},
+            {"name": "金融", "direction": "SHORT", "impact_score": 0.85, "confidence": 0.9, "role": "secondary"},
+        ],
+        "stock_candidates": [
+            {"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4},
+            {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.1},
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["event_hash"] == "evt_hash_identity_primary"
+    assert out["semantic_trace_id"] == "evt_live_identity_primary"
+    assert out["primary_sector"] == "科技"
+    assert len(out["audit_sectors"]) == 2
+    assert out["audit_sectors"][0]["role"] == "primary"
+    assert out["audit_sectors"][1]["role"] == "secondary"
+    assert out["policy_state"]["threshold_status"] == "proposed"
+    assert out["policy_state"]["enforcement_mode"] == "observe_only"
+    assert out["policy_state"]["primary_sector_only"] is True
+    assert out["opportunities"]
+    assert {opp["sector"] for opp in out["opportunities"]} == {"科技"}
+    assert all(opp["event_hash"] == "evt_hash_identity_primary" for opp in out["opportunities"])
+    assert all(opp["semantic_trace_id"] == "evt_live_identity_primary" for opp in out["opportunities"])
+    assert all(opp["sector_role"] == "primary" for opp in out["opportunities"])
+
+
+def test_opportunity_update_missing_event_hash_does_not_fallback():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_missing_event_hash",
+        "semantic_trace_id": "evt_live_missing_event_hash",
+        "schema_version": "v1.0",
+        "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.95}],
+        "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4}],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["event_hash"] == ""
+    assert out["semantic_trace_id"] == "evt_live_missing_event_hash"
+    assert out["identity_incomplete"] is True
+    assert out["strict_join_ready"] is False
+    assert "missing_event_hash" in out["missing_identity_reasons"]
+    assert out["opportunities"]
+
+
+def test_opportunity_update_missing_semantic_trace_id_does_not_fake_join():
+    scorer = OpportunityScorer()
+    payload = {
+        "trace_id": "evt_missing_semantic_trace",
+        "event_hash": "evt_hash_missing_semantic",
+        "schema_version": "v1.0",
+        "sectors": [{"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.95}],
+        "stock_candidates": [{"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4}],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["event_hash"] == "evt_hash_missing_semantic"
+    assert out["semantic_trace_id"] == ""
+    assert out["identity_incomplete"] is True
+    assert out["strict_join_ready"] is False
+    assert "missing_semantic_trace_id" in out["missing_identity_reasons"]
+
+
+def test_opportunity_update_policy_missing_config_does_not_silently_enable_defaults():
+    scorer = OpportunityScorer()
+    scorer._semantic_chain_policy = {
+        "schema_version": "semantic_chain_policy.v1",
+        "threshold_status": "proposed",
+        "enforcement_mode": "disabled",
+        "policy_load_status": "failed",
+        "policy_error_reason": "missing_config",
+        "audit": {
+            "primary_sector_only": False,
+            "secondary_sector_audit_only": False,
+        },
+    }
+    payload = {
+        "trace_id": "evt_policy_missing",
+        "event_hash": "evt_hash_policy_missing",
+        "semantic_trace_id": "evt_live_policy_missing",
+        "schema_version": "v1.0",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.95, "role": "primary"},
+            {"name": "金融", "direction": "SHORT", "impact_score": 0.85, "confidence": 0.9, "role": "secondary"},
+        ],
+        "stock_candidates": [
+            {"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4},
+            {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.1},
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["policy_state"]["policy_load_status"] == "failed"
+    assert out["policy_state"]["enforcement_mode"] == "disabled"
+    assert out["policy_state"]["primary_sector_only"] is False
+    assert out["policy_state"]["policy_error_reason"] == "missing_config"
+    assert {opp["sector_role"] for opp in out["opportunities"]} == {"primary", "secondary"}
+
+
+def test_opportunity_update_policy_invalid_config_does_not_silently_enable_defaults():
+    scorer = OpportunityScorer()
+    scorer._semantic_chain_policy = {
+        "schema_version": "semantic_chain_policy.v1",
+        "threshold_status": "proposed",
+        "enforcement_mode": "disabled",
+        "policy_load_status": "failed",
+        "policy_error_reason": "invalid_config",
+        "audit": {
+            "primary_sector_only": False,
+            "secondary_sector_audit_only": False,
+        },
+    }
+    payload = {
+        "trace_id": "evt_policy_invalid",
+        "event_hash": "evt_hash_policy_invalid",
+        "semantic_trace_id": "evt_live_policy_invalid",
+        "schema_version": "v1.0",
+        "sectors": [
+            {"name": "科技", "direction": "LONG", "impact_score": 0.9, "confidence": 0.95, "role": "primary"},
+            {"name": "金融", "direction": "SHORT", "impact_score": 0.85, "confidence": 0.9, "role": "secondary"},
+        ],
+        "stock_candidates": [
+            {"symbol": "NVDA", "sector": "科技", "direction": "LONG", "event_beta": 1.4},
+            {"symbol": "JPM", "sector": "金融", "direction": "SHORT", "event_beta": 1.1},
+        ],
+    }
+
+    out = scorer.build_opportunity_update(payload)
+
+    assert out["policy_state"]["policy_load_status"] == "failed"
+    assert out["policy_state"]["enforcement_mode"] == "disabled"
+    assert out["policy_state"]["primary_sector_only"] is False
+    assert out["policy_state"]["policy_error_reason"] == "invalid_config"
+    assert {opp["sector_role"] for opp in out["opportunities"]} == {"primary", "secondary"}

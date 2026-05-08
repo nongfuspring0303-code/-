@@ -1,0 +1,22 @@
+schema_version: semantic_chain_policy.v1
+threshold_status: proposed
+enforcement_mode: observe_only
+
+identity:
+  event_hash_single_source: true
+  semantic_trace_id_single_source: true
+
+audit:
+  primary_sector_only: true
+  secondary_sector_audit_only: true
+  strict_join_dedup_coverage_min: 0.50
+
+parse:
+  json_parse_failed_over_total_max: 0.30
+  json_parse_failed_over_abstain_max: 0.50
+
+scoring:
+  three_plus_sector_rate_max: 0.20
+
+template_guard:
+  template_combo_drop_min: 0.50

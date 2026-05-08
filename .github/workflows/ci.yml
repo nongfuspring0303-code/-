@@ -38,6 +38,10 @@ jobs:
         run: |
           python -m pytest tests/test_member_b_stage5_scorecard_contract.py tests/test_outcome_attribution_engine.py tests/test_opportunity_score.py -q
 
+      - name: Run PR122 semantic-chain audit pytest
+        run: |
+          python -m pytest tests/test_live_chain_audit.py tests/test_opportunity_score.py -q
+
       - name: Run PR109 tier1 mapping tests
         run: |
           python -m pytest tests/test_conduction_mapper_dynamic.py -q

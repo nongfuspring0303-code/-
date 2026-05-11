@@ -34,7 +34,7 @@ Current routing:
 ## 4. Active Governance Issues
 
 - Issue125 remains open as the docs governance backlog hub.
-- Issue127 remains open as the Stage 7.5 hardening backlog hub.
+- Issue127 is closed as completed after Stage 7.5 hardening closure.
 
 ## 5. Current Source-of-Truth Files
 

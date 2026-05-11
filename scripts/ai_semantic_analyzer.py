@@ -426,12 +426,20 @@ class SemanticAnalyzer:
         except (TypeError, ValueError):
             parsed_latency = latency_ms
 
+        raw_stocks = payload.get("recommended_stocks", [])
+        normalized_stocks = []
+        if isinstance(raw_stocks, list):
+            for s in raw_stocks:
+                if isinstance(s, str) and s.strip():
+                    normalized_stocks.append(s.strip().upper())
+                elif isinstance(s, dict) and "ticker" in s:
+                    normalized_stocks.append(str(s["ticker"]).strip().upper())
         output = {
             "event_type": self._normalize_event_type(payload.get("event_type", "other")),
             "sentiment": str(payload.get("sentiment", "neutral") or "neutral"),
             "confidence": confidence,
             "recommended_chain": str(payload.get("recommended_chain", "") or ""),
-            "recommended_stocks": payload.get("recommended_stocks", []),
+            "recommended_stocks": normalized_stocks,
             "verdict": "abstain",
             "reason": str(payload.get("reason", "") or ""),
             "provider": str(payload.get("provider", provider) or provider),
@@ -626,6 +634,9 @@ class SemanticAnalyzer:
         if "openai" in provider_lower or "gpt" in model.lower():
             return self._call_openai_api(text, timeout_ms, model=model)
 
+        if "deepseek" in provider_lower:
+            return self._call_openai_api(text, timeout_ms, model=model or "deepseek-chat")
+
         if provider_lower in ("glm_4", "glm-4.7-flash", "glm-4.7", "glm-4-flash", "gemini_flash_lite") or "glm" in model.lower():
             return self._call_glm_api(text, timeout_ms, model=model)
 
@@ -776,9 +787,9 @@ class SemanticAnalyzer:
             "model": transport_model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
-            "max_tokens": 300,
+            "max_tokens": 500,
         }
-        if "gpt-4" in use_model or "gpt-5" in use_model or "gpt-3.5-turbo-0125" in use_model:
+        if "gpt-4" in use_model or "gpt-5" in use_model or "gpt-3.5-turbo-0125" in use_model or "deepseek" in use_model.lower():
             payload["response_format"] = {"type": "json_object"}
 
         timeout_seconds = max(5.0, timeout_ms / 1000.0)

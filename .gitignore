@@ -22,6 +22,7 @@ configs/edt-modules-config.yaml.guard_backup
 # local env
 .env
 .env.local
+.env.*  # 项目级敏感配置
 .venv/
 
 # runtime logs / reports

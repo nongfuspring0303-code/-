@@ -29,6 +29,7 @@ logs/*.log
 logs/*.json
 logs/*.jsonl
 logs/*.txt
+logs/project_gap_report.md
 logs/canary_live/
 !logs/.gitkeep
 !logs/README.md

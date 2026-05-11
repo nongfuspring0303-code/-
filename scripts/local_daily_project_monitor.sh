@@ -7,6 +7,15 @@ set -euo pipefail
 
 PROJECT_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 LOG_FILE="${PROJECT_ROOT}/logs/local_project_monitor.log"
+REPORT_JSON="${PROJECT_ROOT}/logs/project_gap_report.json"
+REPORT_MD="${PROJECT_ROOT}/logs/project_gap_report.md"
+STATE_JSON="${PROJECT_ROOT}/logs/project_gap_state.json"
+
+cleanup_runtime_artifacts() {
+  rm -f "$REPORT_JSON" "$REPORT_MD" "$STATE_JSON"
+}
+
+trap cleanup_runtime_artifacts EXIT
 
 mkdir -p "${PROJECT_ROOT}/logs"
 

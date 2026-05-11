@@ -113,16 +113,16 @@ def _scan_text_for_leaks(rel_path: str, text: str) -> list[LeakFinding]:
         for kind, pattern in SENSITIVE_PATTERNS.items():
             if not pattern.search(line):
                 continue
-            severity = "WARN"
             if kind == "secret_assignment":
                 match = pattern.search(line)
                 value = ""
                 if match:
                     value = next((group for group in match.groups() if group), "")
-                if _looks_secretish(value) and not allowlisted:
-                    severity = "FAIL"
-            elif not allowlisted and not _has_safe_marker(line):
+                severity = "FAIL" if _looks_secretish(value) else "WARN"
+            elif kind == "secret_literal":
                 severity = "FAIL"
+            else:
+                severity = "WARN" if allowlisted or _has_safe_marker(line) else "FAIL"
             findings.append(
                 LeakFinding(
                     path=rel_path,

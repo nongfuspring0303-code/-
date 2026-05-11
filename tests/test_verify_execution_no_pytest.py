@@ -41,9 +41,10 @@ def test_audit_marks_safe_examples_as_warn() -> None:
 def test_audit_fails_on_real_leak() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         root = Path(tmp_dir)
+        secret_value = "sk-" + "abc123abc123abc123abc123abc123"
         _write(
             root / "scripts" / "bad.py",
-            "OPENAI_API_KEY = 'sk-abc123abc123abc123abc123abc123'\n"
+            f"OPENAI_API_KEY = '{secret_value}'\n"
             "trace = 'Traceback (most recent call last):\\n  File \"/Users/me/leak.py\", line 1, in <module>\\n'\n",
         )
 
@@ -54,3 +55,18 @@ def test_audit_fails_on_real_leak() -> None:
         kinds = {item["kind"] for item in report["failures"]}
         assert "secret_literal" in kinds or "secret_assignment" in kinds
         assert "raw_path" in kinds or "traceback" in kinds
+
+
+def test_audit_fails_real_secret_even_in_allowlisted_path() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        secret_value = "sk-" + "abc123abc123abc123abc123abc123"
+        _write(
+            root / ".env.example",
+            f"OPENAI_API_KEY='{secret_value}'\n",
+        )
+
+        report = audit_repo_sensitive_leaks(root, tracked_files=[".env.example"])
+
+        assert report["status"] == "FAIL"
+        assert report["failures"]

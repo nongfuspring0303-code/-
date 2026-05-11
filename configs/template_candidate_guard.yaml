@@ -1,0 +1,16 @@
+schema_version: template_candidate_guard.v1
+threshold_status: proposed
+enforcement_mode: observe_only
+support_score_min: 0.5
+template_phrases:
+  - 该股可能受益于相关板块上涨
+  - 该公司属于科技板块
+  - 市场情绪改善可能利好该股
+  - 该公司属于相关板块
+  - 板块上涨将带动个股走强
+accepted_support_types:
+  - business_exposure
+  - event_subject
+  - supply_chain
+  - client
+  - competitor

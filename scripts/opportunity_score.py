@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import json
 import logging
 import os
+import re
 import time
 import urllib.request
 
@@ -265,12 +266,18 @@ class PremiumStockPool:
 class OpportunityScorer:
     """Builds opportunity_update payload with completed opportunity-card fields."""
 
-    def __init__(self, pool_config_path: Optional[str] = None):
+    def __init__(
+        self,
+        pool_config_path: Optional[str] = None,
+        semantic_chain_policy_path: Optional[str] = None,
+        template_candidate_guard_path: Optional[str] = None,
+    ):
         self.pool = PremiumStockPool(pool_config_path=pool_config_path)
         self.config = ConfigCenter()
         self.config.register("gate_policy", _root_dir() / "configs" / "gate_policy.yaml")
         self._gate_policy = self.config.get_registered("gate_policy", {})
-        self._semantic_chain_policy = self._load_semantic_chain_policy()
+        self._semantic_chain_policy = self._load_semantic_chain_policy(semantic_chain_policy_path)
+        self._template_candidate_guard = self._load_template_candidate_guard(template_candidate_guard_path)
         self._price_cache: Dict[str, Dict[str, Any]] = {}
         self._price_fetch_enabled = self._get_price_fetch_enabled()
         self._price_cache_ttl = self._get_price_cache_ttl()
@@ -278,8 +285,8 @@ class OpportunityScorer:
         self._market_data_adapter = MarketDataAdapter(config_getter=self.config.get)
         self._last_provider_meta: Dict[str, Any] = self._empty_provider_meta()
 
-    def _load_semantic_chain_policy(self) -> Dict[str, Any]:
-        path = _root_dir() / "configs" / "semantic_chain_policy.yaml"
+    def _load_semantic_chain_policy(self, config_path: Optional[str] = None) -> Dict[str, Any]:
+        path = Path(config_path) if config_path else _root_dir() / "configs" / "semantic_chain_policy.yaml"
         if not path.exists():
             return self._semantic_chain_policy_failed("missing_config")
         try:
@@ -307,6 +314,55 @@ class OpportunityScorer:
                 "secondary_sector_audit_only": False,
             },
         }
+
+    def _load_template_candidate_guard(self, config_path: Optional[str] = None) -> Dict[str, Any]:
+        path = Path(config_path) if config_path else _root_dir() / "configs" / "template_candidate_guard.yaml"
+        if not path.exists():
+            return self._template_candidate_guard_failed("missing_config")
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = yaml.safe_load(handle) or {}
+            if not isinstance(payload, dict):
+                return self._template_candidate_guard_failed("invalid_config")
+            loaded = dict(payload)
+            loaded["threshold_status"] = str(loaded.get("threshold_status", "proposed"))
+            loaded["enforcement_mode"] = str(loaded.get("enforcement_mode", "observe_only"))
+            loaded["policy_load_status"] = "loaded"
+            loaded["policy_error_reason"] = ""
+            loaded["support_score_min"] = self._safe_float(loaded.get("support_score_min", 0.0), 0.0)
+            loaded["template_phrases"] = self._normalize_guard_list(loaded.get("template_phrases", []))
+            loaded["accepted_support_types"] = self._normalize_guard_list(loaded.get("accepted_support_types", []))
+            return loaded
+        except Exception:
+            return self._template_candidate_guard_failed("invalid_config")
+
+    @staticmethod
+    def _template_candidate_guard_failed(reason: str) -> Dict[str, Any]:
+        return {
+            "schema_version": "template_candidate_guard.v1",
+            "threshold_status": "proposed",
+            "enforcement_mode": "disabled",
+            "policy_load_status": "failed",
+            "policy_error_reason": str(reason or "invalid_config"),
+            "support_score_min": 0.0,
+            "template_phrases": [],
+            "accepted_support_types": [],
+        }
+
+    @staticmethod
+    def _normalize_guard_list(values: Any) -> List[str]:
+        if not isinstance(values, list):
+            return []
+        out: List[str] = []
+        for item in values:
+            text = str(item or "").strip().lower()
+            if text:
+                out.append(text)
+        return out
+
+    @staticmethod
+    def _normalize_guard_text(value: Any) -> str:
+        return str(value or "").strip().lower()
 
     @staticmethod
     def _empty_provider_meta() -> Dict[str, Any]:
@@ -509,6 +565,77 @@ class OpportunityScorer:
             return "WATCH"
         return "EXECUTE"
 
+    def _template_rationale_matches(self, rationale: Any) -> bool:
+        text = self._normalize_guard_text(rationale)
+        if not text:
+            return False
+        phrases = self._normalize_guard_list(self._template_candidate_guard.get("template_phrases", []))
+        return any(phrase and phrase in text for phrase in phrases)
+
+    def _build_ticker_support_context(
+        self,
+        *,
+        sector_name: str,
+        sector_score_source: str,
+        candidate: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        policy_load_status = str(self._template_candidate_guard.get("policy_load_status", "failed"))
+        policy_error_reason = str(self._template_candidate_guard.get("policy_error_reason", ""))
+        supporting_sector = str(candidate.get("supporting_sector") or "").strip()
+        rationale = str(candidate.get("rationale") or candidate.get("support_rationale") or "").strip()
+        raw_support_score = candidate.get("support_score", None)
+        support_score = None
+        if raw_support_score not in {None, ""}:
+            support_score = round(self._safe_float(raw_support_score, 0.0), 4)
+
+        reasons: List[str] = []
+        if str(candidate.get("legacy_event_broadcast") or "").strip().lower() in {"1", "true", "yes", "y", "on"} or bool(candidate.get("legacy_event_broadcast", False)):
+            reasons.append("legacy_event_broadcast")
+        if policy_load_status != "loaded":
+            reasons.append(policy_error_reason or "missing_config")
+        if not supporting_sector:
+            reasons.append("missing_supporting_sector")
+        if not rationale:
+            reasons.append("missing_rationale")
+        elif self._template_rationale_matches(rationale):
+            reasons.append("template_rationale")
+
+        ticker_allowed = policy_load_status == "loaded" and not reasons
+        if ticker_allowed:
+            guard_status = "ticker_allowed"
+            guard_reason = ""
+            source = str(candidate.get("sector_score_source") or sector_score_source or "semantic_sector").strip()
+            if source == "legacy_event_broadcast":
+                source = "semantic_sector"
+        else:
+            guard_status = "sector_only"
+            guard_reason = ",".join(sorted(set(reasons))) or "sector_only"
+            source = str(candidate.get("sector_score_source") or sector_score_source or "sector_marginal").strip()
+            if source == "legacy_event_broadcast":
+                source = "sector_marginal"
+            if not source:
+                source = "sector_marginal"
+
+        if not support_score and not ticker_allowed:
+            raw_support_score = None
+
+        return {
+            "ticker_allowed": ticker_allowed,
+            "ticker_guard_status": guard_status,
+            "ticker_guard_reason": guard_reason,
+            "supporting_sector": supporting_sector,
+            "rationale": rationale,
+            "support_score": support_score,
+            "sector_score_source": source,
+            "template_guard_state": {
+                "threshold_status": str(self._template_candidate_guard.get("threshold_status", "proposed")),
+                "enforcement_mode": str(self._template_candidate_guard.get("enforcement_mode", "observe_only")),
+                "policy_load_status": policy_load_status,
+                "policy_error_reason": policy_error_reason,
+                "support_score_min": self._safe_float(self._template_candidate_guard.get("support_score_min", 0.0), 0.0),
+            },
+        }
+
     def _candidate_direction(self, candidate: Dict[str, Any]) -> str:
         if "direction" not in candidate:
             return ""
@@ -573,12 +700,17 @@ class OpportunityScorer:
         sector_direction: str,
         impact_score: float,
         sector_confidence: float,
-        stock: PremiumStock,
+        stock: Optional[PremiumStock],
         candidate: Dict[str, Any],
         timestamp: str,
+        sector_score_source: str,
+        ticker_guard: Optional[Dict[str, Any]] = None,
         prefetched_prices: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
+        ticker_guard = ticker_guard or {}
         event_beta = self._safe_float(candidate.get("event_beta", 1.0), 1.0)
+        if stock is None:
+            event_beta = max(1.0, event_beta)
         score = self._compute_score(impact_score, sector_confidence, event_beta)
         transmission = self._compute_transmission_score(candidate, impact_score, sector_confidence)
         score_100 = transmission["total"]
@@ -595,6 +727,53 @@ class OpportunityScorer:
             target_signal = sector_direction
 
         candidate_direction = self._candidate_direction(candidate)
+        supporting_sector = str(ticker_guard.get("supporting_sector") or sector_name or "").strip()
+        rationale = str(ticker_guard.get("rationale") or "").strip()
+        support_score = ticker_guard.get("support_score", None)
+        sector_score_source = str(ticker_guard.get("sector_score_source") or sector_score_source or "sector_marginal").strip()
+        ticker_guard_status = str(ticker_guard.get("ticker_guard_status") or ("ticker_allowed" if stock is not None else "sector_only")).strip()
+        ticker_guard_reason = str(ticker_guard.get("ticker_guard_reason") or "")
+        is_sector_only = stock is None or ticker_guard_status != "ticker_allowed"
+
+        if is_sector_only:
+            reason_text = ticker_guard_reason or "sector_only"
+            sector_rationale = rationale
+            if not sector_rationale or self._template_rationale_matches(sector_rationale):
+                sector_rationale = f"sector-only fallback: {reason_text}"
+            reasoning = sector_rationale or f"{sector_name} sector-only fallback，{reason_text}"
+            if len(reasoning) > 70:
+                reasoning = reasoning[:70]
+            return {
+                "event_hash": event_hash,
+                "semantic_trace_id": semantic_trace_id,
+                "trace_id": trace_id,
+                "sector": sector_name,
+                "sector_role": sector_role,
+                "primary_sector": primary_sector,
+                "sector_score_source": sector_score_source,
+                "supporting_sector": supporting_sector or sector_name,
+                "rationale": sector_rationale,
+                "support_score": support_score,
+                "ticker_guard_status": "sector_only",
+                "ticker_guard_reason": reason_text,
+                "signal": target_signal,
+                "decision_price": None,
+                "decision_price_source": "sector_only",
+                "needs_price_refresh": False,
+                "price_source": "sector_only",
+                "risk_flags": self._build_risk_flags(PremiumStock(symbol="SECTOR_ONLY", name=sector_name, sector=sector_name, roe=15.0, market_cap_billion=500.0, liquidity_score=0.8, last_price=0.0), score, sector_confidence, candidate_direction, target_signal),
+                "final_action": "WATCH",
+                "reasoning": reasoning,
+                "confidence": round(score, 2),
+                "score_100": score_100,
+                "signal_grade": grade,
+                "state_machine_step": "fallback",
+                "gate_reason_code": "DEFAULT_WATCH",
+                "score_breakdown": transmission["score_breakdown"],
+                "timestamp": timestamp,
+            }
+
+        assert stock is not None
         realtime_price = self._candidate_realtime_price(candidate)
         if realtime_price is None and prefetched_prices:
             realtime_price = prefetched_prices.get(stock.symbol)
@@ -607,9 +786,9 @@ class OpportunityScorer:
         if realtime_price is None:
             final_action = "WATCH"
 
-        reasoning = f"{sector_name}方向{sector_direction}，综合评分{score:.2f}"
-        if len(reasoning) > 50:
-            reasoning = reasoning[:50]
+        reasoning = rationale or f"{sector_name}方向{sector_direction}，综合评分{score:.2f}"
+        if len(reasoning) > 70:
+            reasoning = reasoning[:70]
 
         return {
             "event_hash": event_hash,
@@ -620,6 +799,12 @@ class OpportunityScorer:
             "sector": sector_name,
             "sector_role": sector_role,
             "primary_sector": primary_sector,
+            "sector_score_source": sector_score_source,
+            "supporting_sector": supporting_sector,
+            "rationale": rationale,
+            "support_score": support_score,
+            "ticker_guard_status": ticker_guard_status,
+            "ticker_guard_reason": ticker_guard_reason,
             "signal": target_signal,
             "entry_zone": self._build_entry_zone(realtime_price if realtime_price is not None else stock.last_price),
             "decision_price": realtime_price,
@@ -677,25 +862,86 @@ class OpportunityScorer:
         max_global_candidates = int(self._safe_float(self._gp("signal_grade.max_stock_candidates", 5), 5))
         prefetched_prices = self._batch_prefetch_prices(stock_candidates)
         opportunities: List[Dict[str, Any]] = []
+        is_multi_sector = len(audit_sectors) > 1
 
         for sector in audit_sectors:
-            if primary_sector_only and sector.get("role") != "primary":
+            sector_role = str(sector.get("role", "secondary"))
+            if primary_sector_only and sector_role != "primary":
                 continue
             sector_name = str(sector.get("name", "未知板块"))
             norm_sector = _norm_sector(self.pool.canonical_sector(sector_name))
             sector_direction = self._normalize_direction(sector.get("direction", "WATCH"))
             impact_score = self._safe_float(sector.get("impact_score", 0.0), 0.0)
             sector_conf = self._safe_float(sector.get("confidence", 0.0), 0.0)
+            sector_score_source = str(sector.get("sector_score_source") or "semantic_sector").strip() or "semantic_sector"
 
             seeded_candidates = candidates_by_sector.get(norm_sector, [])
             selected_stocks = self.pool.filter_candidates(seeded_candidates)
 
+            if is_multi_sector and sector_role == "secondary":
+                fallback_candidate = seeded_candidates[0] if seeded_candidates else {}
+                sector_only_guard = self._build_ticker_support_context(
+                    sector_name=sector_name,
+                    sector_score_source=sector_score_source,
+                    candidate=fallback_candidate,
+                )
+                guard_reasons = [reason for reason in [sector_only_guard.get("ticker_guard_reason", ""), "secondary_sector_audit_only"] if reason]
+                sector_only_guard = {
+                    **sector_only_guard,
+                    "ticker_allowed": False,
+                    "ticker_guard_status": "sector_only",
+                    "ticker_guard_reason": ",".join(sorted(set(guard_reasons))),
+                }
+                opportunities.append(
+                    self._build_opportunity(
+                        trace_id=trace_id,
+                        event_hash=event_hash,
+                        semantic_trace_id=semantic_trace_id,
+                        sector_name=sector_name,
+                        sector_role=sector_role,
+                        primary_sector=primary_sector,
+                        sector_direction=sector_direction,
+                        impact_score=impact_score,
+                        sector_confidence=sector_conf,
+                        stock=None,
+                        candidate=fallback_candidate,
+                        timestamp=timestamp,
+                        sector_score_source=sector_only_guard["sector_score_source"],
+                        ticker_guard=sector_only_guard,
+                        prefetched_prices=prefetched_prices,
+                    )
+                )
+                continue
+
             if not selected_stocks:
                 selected_stocks = self.pool.pick_by_sector(sector_name, limit=max_per_sector)
-                seeded_candidates = [{"symbol": s.symbol, "sector": s.sector, "direction": sector_direction, "event_beta": 1.0} for s in selected_stocks]
+                seeded_candidates = [
+                    {
+                        "symbol": s.symbol,
+                        "sector": s.sector,
+                        "direction": sector_direction,
+                        "event_beta": 1.0,
+                        "supporting_sector": sector_name,
+                        "rationale": f"{s.symbol} is a sector representative for {sector_name}.",
+                        "sector_score_source": "semantic_sector",
+                        "source": "pool_fallback",
+                    }
+                    for s in selected_stocks
+                ]
 
+            sector_valid_ticker_emitted = False
+            sector_fallback_candidate: Dict[str, Any] = {}
             for stock in selected_stocks[:max_per_sector]:
                 match_candidate = next((c for c in seeded_candidates if str(c.get("symbol", "")).upper() == stock.symbol), {})
+                ticker_guard = self._build_ticker_support_context(
+                    sector_name=sector_name,
+                    sector_score_source=sector_score_source,
+                    candidate=match_candidate,
+                )
+                if not ticker_guard["ticker_allowed"]:
+                    if not sector_fallback_candidate:
+                        sector_fallback_candidate = dict(match_candidate or {})
+                    continue
                 opportunities.append(
                     self._build_opportunity(
                         trace_id=trace_id,
@@ -710,6 +956,36 @@ class OpportunityScorer:
                         stock=stock,
                         candidate=match_candidate,
                         timestamp=timestamp,
+                        sector_score_source=ticker_guard["sector_score_source"],
+                        ticker_guard=ticker_guard,
+                        prefetched_prices=prefetched_prices,
+                    )
+                )
+                sector_valid_ticker_emitted = True
+
+            if not sector_valid_ticker_emitted:
+                fallback_candidate = sector_fallback_candidate or (seeded_candidates[0] if seeded_candidates else {})
+                sector_only_guard = self._build_ticker_support_context(
+                    sector_name=sector_name,
+                    sector_score_source=sector_score_source,
+                    candidate=fallback_candidate,
+                )
+                opportunities.append(
+                    self._build_opportunity(
+                        trace_id=trace_id,
+                        event_hash=event_hash,
+                        semantic_trace_id=semantic_trace_id,
+                        sector_name=sector_name,
+                        sector_role=str(sector.get("role", "secondary")),
+                        primary_sector=primary_sector,
+                        sector_direction=sector_direction,
+                        impact_score=impact_score,
+                        sector_confidence=sector_conf,
+                        stock=None,
+                        candidate=fallback_candidate,
+                        timestamp=timestamp,
+                        sector_score_source=sector_only_guard["sector_score_source"],
+                        ticker_guard=sector_only_guard,
                         prefetched_prices=prefetched_prices,
                     )
                 )
@@ -773,6 +1049,13 @@ class OpportunityScorer:
                 "policy_load_status": policy_load_status,
                 "policy_error_reason": policy_error_reason,
                 "primary_sector_only": primary_sector_only,
+            },
+            "template_guard_state": {
+                "threshold_status": str(self._template_candidate_guard.get("threshold_status", "proposed")),
+                "enforcement_mode": str(self._template_candidate_guard.get("enforcement_mode", "observe_only")),
+                "policy_load_status": str(self._template_candidate_guard.get("policy_load_status", "failed")),
+                "policy_error_reason": str(self._template_candidate_guard.get("policy_error_reason", "")),
+                "support_score_min": self._safe_float(self._template_candidate_guard.get("support_score_min", 0.0), 0.0),
             },
             "opportunities": opportunities,
             "timestamp": timestamp,

@@ -49,3 +49,28 @@ flags:
     owner: member_c
     rollback_owner: member_c
     description: Enable parallel price fetch path.
+
+  # ── Stage 8-A v5 shadow boundary ──
+  enable_v5_shadow_output:
+    default: false
+    owner: member_c
+    rollback_owner: member_c
+    description: Enable Stage8A v5 shadow output namespace without replacing legacy production output.
+
+  enable_replace_legacy_output:
+    default: false
+    owner: member_c
+    rollback_owner: member_c
+    description: Replace legacy production output with v5 output. Must remain false until compatibility exit conditions are met.
+
+  enable_conduction_split:
+    default: false
+    owner: member_a
+    rollback_owner: member_a
+    description: Enable conduction_candidate_generation / conduction_final_selection split.
+
+  enable_semantic_prepass:
+    default: false
+    owner: member_a
+    rollback_owner: member_a
+    description: Enable semantic_prepass stage before candidate generation.

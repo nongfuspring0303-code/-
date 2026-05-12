@@ -883,14 +883,22 @@ class FullWorkflowRunner:
         # - legacy replacement remains hard-blocked in Impl-1
         loaded_flags = self._load_feature_flags()
         enable_v5_shadow_output = bool(loaded_flags.get("enable_v5_shadow_output", True))
-        enable_semantic_prepass = self._coerce_bool(
-            payload.get("enable_semantic_prepass"),
-            loaded_flags.get("enable_semantic_prepass", True),
-        )
-        enable_conduction_split = self._coerce_bool(
-            payload.get("enable_conduction_split"),
-            loaded_flags.get("enable_conduction_split", True),
-        )
+        # Impl-1 default must be enabled even if config defaults are still conservative.
+        # Flags remain independently switchable via request payload for rollback drills.
+        if "enable_semantic_prepass" in payload:
+            enable_semantic_prepass = self._coerce_bool(
+                payload.get("enable_semantic_prepass"),
+                loaded_flags.get("enable_semantic_prepass", True),
+            )
+        else:
+            enable_semantic_prepass = True
+        if "enable_conduction_split" in payload:
+            enable_conduction_split = self._coerce_bool(
+                payload.get("enable_conduction_split"),
+                loaded_flags.get("enable_conduction_split", True),
+            )
+        else:
+            enable_conduction_split = True
         requested_replace_legacy = self._coerce_bool(
             payload.get("enable_replace_legacy_output"),
             loaded_flags.get("enable_replace_legacy_output", False),

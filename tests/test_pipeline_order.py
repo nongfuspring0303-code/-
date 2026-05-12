@@ -190,7 +190,10 @@ def test_pipeline_order_semantic_prepass_before_final_selection(tmp_path: Path) 
     analysis = out["analysis"]
     assert analysis["v5_shadow"]["enable_v5_shadow_output"] is True
     assert analysis["v5_shadow"]["enable_replace_legacy_output"] is False
+    assert analysis["v5_shadow"]["enable_semantic_prepass"] is True
+    assert analysis["v5_shadow"]["enable_conduction_split"] is True
     assert analysis["v5_shadow"]["comparison_status"] == "observe_only"
+    assert "status" not in analysis["semantic_prepass"]
     assert isinstance(analysis["conduction_final_selection"]["final_recommended_stocks"], list)
     assert isinstance(analysis["v5_shadow"]["v5_shadow_final_recommended_stocks"], list)
 

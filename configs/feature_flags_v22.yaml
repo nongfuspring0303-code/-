@@ -74,3 +74,15 @@ flags:
     owner: member_a
     rollback_owner: member_a
     description: Enable semantic_prepass stage before candidate generation.
+
+  enable_source_metadata_propagation:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable source / role / relation / event_id propagation across candidate production and downstream review surfaces.
+
+  enable_candidate_envelope:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable CandidateEnvelope compatibility surface for stable candidate identity, provenance, and routing context.

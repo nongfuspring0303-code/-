@@ -177,6 +177,32 @@ def test_feature_flags_required_keys_exist():
     )
 
 
+def test_feature_flags_impl2_candidate_envelope_flags_exist():
+    """PR-2 feature flags must exist and stay disabled by default until runtime lands."""
+    config_path = os.path.join(REPO_ROOT, "configs", "feature_flags_v22.yaml")
+    with open(config_path) as f:
+        cfg = _yaml.safe_load(f)
+    flags = cfg.get("flags", {})
+
+    required = {
+        "enable_source_metadata_propagation": "member_b",
+        "enable_candidate_envelope": "member_b",
+    }
+    missing = [name for name in required if name not in flags]
+    assert not missing, f"Required Stage8A Impl-2 flags missing from config: {missing}"
+
+    invalid = []
+    for name, owner in required.items():
+        flag = flags.get(name, {})
+        if flag.get("default") is not False:
+            invalid.append(f"{name}.default must be false before Impl-2 runtime lands")
+        if flag.get("owner") != owner:
+            invalid.append(f"{name}.owner must be {owner}")
+        if flag.get("rollback_owner") != owner:
+            invalid.append(f"{name}.rollback_owner must be {owner}")
+    assert not invalid, "Invalid Stage8A Impl-2 feature flag metadata:\n" + "\n".join(invalid)
+
+
 def test_missing_config_fails_fast():
     """Loading a non-existent config file must raise, not silently skip."""
     missing_path = os.path.join(REPO_ROOT, "configs", "__nonexistent_config_test__.yaml")

@@ -132,11 +132,9 @@ jobs:
 
       - name: candidate-envelope-contract
         run: |
-          if [ -f tests/test_candidate_envelope.py ]; then
-            python -m pytest tests/test_candidate_envelope.py -q
-          else
-            echo "[SKIP] tests/test_candidate_envelope.py not yet added (Stage8A-Impl-2 pending)"
-          fi
+          test -f tests/test_candidate_envelope.py
+          test -f tests/test_source_metadata_propagation.py
+          python -m pytest tests/test_candidate_envelope.py tests/test_source_metadata_propagation.py -q
 
       - name: resolver-merge-contract
         run: |

@@ -28,6 +28,17 @@ def _workflow_step_names(workflow):
     return names
 
 
+def _workflow_steps_by_name(workflow):
+    steps = {}
+    for job_def in workflow.get("jobs", {}).values():
+        if not isinstance(job_def, dict):
+            continue
+        for step in job_def.get("steps", []):
+            if isinstance(step, dict) and step.get("name"):
+                steps[step["name"]] = step
+    return steps
+
+
 def _required_ci_step_names():
     """All CI step names declared in the Stage 8-A contract matrix."""
     return {
@@ -68,3 +79,25 @@ def test_ci_step_names_exact_match():
         assert name in actual_names, (
             f"CI step '{name}' not found in workflow. Available steps: {sorted(actual_names)}"
         )
+
+
+def test_candidate_envelope_contract_binds_both_required_tests():
+    """PR-2 CI gate must execute both candidate-envelope and source-metadata tests."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("candidate-envelope-contract")
+
+    assert step, "candidate-envelope-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_candidate_envelope.py" in run_cmd, (
+        "candidate-envelope-contract must run tests/test_candidate_envelope.py"
+    )
+    assert "tests/test_source_metadata_propagation.py" in run_cmd, (
+        "candidate-envelope-contract must run tests/test_source_metadata_propagation.py"
+    )
+    assert "test -f tests/test_candidate_envelope.py" in run_cmd, (
+        "candidate-envelope-contract must fail fast when tests/test_candidate_envelope.py is missing"
+    )
+    assert "test -f tests/test_source_metadata_propagation.py" in run_cmd, (
+        "candidate-envelope-contract must fail fast when tests/test_source_metadata_propagation.py is missing"
+    )

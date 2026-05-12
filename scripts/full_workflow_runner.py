@@ -626,6 +626,106 @@ class FullWorkflowRunner:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _build_semantic_prepass_contract(
+        *,
+        semantic_out: Dict[str, Any],
+        headline: str,
+    ) -> Dict[str, Any]:
+        """Stage8A-Impl-1: lightweight semantic prepass contract."""
+        event_type = str(semantic_out.get("event_type", "unknown") or "unknown")
+        sentiment = str(semantic_out.get("sentiment", "neutral") or "neutral").lower()
+        transmission_candidates = semantic_out.get("transmission_candidates", [])
+        recommended_stocks = semantic_out.get("recommended_stocks", [])
+        confidence_raw = semantic_out.get("confidence", 0)
+        try:
+            semantic_confidence = float(confidence_raw)
+        except (TypeError, ValueError):
+            semantic_confidence = 0.0
+
+        if semantic_confidence > 1.0:
+            semantic_confidence = semantic_confidence / 100.0
+        semantic_confidence = max(0.0, min(1.0, semantic_confidence))
+
+        if isinstance(transmission_candidates, list) and transmission_candidates:
+            route_type = "company_anchor"
+        elif event_type in {"policy", "macro", "rates"}:
+            route_type = "macro_event"
+        elif event_type in {"sector", "industry", "supply_chain"}:
+            route_type = "sector_event"
+        else:
+            route_type = "unknown"
+
+        if sentiment in {"positive", "bullish"}:
+            event_direction = "positive"
+        elif sentiment in {"negative", "bearish"}:
+            event_direction = "negative"
+        elif sentiment in {"mixed"}:
+            event_direction = "mixed"
+        else:
+            event_direction = "neutral"
+
+        anchor_entities: list[str] = []
+        if isinstance(recommended_stocks, list):
+            anchor_entities = [str(x).strip() for x in recommended_stocks if str(x).strip()]
+
+        market_hint = "UNKNOWN"
+        headline_u = str(headline or "").upper()
+        if any(token in headline_u for token in ("NASDAQ", "NYSE", "S&P", "SPX", "DOW", "FED")):
+            market_hint = "US"
+
+        return {
+            "route_type": route_type,
+            "event_type": event_type,
+            "event_direction": event_direction,
+            "anchor_entities": anchor_entities,
+            "semantic_confidence": semantic_confidence,
+            "market_hint": market_hint,
+            "needs_full_semantic": True,
+            "prepass_latency_ms": 0,
+        }
+
+    def _run_conduction_candidate_generation(
+        self,
+        *,
+        event_object: Dict[str, Any],
+        payload: Dict[str, Any],
+        lifecycle_out: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        return self.conduction.run(
+            {
+                "event_id": event_object["event_id"],
+                "category": event_object["category"],
+                "severity": event_object["severity"],
+                "headline": event_object["headline"],
+                "summary": payload.get("summary", event_object["headline"]),
+                "lifecycle_state": lifecycle_out["lifecycle_state"],
+                "narrative_tags": payload.get("narrative_tags", ["macro_event"]),
+                "policy_intervention": payload.get("policy_intervention", "NONE"),
+            }
+        ).data
+
+    @staticmethod
+    def _run_conduction_final_selection(
+        *,
+        candidate_generation_out: Dict[str, Any],
+        enable_v5_shadow_output: bool,
+        enable_replace_legacy_output: bool,
+    ) -> Dict[str, Any]:
+        # Stage8A-Impl-1 stays shadow-only: pass-through selection metadata only.
+        stock_candidates = candidate_generation_out.get("stock_candidates", [])
+        final_recommended = [
+            str(item.get("symbol")).strip().upper()
+            for item in stock_candidates
+            if isinstance(item, dict) and str(item.get("symbol", "")).strip()
+        ]
+        return {
+            "final_recommended_stocks": final_recommended,
+            "shadow_only": bool(enable_v5_shadow_output and not enable_replace_legacy_output),
+            "selection_mode": "shadow_passthrough_impl1",
+            "decision_reason": "impl1_shadow_passthrough",
+        }
+
     def _build_market_validation_input(self, payload: Dict[str, Any], event_object: Dict[str, Any], conduction_out: Dict[str, Any]) -> Dict[str, Any]:
         raw_price = payload.get("price_changes")
         raw_volume = payload.get("volume_changes")
@@ -735,6 +835,9 @@ class FullWorkflowRunner:
         }
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        enable_v5_shadow_output = bool(payload.get("enable_v5_shadow_output", True))
+        enable_replace_legacy_output = bool(payload.get("enable_replace_legacy_output", False))
+
         intel_out = self.intel.run(payload)
 
         event_object = intel_out["event_object"]
@@ -832,18 +935,11 @@ class FullWorkflowRunner:
             details={"fatigue_final": fatigue_out.get("fatigue_final"), "watch_mode": fatigue_out.get("watch_mode")},
         )
 
-        conduction_out = self.conduction.run(
-            {
-                "event_id": event_object["event_id"],
-                "category": event_object["category"],
-                "severity": event_object["severity"],
-                "headline": event_object["headline"],
-                "summary": payload.get("summary", event_object["headline"]),
-                "lifecycle_state": lifecycle_out["lifecycle_state"],
-                "narrative_tags": payload.get("narrative_tags", ["macro_event"]),
-                "policy_intervention": payload.get("policy_intervention", "NONE"),
-            }
-        ).data
+        semantic_out = self.semantic.analyze(event_object["headline"], payload.get("summary", event_object["headline"]))
+        semantic_prepass = self._build_semantic_prepass_contract(
+            semantic_out=semantic_out,
+            headline=event_object.get("headline", ""),
+        )
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -851,7 +947,28 @@ class FullWorkflowRunner:
             batch_id=batch_id,
             event_hash=event_hash,
             stage_seq=4,
-            stage="conduction",
+            stage="semantic_prepass",
+            status="success",
+            details={
+                "route_type": semantic_prepass.get("route_type"),
+                "semantic_confidence": semantic_prepass.get("semantic_confidence"),
+            },
+        )
+
+        conduction_candidate_generation_out = self._run_conduction_candidate_generation(
+            event_object=event_object,
+            payload=payload,
+            lifecycle_out=lifecycle_out,
+        )
+        conduction_out = conduction_candidate_generation_out
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=5,
+            stage="conduction_candidate_generation",
             status="success",
             details={"confidence": conduction_out.get("confidence"), "path_len": len(conduction_out.get("conduction_path", []))},
         )
@@ -896,7 +1013,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=5,
+            stage_seq=6,
             stage="market_validation",
             status="success",
             details={
@@ -907,7 +1024,6 @@ class FullWorkflowRunner:
             },
         )
 
-        semantic_out = self.semantic.analyze(event_object["headline"], payload.get("summary", event_object["headline"]))
         semantic_required_fields = (
             "sentiment",
             "confidence",
@@ -932,7 +1048,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=6,
+            stage_seq=7,
             stage="semantic",
             status="success",
             details={"semantic_event_type": semantic_out.get("event_type", "other")},
@@ -969,10 +1085,30 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=7,
+            stage_seq=8,
             stage="path_adjudication",
             status="success",
             details={"primary_path": (path_out.get("primary_path") or {}).get("path_text", "undetermined")},
+        )
+
+        conduction_final_selection_out = self._run_conduction_final_selection(
+            candidate_generation_out=conduction_candidate_generation_out,
+            enable_v5_shadow_output=enable_v5_shadow_output,
+            enable_replace_legacy_output=enable_replace_legacy_output,
+        )
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=9,
+            stage="conduction_final_selection",
+            status="success",
+            details={
+                "shadow_only": conduction_final_selection_out.get("shadow_only"),
+                "final_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
+            },
         )
 
         signal_out = self.scorer.run(
@@ -1001,7 +1137,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=8,
+            stage_seq=10,
             stage="signal",
             status="success",
             details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},
@@ -1013,9 +1149,27 @@ class FullWorkflowRunner:
             "conduction": conduction_out,
             "market_validation": validation_out,
             "semantic": semantic_out,
+            "semantic_prepass": semantic_prepass,
             "event_object_contract": event_contract,
             "path_adjudication": path_out,
+            "conduction_candidate_generation": conduction_candidate_generation_out,
+            "conduction_final_selection": conduction_final_selection_out,
             "signal": signal_out,
+            "v5_shadow": {
+                "enable_v5_shadow_output": enable_v5_shadow_output,
+                "enable_replace_legacy_output": enable_replace_legacy_output,
+                "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
+                "legacy_recommended_stocks": [
+                    str(item.get("symbol")).strip().upper()
+                    for item in conduction_out.get("stock_candidates", [])
+                    if isinstance(item, dict) and str(item.get("symbol", "")).strip()
+                ],
+                "v5_shadow_final_recommended_stocks": list(conduction_final_selection_out.get("final_recommended_stocks", [])),
+                "old_vs_v5_shadow_diff": {
+                    "legacy_count": len(conduction_out.get("stock_candidates", [])),
+                    "v5_shadow_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
+                },
+            },
             "lifecycle_fatigue_contract": {
                 "schema_version": "stage6.lifecycle_fatigue.v1",
                 "lifecycle_state": lifecycle_out.get("lifecycle_state"),
@@ -1189,7 +1343,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=9,
+            stage_seq=11,
             stage="opportunity",
             status="success",
             details={"opportunity_count": len(opportunities), "has_opportunity": has_opportunity},
@@ -1296,7 +1450,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=10,
+            stage_seq=12,
             stage="execution",
             status="success",
             details={"final_action": final_action, "final_reason": final_reason},

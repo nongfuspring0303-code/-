@@ -48,6 +48,7 @@ Member B is responsible for:
 
 - `PR-2`: SourceRanker Metadata Propagation + Candidate Envelope Compatibility
 - `PR-3`: Entity Resolver + Multi-source Merge
+- `PR-4`: Semantic Full Peer Expansion + Peer Candidate Prompt Contract
 - `PR-5`: Market Validation Before Final Selection
 - partial `PR-8`: Lifecycle/Fatigue + Direction + Cross-news + Crowding
 

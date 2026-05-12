@@ -53,6 +53,7 @@ Config groups:
 | PR-1 | `tests/test_pipeline_order.py`, `tests/test_semantic_prepass_contract.py` | `pipeline-order-contract` | pipeline order and semantic prepass contract are deterministic and frozen |
 | PR-2 | `tests/test_candidate_envelope.py`, `tests/test_source_metadata_propagation.py` | `candidate-envelope-contract` | candidate envelope fields and source metadata propagation are stable |
 | PR-3 | `tests/test_entity_resolver.py`, `tests/test_candidate_merge.py` | `resolver-merge-contract` | entity resolution and multi-source merge preserve identity and reject invalid merges |
+| PR-4 | `tests/test_semantic_full_peer_expansion.py`, `tests/test_peer_candidate_prompt_contract.py` | `semantic-full-peer-contract` | peer candidates generated, each carries relation evidence, semantic_full never outputs final |
 | PR-5 | `tests/test_market_validation.py` | `market-validation-contract` | market validation gates before final selection and blocks invalid candidates |
 | PR-6 | `tests/test_path_adjudicator.py`, `tests/test_semantic_override.py`, `tests/test_semantic_verdict.py` | `routing-authority-contract` | routing authority and semantic verdict handling are stable |
 | PR-7 | `tests/test_output_adapter.py`, `tests/test_gate_diagnostics.py` | `output-adapter-contract` | output adapter remains advisory-only and diagnostics are emitted consistently |
@@ -97,6 +98,9 @@ Each implementation PR must define a rollback object and a fallback rule.
 - `PR-3`
   - rollback object: resolver merge disable
   - fallback rule: keep source-specific candidates separate and mark ambiguous merges rejected
+- `PR-4`
+  - rollback object: semantic full peer expansion disable
+  - fallback rule: retain resolver output and do not allow semantic_full to emit final recommendations
 - `PR-5`
   - rollback object: market validation gate disable
   - fallback rule: advisory-only observe path with explicit block reasons preserved

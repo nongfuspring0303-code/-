@@ -26,6 +26,10 @@ jobs:
         run: |
           python -m pytest tests/test_ai_semantic_analyzer.py tests/test_ai_event_intel.py tests/test_ai_event_intel_sina.py tests/test_config_center.py -q
 
+      - name: pipeline-order-contract
+        run: |
+          python -m pytest tests/test_pipeline_order.py tests/test_semantic_prepass_contract.py -q
+
       - name: Run PR123 semantic parser hardening tests
         run: |
           python -m pytest tests/test_ai_semantic_json_parser.py tests/test_ai_semantic_analyzer.py -q

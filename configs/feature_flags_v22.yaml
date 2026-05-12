@@ -52,7 +52,7 @@ flags:
 
   # ── Stage 8-A v5 shadow boundary ──
   enable_v5_shadow_output:
-    default: false
+    default: true
     owner: member_c
     rollback_owner: member_c
     description: Enable Stage8A v5 shadow output namespace without replacing legacy production output.

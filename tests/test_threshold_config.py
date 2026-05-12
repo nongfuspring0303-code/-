@@ -53,12 +53,16 @@ KNOWN_LEGACY_HARDCODED = {
         1002: "confidence_default",
         1243: "evidence_grade_threshold",
     },
+    "ai_conduction_selector.py": {
+        10: "min_confidence",
+    },
 }
 
 
 def _find_hardcoded_defaults(filepath):
     """Find lines with bare numeric defaults in .get() calls, excluding known legacy."""
-    known = KNOWN_LEGACY_HARDCODED.get(os.path.basename(filepath), {})
+    basename = os.path.basename(filepath)
+    known = KNOWN_LEGACY_HARDCODED.get(basename, {})
     known_lines = set(known.keys())
     violations = []
 
@@ -82,35 +86,37 @@ def _find_hardcoded_defaults(filepath):
     return violations
 
 
-def test_conduction_mapper_no_new_hardcoded():
-    """No NEW hardcoded thresholds beyond known legacy in conduction_mapper.py."""
-    filepath = os.path.join(REPO_ROOT, "scripts", "conduction_mapper.py")
-    if not os.path.exists(filepath):
-        return
-    violations = _find_hardcoded_defaults(filepath)
-    assert not violations, (
-        "NEW hardcoded business thresholds found:\n" + "\n".join(violations)
-    )
-
-
-def test_semantic_analyzer_no_new_hardcoded():
-    """No NEW hardcoded thresholds beyond known legacy in ai_semantic_analyzer.py."""
-    filepath = os.path.join(REPO_ROOT, "scripts", "ai_semantic_analyzer.py")
-    if not os.path.exists(filepath):
-        return
-    violations = _find_hardcoded_defaults(filepath)
-    assert not violations, (
-        "NEW hardcoded business thresholds found:\n" + "\n".join(violations)
+def test_no_new_hardcoded_thresholds():
+    """No NEW hardcoded thresholds beyond known legacy in any PROTECTED_FILES."""
+    all_violations = []
+    for relpath in PROTECTED_FILES:
+        filepath = os.path.join(REPO_ROOT, relpath)
+        if not os.path.exists(filepath):
+            continue
+        violations = _find_hardcoded_defaults(filepath)
+        if violations:
+            all_violations.append(f"{relpath}:")
+            all_violations.extend(violations)
+    assert not all_violations, (
+        "NEW hardcoded business thresholds found:\n" + "\n".join(all_violations)
     )
 
 
 def test_known_legacy_does_not_grow():
     """Documented legacy hardcoded count must not increase."""
-    total = sum(len(v) for v in KNOWN_LEGACY_HARDCODED.values())
-    assert total == 23, (
-        f"KNOWN_LEGACY_HARDCODED baseline count changed: {total} (expected 20). "
-        f"Update this test if migrating legacy thresholds to config."
-    )
+    expected = {
+        "conduction_mapper.py": 18,
+        "ai_semantic_analyzer.py": 5,
+        "ai_conduction_selector.py": 1,
+    }
+    for basename, expected_count in expected.items():
+        known = KNOWN_LEGACY_HARDCODED.get(basename, {})
+        actual = len(known)
+        assert actual == expected_count, (
+            f"KNOWN_LEGACY_HARDCODED baseline count for {basename}: "
+            f"{actual} (expected {expected_count}). "
+            f"Update KNOWN_LEGACY_HARDCODED if migrating thresholds to config."
+        )
 
 
 def test_workflow_exists():

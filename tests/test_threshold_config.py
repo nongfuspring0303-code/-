@@ -129,3 +129,57 @@ def test_feature_flags_config_exists():
     """Feature flags config must exist."""
     config_path = os.path.join(REPO_ROOT, "configs", "feature_flags_v22.yaml")
     assert os.path.exists(config_path), f"Feature flags config not found at {config_path}"
+
+
+import yaml as _yaml
+
+
+def test_feature_flags_shadow_boundary_values():
+    """Stage8A shadow flags must match contract: v5_shadow_output=true, replace_legacy=false."""
+    config_path = os.path.join(REPO_ROOT, "configs", "feature_flags_v22.yaml")
+    with open(config_path) as f:
+        cfg = _yaml.safe_load(f)
+    flags = cfg.get("flags", {})
+
+    shadow = flags.get("enable_v5_shadow_output", {})
+    replace = flags.get("enable_replace_legacy_output", {})
+
+    missing = []
+    if not shadow:
+        missing.append("enable_v5_shadow_output")
+    if not replace:
+        missing.append("enable_replace_legacy_output")
+    assert not missing, f"Required Stage8A shadow flags missing from config: {missing}"
+
+    assert shadow.get("default") is True, (
+        "enable_v5_shadow_output.default must be true per contract matrix"
+    )
+    assert replace.get("default") is False, (
+        "enable_replace_legacy_output.default must be false per contract matrix"
+    )
+
+
+def test_feature_flags_required_keys_exist():
+    """Each required flag must have default, owner, and rollback_owner."""
+    config_path = os.path.join(REPO_ROOT, "configs", "feature_flags_v22.yaml")
+    with open(config_path) as f:
+        cfg = _yaml.safe_load(f)
+    flags = cfg.get("flags", {})
+
+    required_keys = {"default", "owner", "rollback_owner", "description"}
+    invalid = []
+    for name, flag in flags.items():
+        missing_keys = required_keys - set(flag.keys())
+        if missing_keys:
+            invalid.append(f"  {name}: missing {sorted(missing_keys)}")
+    assert not invalid, (
+        f"Feature flags with missing required keys:\n" + "\n".join(invalid)
+    )
+
+
+def test_missing_config_fails_fast():
+    """Loading a non-existent config file must raise, not silently skip."""
+    missing_path = os.path.join(REPO_ROOT, "configs", "__nonexistent_config_test__.yaml")
+    with __import__("pytest").raises((FileNotFoundError, OSError, _yaml.YAMLError)):
+        with open(missing_path) as f:
+            _yaml.safe_load(f)

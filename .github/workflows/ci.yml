@@ -120,10 +120,10 @@ jobs:
       # ── Stage 8-A contract matrix CI gates ──
       - name: pipeline-order-contract
         run: |
-          if [ -f tests/test_pipeline_order.py ]; then
-            python -m pytest tests/test_pipeline_order.py -q
+          if [ -f tests/test_pipeline_order.py ] && [ -f tests/test_semantic_prepass_contract.py ]; then
+            python -m pytest tests/test_pipeline_order.py tests/test_semantic_prepass_contract.py -q
           else
-            echo "[SKIP] tests/test_pipeline_order.py not yet added (Stage8A-Impl-1 pending)"
+            echo "[SKIP] pipeline-order / prepass-contract tests not yet added (Stage8A-Impl-1 pending)"
           fi
 
       - name: candidate-envelope-contract

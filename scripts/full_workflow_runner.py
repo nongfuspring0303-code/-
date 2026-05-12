@@ -714,13 +714,13 @@ class FullWorkflowRunner:
     ) -> Dict[str, Any]:
         # Stage8A-Impl-1 stays shadow-only: pass-through selection metadata only.
         stock_candidates = candidate_generation_out.get("stock_candidates", [])
-        final_recommended = [
+        shadow_final_recommended = [
             str(item.get("symbol")).strip().upper()
             for item in stock_candidates
             if isinstance(item, dict) and str(item.get("symbol", "")).strip()
         ]
         return {
-            "final_recommended_stocks": final_recommended,
+            "shadow_final_recommended_stocks": shadow_final_recommended,
             "shadow_only": bool(enable_v5_shadow_output and not enable_replace_legacy_output),
             "selection_mode": "shadow_passthrough_impl1",
             "decision_reason": "impl1_shadow_passthrough",
@@ -835,8 +835,9 @@ class FullWorkflowRunner:
         }
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        enable_v5_shadow_output = bool(payload.get("enable_v5_shadow_output", True))
-        enable_replace_legacy_output = bool(payload.get("enable_replace_legacy_output", False))
+        # Stage8A-Impl-1 hard boundary: shadow-only is mandatory.
+        enable_v5_shadow_output = True
+        enable_replace_legacy_output = False
 
         intel_out = self.intel.run(payload)
 
@@ -1107,7 +1108,7 @@ class FullWorkflowRunner:
             status="success",
             details={
                 "shadow_only": conduction_final_selection_out.get("shadow_only"),
-                "final_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
+                "final_count": len(conduction_final_selection_out.get("shadow_final_recommended_stocks", [])),
             },
         )
 
@@ -1153,7 +1154,11 @@ class FullWorkflowRunner:
             "event_object_contract": event_contract,
             "path_adjudication": path_out,
             "conduction_candidate_generation": conduction_candidate_generation_out,
-            "conduction_final_selection": conduction_final_selection_out,
+            "conduction_final_selection": {
+                "shadow_only": bool(conduction_final_selection_out.get("shadow_only", True)),
+                "selection_mode": str(conduction_final_selection_out.get("selection_mode", "shadow_passthrough_impl1")),
+                "decision_reason": str(conduction_final_selection_out.get("decision_reason", "impl1_shadow_passthrough")),
+            },
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -1164,10 +1169,10 @@ class FullWorkflowRunner:
                     for item in conduction_out.get("stock_candidates", [])
                     if isinstance(item, dict) and str(item.get("symbol", "")).strip()
                 ],
-                "v5_shadow_final_recommended_stocks": list(conduction_final_selection_out.get("final_recommended_stocks", [])),
+                "v5_shadow_final_recommended_stocks": list(conduction_final_selection_out.get("shadow_final_recommended_stocks", [])),
                 "old_vs_v5_shadow_diff": {
                     "legacy_count": len(conduction_out.get("stock_candidates", [])),
-                    "v5_shadow_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
+                    "v5_shadow_count": len(conduction_final_selection_out.get("shadow_final_recommended_stocks", [])),
                 },
             },
             "lifecycle_fatigue_contract": {

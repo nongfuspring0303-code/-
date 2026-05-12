@@ -95,6 +95,9 @@ def test_candidate_envelope_contract_binds_both_required_tests():
     assert "tests/test_source_metadata_propagation.py" in run_cmd, (
         "candidate-envelope-contract must run tests/test_source_metadata_propagation.py"
     )
-    assert "&&" in run_cmd, (
-        "candidate-envelope-contract guard must require both test files before running pytest"
+    assert "test -f tests/test_candidate_envelope.py" in run_cmd, (
+        "candidate-envelope-contract must fail fast when tests/test_candidate_envelope.py is missing"
+    )
+    assert "test -f tests/test_source_metadata_propagation.py" in run_cmd, (
+        "candidate-envelope-contract must fail fast when tests/test_source_metadata_propagation.py is missing"
     )

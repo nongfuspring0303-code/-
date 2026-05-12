@@ -234,10 +234,10 @@ def test_candidate_envelope_shadow_surface_preserves_same_ticker_provenance(tmp_
     assert {p["source"] for p in qcom["provenance"]} == {"tier1_ticker_pool", "config"}
 
     assert broken["status"] == "rejected"
-    assert broken["reject_reason"] == "missing_critical_provenance"
+    assert broken["reject_reason"] == "missing_source"
 
-    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "QCOM", "BROKEN"]
-    assert analysis["v5_shadow"]["v5_shadow_final_recommended_stocks"] == ["QCOM", "QCOM", "BROKEN"]
+    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM"]
+    assert analysis["v5_shadow"]["v5_shadow_final_recommended_stocks"] == ["QCOM"]
 
 
 def test_candidate_envelope_flag_off_keeps_legacy_surface_only(tmp_path: Path) -> None:

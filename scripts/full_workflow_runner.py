@@ -762,6 +762,32 @@ class FullWorkflowRunner:
             return "fallback"
         return "derived"
 
+    @staticmethod
+    def _dedupe_ordered_symbols(symbols: List[str]) -> List[str]:
+        out: List[str] = []
+        seen: set[str] = set()
+        for symbol in symbols:
+            normalized = str(symbol or "").strip().upper()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            out.append(normalized)
+        return out
+
+    @staticmethod
+    def _candidate_missing_provenance_reason(candidate: Dict[str, Any]) -> str | None:
+        if not str(candidate.get("symbol", "")).strip():
+            return "missing_symbol"
+        if not str(candidate.get("source", "")).strip():
+            return "missing_source"
+        if not str(candidate.get("role", "")).strip():
+            return "missing_role"
+        if not str(candidate.get("relation", "")).strip():
+            return "missing_relation"
+        if not str(candidate.get("event_id", "")).strip():
+            return "missing_event_id"
+        return None
+
     def _propagate_candidate_metadata(
         self,
         candidate_generation_out: Dict[str, Any],
@@ -821,6 +847,7 @@ class FullWorkflowRunner:
             source = str(cand.get("source", "")).strip()
             role = str(cand.get("role") or self._candidate_role(cand)).strip()
             relation = str(cand.get("relation") or self._candidate_relation(cand)).strip()
+            reject_reason = self._candidate_missing_provenance_reason(cand)
             provenance_entry = {
                 "symbol": symbol,
                 "source": source or "unknown",
@@ -831,7 +858,7 @@ class FullWorkflowRunner:
                 "source_rank": str(cand.get("source_rank") or source_rank_rank),
                 "source_rank_confidence": cand.get("source_rank_confidence", source_rank_confidence),
             }
-            if not symbol:
+            if reject_reason == "missing_symbol":
                 rejected.append(
                     {
                         "symbol": "",
@@ -843,7 +870,26 @@ class FullWorkflowRunner:
                         "candidate_origin": provenance_entry["candidate_origin"],
                         "source_rank": provenance_entry["source_rank"],
                         "source_rank_confidence": provenance_entry["source_rank_confidence"],
-                        "reject_reason": "missing_symbol",
+                        "reject_reason": reject_reason,
+                        "downgrade_reason": None,
+                        "provenance": [provenance_entry],
+                        "compatibility_surface": "candidate_envelope",
+                    }
+                )
+                continue
+            if reject_reason in {"missing_source", "missing_role", "missing_relation", "missing_event_id"}:
+                rejected.append(
+                    {
+                        "symbol": symbol,
+                        "status": "rejected",
+                        "source": provenance_entry["source"],
+                        "role": provenance_entry["role"],
+                        "relation": provenance_entry["relation"],
+                        "event_id": provenance_entry["event_id"],
+                        "candidate_origin": provenance_entry["candidate_origin"],
+                        "source_rank": provenance_entry["source_rank"],
+                        "source_rank_confidence": provenance_entry["source_rank_confidence"],
+                        "reject_reason": reject_reason,
                         "downgrade_reason": None,
                         "provenance": [provenance_entry],
                         "compatibility_surface": "candidate_envelope",
@@ -901,6 +947,16 @@ class FullWorkflowRunner:
             "candidate_count": len(envelopes) + len(rejected),
             "envelopes": envelopes + rejected,
         }
+
+    def _candidate_envelope_final_symbols(self, candidate_envelope_out: Dict[str, Any]) -> List[str]:
+        if not isinstance(candidate_envelope_out, dict):
+            return []
+        symbols = [
+            str(item.get("symbol", "")).strip().upper()
+            for item in candidate_envelope_out.get("envelopes", [])
+            if isinstance(item, dict) and item.get("status") == "candidate"
+        ]
+        return self._dedupe_ordered_symbols(symbols)
 
     def _run_conduction_candidate_generation(
         self,
@@ -1408,6 +1464,12 @@ class FullWorkflowRunner:
             enable_v5_shadow_output=enable_v5_shadow_output,
             enable_replace_legacy_output=enable_replace_legacy_output,
         )
+        if enable_candidate_envelope and candidate_envelope_out is not None:
+            candidate_envelope_symbols = self._candidate_envelope_final_symbols(candidate_envelope_out)
+            conduction_final_selection_out = {
+                **conduction_final_selection_out,
+                "final_recommended_stocks": candidate_envelope_symbols,
+            }
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,

@@ -6,7 +6,7 @@ This document freezes the contract, config, CI, and test-gate matrix for Stage 8
 
 It is planning-only and does not authorize implementation work.
 
-It is based on `/Users/jia/Downloads/v5执行版三人分工方案.md`.
+It is based on the source document `v5执行版三人分工方案.md`.
 
 Refs #134
 

@@ -4,7 +4,7 @@
 
 This document freezes the Stage 8-A ownership model before any implementation begins.
 
-It is based on `/Users/jia/Downloads/v5执行版三人分工方案.md` and exists to keep the news-to-accurate-stock-pool repair work shadow-only until the planning artifacts are reviewed and accepted.
+It is based on the source document `v5执行版三人分工方案.md` and exists to keep the news-to-accurate-stock-pool repair work shadow-only until the planning artifacts are reviewed and accepted.
 
 Refs #134
 

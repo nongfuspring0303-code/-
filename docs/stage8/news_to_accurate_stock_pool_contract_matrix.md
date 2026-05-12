@@ -6,6 +6,8 @@ This document freezes the contract, config, CI, and test-gate matrix for Stage 8
 
 It is planning-only and does not authorize implementation work.
 
+It is based on `/Users/jia/Downloads/v5执行版三人分工方案.md`.
+
 Refs #134
 
 ## 2. Contract Freeze Targets
@@ -48,14 +50,13 @@ Config groups:
 
 | PR | Required tests | CI step name | Pass condition |
 | -- | -------------- | ------------ | -------------- |
-| Stage8A-Impl-1 | `tests/test_pipeline_order.py`, `tests/test_semantic_prepass_contract.py` | `pipeline-order-contract` | pipeline order and semantic prepass contract are deterministic and frozen |
-| Stage8A-Impl-2 | `tests/test_candidate_envelope.py`, `tests/test_source_metadata_propagation.py` | `candidate-envelope-contract` | candidate envelope fields and source metadata propagation are stable |
-| Stage8A-Impl-3 | `tests/test_entity_resolver.py`, `tests/test_candidate_merge.py` | `resolver-merge-contract` | entity resolution and multi-source merge preserve identity and reject invalid merges |
-| Stage8A-Impl-4 | `tests/test_semantic_full_peer_expansion.py`, `tests/test_peer_candidate_prompt_contract.py` | `semantic-full-peer-contract` | peer expansion is deterministic and prompt contract is frozen |
-| Stage8A-Impl-5 | `tests/test_market_validation.py` | `market-validation-contract` | market validation gates before final selection and blocks invalid candidates |
-| Stage8A-Impl-6 | `tests/test_path_adjudicator.py`, `tests/test_semantic_override.py`, `tests/test_semantic_verdict.py` | `routing-authority-contract` | routing authority and semantic verdict handling are stable |
-| Stage8A-Impl-7 | `tests/test_output_adapter.py`, `tests/test_gate_diagnostics.py` | `output-adapter-contract` | output adapter remains advisory-only and diagnostics are emitted consistently |
-| Stage8A-Impl-8 | `tests/test_lifecycle_fatigue_gate.py`, `tests/test_cross_news_conflict.py`, `tests/test_crowding_discount.py` | `advanced-gates-contract` | advanced gates are deterministic and do not leak into earlier phases |
+| PR-1 | `tests/test_pipeline_order.py`, `tests/test_semantic_prepass_contract.py` | `pipeline-order-contract` | pipeline order and semantic prepass contract are deterministic and frozen |
+| PR-2 | `tests/test_candidate_envelope.py`, `tests/test_source_metadata_propagation.py` | `candidate-envelope-contract` | candidate envelope fields and source metadata propagation are stable |
+| PR-3 | `tests/test_entity_resolver.py`, `tests/test_candidate_merge.py` | `resolver-merge-contract` | entity resolution and multi-source merge preserve identity and reject invalid merges |
+| PR-5 | `tests/test_market_validation.py` | `market-validation-contract` | market validation gates before final selection and blocks invalid candidates |
+| PR-6 | `tests/test_path_adjudicator.py`, `tests/test_semantic_override.py`, `tests/test_semantic_verdict.py` | `routing-authority-contract` | routing authority and semantic verdict handling are stable |
+| PR-7 | `tests/test_output_adapter.py`, `tests/test_gate_diagnostics.py` | `output-adapter-contract` | output adapter remains advisory-only and diagnostics are emitted consistently |
+| PR-8 | `tests/test_lifecycle_fatigue_gate.py`, `tests/test_cross_news_conflict.py`, `tests/test_crowding_discount.py` | `advanced-gates-contract` | advanced gates are deterministic and do not leak into earlier phases |
 | Global | `tests/test_threshold_config.py` | `threshold-config-contract` | thresholds are sourced from config and missing config fails safely |
 | Global | `tests/test_compatibility_exit.py` | `compatibility-exit-contract` | rollback / compatibility exit behavior is deterministic |
 | Global | `tests/test_ci_workflow_steps.py` | `ci-workflow-step-contract` | declared workflow step names exist exactly as specified |
@@ -87,28 +88,25 @@ Required flags:
 
 Each implementation PR must define a rollback object and a fallback rule.
 
-- `Stage8A-Impl-1`
+- `PR-1`
   - rollback object: pipeline order and semantic prepass contract revert
   - fallback rule: return to shadow-only baseline with legacy ordering
-- `Stage8A-Impl-2`
+- `PR-2`
   - rollback object: candidate envelope / source metadata revert
   - fallback rule: preserve legacy candidate selection without new envelope fields
-- `Stage8A-Impl-3`
+- `PR-3`
   - rollback object: resolver merge disable
   - fallback rule: keep source-specific candidates separate and mark ambiguous merges rejected
-- `Stage8A-Impl-4`
-  - rollback object: peer expansion disable
-  - fallback rule: retain semantic prepass output only
-- `Stage8A-Impl-5`
+- `PR-5`
   - rollback object: market validation gate disable
   - fallback rule: advisory-only observe path with explicit block reasons preserved
-- `Stage8A-Impl-6`
+- `PR-6`
   - rollback object: routing authority / adjudicator revert
   - fallback rule: preserve previous verdict path and downgrade to observe_only
-- `Stage8A-Impl-7`
+- `PR-7`
   - rollback object: output adapter and diagnostics revert
   - fallback rule: emit legacy output without mutating final recommendations
-- `Stage8A-Impl-8`
+- `PR-8`
   - rollback object: lifecycle / fatigue / crowding gates disable
   - fallback rule: retain prior gate state and suppress new advanced-gate output
 

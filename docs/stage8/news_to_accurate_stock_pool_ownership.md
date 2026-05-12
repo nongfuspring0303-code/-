@@ -4,7 +4,7 @@
 
 This document freezes the Stage 8-A ownership model before any implementation begins.
 
-It exists to keep the news-to-accurate-stock-pool repair work shadow-only until the planning artifacts are reviewed and accepted.
+It is based on `/Users/jia/Downloads/v5执行版三人分工方案.md` and exists to keep the news-to-accurate-stock-pool repair work shadow-only until the planning artifacts are reviewed and accepted.
 
 Refs #134
 
@@ -26,9 +26,9 @@ Role:
 
 Member A is responsible for:
 
-- `Stage8A-Impl-1`: Pipeline Order + Conduction Split + Semantic Prepass Contract
-- `Stage8A-Impl-6`: Routing Authority + PathAdjudicator Lite + Semantic Verdict Fix
-- `Stage8A-Impl-7`: Final Selection Gates + Output Adapter + Gate Diagnostics
+- `PR-1`: Pipeline Order + Conduction Split + Semantic Prepass Contract
+- `PR-6`: Routing Authority + PathAdjudicator Lite + Semantic Verdict Fix
+- `PR-7`: Final Selection Gates + Output Adapter + Gate Diagnostics
 
 Hard acceptance:
 
@@ -46,10 +46,10 @@ Role:
 
 Member B is responsible for:
 
-- `Stage8A-Impl-2`: SourceRanker Metadata Propagation + Candidate Envelope Compatibility
-- `Stage8A-Impl-3`: Entity Resolver + Multi-source Merge
-- `Stage8A-Impl-5`: Market Validation Before Final Selection
-- partial `Stage8A-Impl-8`: Lifecycle/Fatigue + Direction + Cross-news + Crowding
+- `PR-2`: SourceRanker Metadata Propagation + Candidate Envelope Compatibility
+- `PR-3`: Entity Resolver + Multi-source Merge
+- `PR-5`: Market Validation Before Final Selection
+- partial `PR-8`: Lifecycle/Fatigue + Direction + Cross-news + Crowding
 
 Hard acceptance:
 
@@ -107,11 +107,11 @@ Phase 0:
 
 Phase 1:
 
-- Stage8A-Impl-1 through Stage8A-Impl-4
+- PR-1, PR-2, and PR-3
 
 Phase 2:
 
-- Stage8A-Impl-5 through Stage8A-Impl-8
+- PR-5, PR-6, PR-7, and PR-8
 
 Phase 2 only begins after the Phase 0 contracts and ownership rules are approved.
 

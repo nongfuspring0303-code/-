@@ -110,6 +110,48 @@ class FullWorkflowRunner:
                         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     @staticmethod
+    def _coerce_bool(value: Any, default: bool) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        text = str(value).strip().lower()
+        if text in {"true", "1", "yes", "y", "on"}:
+            return True
+        if text in {"false", "0", "no", "n", "off"}:
+            return False
+        return default
+
+    def _load_feature_flags(self) -> Dict[str, bool]:
+        """Load v2.2 feature flags from config single source.
+
+        Missing/invalid config degrades safely to implementation defaults and
+        never enables legacy replacement in Impl-1.
+        """
+        defaults = {
+            "enable_v5_shadow_output": True,
+            "enable_replace_legacy_output": False,
+            "enable_conduction_split": True,
+            "enable_semantic_prepass": True,
+        }
+        cfg_path = ROOT / "configs" / "feature_flags_v22.yaml"
+        try:
+            raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            flags = raw.get("flags", {}) if isinstance(raw, dict) else {}
+            if not isinstance(flags, dict):
+                return dict(defaults)
+            resolved: Dict[str, bool] = {}
+            for key, dft in defaults.items():
+                entry = flags.get(key, {})
+                value = entry.get("default") if isinstance(entry, dict) else None
+                resolved[key] = self._coerce_bool(value, dft)
+            return resolved
+        except (OSError, yaml.YAMLError):
+            return dict(defaults)
+
+    @staticmethod
     def _utc_now() -> str:
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -720,7 +762,8 @@ class FullWorkflowRunner:
             if isinstance(item, dict) and str(item.get("symbol", "")).strip()
         ]
         return {
-            "shadow_final_recommended_stocks": shadow_final_recommended,
+            # Phase-0 freeze: only conduction_final_selection may emit this interface.
+            "final_recommended_stocks": shadow_final_recommended,
             "shadow_only": bool(enable_v5_shadow_output and not enable_replace_legacy_output),
             "selection_mode": "shadow_passthrough_impl1",
             "decision_reason": "impl1_shadow_passthrough",
@@ -835,8 +878,24 @@ class FullWorkflowRunner:
         }
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        # Stage8A-Impl-1 hard boundary: shadow-only is mandatory.
-        enable_v5_shadow_output = True
+        # Stage8A-Impl-1 boundary:
+        # - flags can independently disable risky modules for rollback drills
+        # - legacy replacement remains hard-blocked in Impl-1
+        loaded_flags = self._load_feature_flags()
+        enable_v5_shadow_output = bool(loaded_flags.get("enable_v5_shadow_output", True))
+        enable_semantic_prepass = self._coerce_bool(
+            payload.get("enable_semantic_prepass"),
+            loaded_flags.get("enable_semantic_prepass", True),
+        )
+        enable_conduction_split = self._coerce_bool(
+            payload.get("enable_conduction_split"),
+            loaded_flags.get("enable_conduction_split", True),
+        )
+        requested_replace_legacy = self._coerce_bool(
+            payload.get("enable_replace_legacy_output"),
+            loaded_flags.get("enable_replace_legacy_output", False),
+        )
+        # Impl-1 never allows legacy replacement.
         enable_replace_legacy_output = False
 
         intel_out = self.intel.run(payload)
@@ -937,30 +996,68 @@ class FullWorkflowRunner:
         )
 
         semantic_out = self.semantic.analyze(event_object["headline"], payload.get("summary", event_object["headline"]))
-        semantic_prepass = self._build_semantic_prepass_contract(
-            semantic_out=semantic_out,
-            headline=event_object.get("headline", ""),
-        )
-        self._log_pipeline_stage(
-            trace_id=trace_id,
-            event_id=event_id,
-            request_id=request_id,
-            batch_id=batch_id,
-            event_hash=event_hash,
-            stage_seq=4,
-            stage="semantic_prepass",
-            status="success",
-            details={
-                "route_type": semantic_prepass.get("route_type"),
-                "semantic_confidence": semantic_prepass.get("semantic_confidence"),
-            },
-        )
+        if enable_semantic_prepass:
+            semantic_prepass = self._build_semantic_prepass_contract(
+                semantic_out=semantic_out,
+                headline=event_object.get("headline", ""),
+            )
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=4,
+                stage="semantic_prepass",
+                status="success",
+                details={
+                    "route_type": semantic_prepass.get("route_type"),
+                    "semantic_confidence": semantic_prepass.get("semantic_confidence"),
+                },
+            )
+        else:
+            semantic_prepass = {
+                "route_type": "unknown",
+                "event_type": "unknown",
+                "event_direction": "neutral",
+                "anchor_entities": [],
+                "semantic_confidence": 0.0,
+                "market_hint": "UNKNOWN",
+                "needs_full_semantic": True,
+                "prepass_latency_ms": 0,
+                "status": "disabled",
+            }
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=4,
+                stage="semantic_prepass",
+                status="skipped",
+                details={"reason": "feature_flag_disabled"},
+            )
 
-        conduction_candidate_generation_out = self._run_conduction_candidate_generation(
-            event_object=event_object,
-            payload=payload,
-            lifecycle_out=lifecycle_out,
-        )
+        if enable_conduction_split:
+            conduction_candidate_generation_out = self._run_conduction_candidate_generation(
+                event_object=event_object,
+                payload=payload,
+                lifecycle_out=lifecycle_out,
+            )
+        else:
+            conduction_candidate_generation_out = self.conduction.run(
+                {
+                    "event_id": event_object["event_id"],
+                    "category": event_object["category"],
+                    "severity": event_object["severity"],
+                    "headline": event_object["headline"],
+                    "summary": payload.get("summary", event_object["headline"]),
+                    "lifecycle_state": lifecycle_out["lifecycle_state"],
+                    "narrative_tags": payload.get("narrative_tags", ["macro_event"]),
+                    "policy_intervention": payload.get("policy_intervention", "NONE"),
+                }
+            ).data
         conduction_out = conduction_candidate_generation_out
         self._log_pipeline_stage(
             trace_id=trace_id,
@@ -1120,7 +1217,7 @@ class FullWorkflowRunner:
             status="success",
             details={
                 "shadow_only": conduction_final_selection_out.get("shadow_only"),
-                "final_count": len(conduction_final_selection_out.get("shadow_final_recommended_stocks", [])),
+                "final_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
             },
         )
 
@@ -1170,21 +1267,25 @@ class FullWorkflowRunner:
                 "shadow_only": bool(conduction_final_selection_out.get("shadow_only", True)),
                 "selection_mode": str(conduction_final_selection_out.get("selection_mode", "shadow_passthrough_impl1")),
                 "decision_reason": str(conduction_final_selection_out.get("decision_reason", "impl1_shadow_passthrough")),
+                "final_recommended_stocks": list(conduction_final_selection_out.get("final_recommended_stocks", [])),
             },
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
                 "enable_replace_legacy_output": enable_replace_legacy_output,
+                "enable_semantic_prepass": enable_semantic_prepass,
+                "enable_conduction_split": enable_conduction_split,
+                "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [
                     str(item.get("symbol")).strip().upper()
                     for item in conduction_out.get("stock_candidates", [])
                     if isinstance(item, dict) and str(item.get("symbol", "")).strip()
                 ],
-                "v5_shadow_final_recommended_stocks": list(conduction_final_selection_out.get("shadow_final_recommended_stocks", [])),
+                "v5_shadow_final_recommended_stocks": list(conduction_final_selection_out.get("final_recommended_stocks", [])),
                 "old_vs_v5_shadow_diff": {
                     "legacy_count": len(conduction_out.get("stock_candidates", [])),
-                    "v5_shadow_count": len(conduction_final_selection_out.get("shadow_final_recommended_stocks", [])),
+                    "v5_shadow_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
                 },
             },
             "lifecycle_fatigue_contract": {

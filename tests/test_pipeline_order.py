@@ -191,8 +191,7 @@ def test_pipeline_order_semantic_prepass_before_final_selection(tmp_path: Path) 
     assert analysis["v5_shadow"]["enable_v5_shadow_output"] is True
     assert analysis["v5_shadow"]["enable_replace_legacy_output"] is False
     assert analysis["v5_shadow"]["comparison_status"] == "observe_only"
-    assert "final_recommended_stocks" not in analysis["conduction_final_selection"]
-    assert "shadow_final_recommended_stocks" not in analysis["conduction_final_selection"]
+    assert isinstance(analysis["conduction_final_selection"]["final_recommended_stocks"], list)
     assert isinstance(analysis["v5_shadow"]["v5_shadow_final_recommended_stocks"], list)
 
 
@@ -209,4 +208,21 @@ def test_impl1_shadow_boundary_ignores_replace_legacy_payload(tmp_path: Path) ->
     shadow = out["analysis"]["v5_shadow"]
     assert shadow["enable_v5_shadow_output"] is True
     assert shadow["enable_replace_legacy_output"] is False
+    assert shadow["replace_legacy_requested"] is True
     assert shadow["comparison_status"] == "observe_only"
+
+
+def test_impl1_flags_can_disable_semantic_prepass_and_conduction_split(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    out = runner.run(
+        {
+            "headline": "QCOM up 5%",
+            "enable_semantic_prepass": False,
+            "enable_conduction_split": False,
+        }
+    )
+
+    analysis = out["analysis"]
+    assert analysis["v5_shadow"]["enable_semantic_prepass"] is False
+    assert analysis["v5_shadow"]["enable_conduction_split"] is False
+    assert analysis["semantic_prepass"]["status"] == "disabled"

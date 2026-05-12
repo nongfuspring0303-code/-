@@ -117,6 +117,87 @@ jobs:
           python scripts/verify_direction_consistency.py --min-rate 0.85
           python scripts/verify_mapping_quality.py --min-family-coverage 1.0 --min-precision 0.9
 
+      # ── Stage 8-A contract matrix CI gates ──
+      - name: pipeline-order-contract
+        run: |
+          if [ -f tests/test_pipeline_order.py ] && [ -f tests/test_semantic_prepass_contract.py ]; then
+            python -m pytest tests/test_pipeline_order.py tests/test_semantic_prepass_contract.py -q
+          else
+            echo "[SKIP] pipeline-order / prepass-contract tests not yet added (Stage8A-Impl-1 pending)"
+          fi
+
+      - name: candidate-envelope-contract
+        run: |
+          if [ -f tests/test_candidate_envelope.py ]; then
+            python -m pytest tests/test_candidate_envelope.py -q
+          else
+            echo "[SKIP] tests/test_candidate_envelope.py not yet added (Stage8A-Impl-2 pending)"
+          fi
+
+      - name: resolver-merge-contract
+        run: |
+          if [ -f tests/test_entity_resolver.py ] && [ -f tests/test_candidate_merge.py ]; then
+            python -m pytest tests/test_entity_resolver.py tests/test_candidate_merge.py -q
+          else
+            echo "[SKIP] resolver/merge tests not yet added (Stage8A-Impl-3 pending)"
+          fi
+
+      - name: semantic-full-peer-contract
+        run: |
+          if [ -f tests/test_semantic_full_peer_expansion.py ]; then
+            python -m pytest tests/test_semantic_full_peer_expansion.py -q
+          else
+            echo "[SKIP] semantic-full-peer tests not yet added (Stage8A-Impl-4 pending)"
+          fi
+
+      - name: market-validation-contract
+        run: |
+          if [ -f tests/test_market_validation.py ]; then
+            python -m pytest tests/test_market_validation.py -q
+          else
+            echo "[SKIP] market-validation tests not yet added (Stage8A-Impl-5 pending)"
+          fi
+
+      - name: routing-authority-contract
+        run: |
+          if [ -f tests/test_path_adjudicator.py ] && [ -f tests/test_semantic_override.py ] && [ -f tests/test_semantic_verdict.py ]; then
+            python -m pytest tests/test_path_adjudicator.py tests/test_semantic_override.py tests/test_semantic_verdict.py -q
+          else
+            echo "[SKIP] routing-authority tests not yet added (Stage8A-Impl-6 pending)"
+          fi
+
+      - name: output-adapter-contract
+        run: |
+          if [ -f tests/test_output_adapter.py ] && [ -f tests/test_gate_diagnostics.py ]; then
+            python -m pytest tests/test_output_adapter.py tests/test_gate_diagnostics.py -q
+          else
+            echo "[SKIP] output-adapter tests not yet added (Stage8A-Impl-7 pending)"
+          fi
+
+      - name: advanced-gates-contract
+        run: |
+          if [ -f tests/test_lifecycle_fatigue_gate.py ] && [ -f tests/test_cross_news_conflict.py ] && [ -f tests/test_crowding_discount.py ]; then
+            python -m pytest tests/test_lifecycle_fatigue_gate.py tests/test_cross_news_conflict.py tests/test_crowding_discount.py -q
+          else
+            echo "[SKIP] advanced-gates tests not yet added (Stage8A-Impl-8 pending)"
+          fi
+
+      - name: threshold-config-contract
+        run: |
+          python -m pytest tests/test_threshold_config.py -q
+
+      - name: compatibility-exit-contract
+        run: |
+          if [ -f tests/test_compatibility_exit.py ]; then
+            python -m pytest tests/test_compatibility_exit.py -q
+          else
+            echo "[SKIP] compatibility-exit tests not yet added"
+          fi
+
+      - name: ci-workflow-step-contract
+        run: |
+          python -m pytest tests/test_ci_workflow_steps.py -q
+
       - name: Run canary source health gate
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |

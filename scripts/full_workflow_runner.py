@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
@@ -135,6 +136,8 @@ class FullWorkflowRunner:
             "enable_replace_legacy_output": False,
             "enable_conduction_split": True,
             "enable_semantic_prepass": True,
+            "enable_source_metadata_propagation": False,
+            "enable_candidate_envelope": False,
         }
         cfg_path = ROOT / "configs" / "feature_flags_v22.yaml"
         try:
@@ -727,6 +730,178 @@ class FullWorkflowRunner:
             "prepass_latency_ms": 0,
         }
 
+    @staticmethod
+    def _candidate_role(candidate: Dict[str, Any]) -> str:
+        source = str(candidate.get("source", "")).strip().lower()
+        if source in {"semantic", "semantic_analyzer"}:
+            return "semantic"
+        if source in {"config"}:
+            return "template"
+        if source in {"tier1_ticker_pool"}:
+            return "ticker_pool"
+        if source in {"pool_fallback"}:
+            return "fallback"
+        if source:
+            return source
+        if str(candidate.get("sector_score_source", "")).strip():
+            return str(candidate.get("sector_score_source"))
+        return "unknown"
+
+    @staticmethod
+    def _candidate_relation(candidate: Dict[str, Any]) -> str:
+        if bool(candidate.get("whether_direct_ticker_mentioned", False)):
+            return "anchor"
+        source = str(candidate.get("source", "")).strip().lower()
+        if source in {"semantic", "semantic_analyzer"}:
+            return "peer"
+        if source in {"config"}:
+            return "template"
+        if source in {"tier1_ticker_pool"}:
+            return "ticker_pool"
+        if source in {"pool_fallback"}:
+            return "fallback"
+        return "derived"
+
+    def _propagate_candidate_metadata(
+        self,
+        candidate_generation_out: Dict[str, Any],
+        *,
+        trace_id: str,
+        event_id: str,
+        source_rank: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Attach source metadata to candidate generation output without changing legacy behavior."""
+        out = deepcopy(candidate_generation_out)
+        mapping_source = str(out.get("mapping_source") or "conduction_candidate_generation")
+        source_rank_rank = str(source_rank.get("rank", "unknown") or "unknown")
+        source_rank_confidence = source_rank.get("confidence")
+        if source_rank_confidence is None:
+            source_rank_confidence = source_rank.get("rank_confidence")
+        for cand in out.get("stock_candidates", []):
+            if not isinstance(cand, dict):
+                continue
+            cand.setdefault("event_id", event_id)
+            cand.setdefault("trace_id", trace_id)
+            cand.setdefault("candidate_origin", mapping_source)
+            cand.setdefault("role", self._candidate_role(cand))
+            cand.setdefault("relation", self._candidate_relation(cand))
+            cand.setdefault("source_rank", source_rank_rank)
+            if source_rank_confidence is not None:
+                cand.setdefault("source_rank_confidence", source_rank_confidence)
+            cand.setdefault("source_metadata_status", "propagated")
+        out["candidate_origin"] = mapping_source
+        out["event_id"] = event_id
+        out["trace_id"] = trace_id
+        out["source_rank"] = dict(source_rank)
+        out["source_metadata_status"] = "propagated"
+        return out
+
+    def _build_candidate_envelope_surface(
+        self,
+        candidate_generation_out: Dict[str, Any],
+        *,
+        trace_id: str,
+        event_id: str,
+        source_rank: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Create a shadow-only CandidateEnvelope compatibility surface."""
+        stock_candidates = candidate_generation_out.get("stock_candidates", [])
+        mapping_source = str(candidate_generation_out.get("mapping_source") or "conduction_candidate_generation")
+        source_rank_rank = str(source_rank.get("rank", "unknown") or "unknown")
+        source_rank_confidence = source_rank.get("confidence")
+        if source_rank_confidence is None:
+            source_rank_confidence = source_rank.get("rank_confidence")
+
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+        rejected: List[Dict[str, Any]] = []
+        for cand in stock_candidates if isinstance(stock_candidates, list) else []:
+            if not isinstance(cand, dict):
+                continue
+            symbol = str(cand.get("symbol", "")).strip().upper()
+            source = str(cand.get("source", "")).strip()
+            role = str(cand.get("role") or self._candidate_role(cand)).strip()
+            relation = str(cand.get("relation") or self._candidate_relation(cand)).strip()
+            provenance_entry = {
+                "symbol": symbol,
+                "source": source or "unknown",
+                "role": role or "unknown",
+                "relation": relation or "derived",
+                "event_id": str(cand.get("event_id") or event_id),
+                "candidate_origin": str(cand.get("candidate_origin") or mapping_source),
+                "source_rank": str(cand.get("source_rank") or source_rank_rank),
+                "source_rank_confidence": cand.get("source_rank_confidence", source_rank_confidence),
+            }
+            if not symbol:
+                rejected.append(
+                    {
+                        "symbol": "",
+                        "status": "rejected",
+                        "source": provenance_entry["source"],
+                        "role": provenance_entry["role"],
+                        "relation": provenance_entry["relation"],
+                        "event_id": provenance_entry["event_id"],
+                        "candidate_origin": provenance_entry["candidate_origin"],
+                        "source_rank": provenance_entry["source_rank"],
+                        "source_rank_confidence": provenance_entry["source_rank_confidence"],
+                        "reject_reason": "missing_symbol",
+                        "downgrade_reason": None,
+                        "provenance": [provenance_entry],
+                        "compatibility_surface": "candidate_envelope",
+                    }
+                )
+                continue
+            grouped.setdefault(symbol, []).append(provenance_entry)
+
+        envelopes: List[Dict[str, Any]] = []
+        for symbol, provenance_list in grouped.items():
+            primary = provenance_list[0]
+            source = str(primary.get("source", "")).strip() or "unknown"
+            role = str(primary.get("role", "")).strip() or "unknown"
+            relation = str(primary.get("relation", "")).strip() or "derived"
+            event_id_value = str(primary.get("event_id") or event_id).strip() or event_id
+            candidate_origin = str(primary.get("candidate_origin") or mapping_source).strip() or mapping_source
+            status = "candidate"
+            reject_reason = None
+            downgrade_reason = None
+
+            if source == "unknown" or not event_id_value:
+                status = "rejected"
+                reject_reason = "missing_critical_provenance"
+            elif any(p.get("source", "unknown") == "unknown" for p in provenance_list) or any(
+                not str(p.get("relation", "")).strip() for p in provenance_list
+            ):
+                status = "downgraded"
+                downgrade_reason = "partial_provenance"
+
+            envelopes.append(
+                {
+                    "symbol": symbol,
+                    "source": source,
+                    "role": role,
+                    "relation": relation,
+                    "event_id": event_id_value,
+                    "candidate_origin": candidate_origin,
+                    "source_rank": primary.get("source_rank", source_rank_rank),
+                    "source_rank_confidence": primary.get("source_rank_confidence", source_rank_confidence),
+                    "status": status,
+                    "reject_reason": reject_reason,
+                    "downgrade_reason": downgrade_reason,
+                    "provenance": provenance_list,
+                    "compatibility_surface": "candidate_envelope",
+                }
+            )
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "candidate_envelope",
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "candidate_origin": mapping_source,
+            "source_rank": dict(source_rank),
+            "candidate_count": len(envelopes) + len(rejected),
+            "envelopes": envelopes + rejected,
+        }
+
     def _run_conduction_candidate_generation(
         self,
         *,
@@ -883,6 +1058,8 @@ class FullWorkflowRunner:
         # - legacy replacement remains hard-blocked in Impl-1
         loaded_flags = self._load_feature_flags()
         enable_v5_shadow_output = bool(loaded_flags.get("enable_v5_shadow_output", True))
+        enable_source_metadata_propagation = bool(loaded_flags.get("enable_source_metadata_propagation", False))
+        enable_candidate_envelope = bool(loaded_flags.get("enable_candidate_envelope", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -1066,6 +1243,23 @@ class FullWorkflowRunner:
                     "policy_intervention": payload.get("policy_intervention", "NONE"),
                 }
             ).data
+        if enable_source_metadata_propagation:
+            conduction_candidate_generation_out = self._propagate_candidate_metadata(
+                conduction_candidate_generation_out,
+                trace_id=trace_id,
+                event_id=event_id,
+                source_rank=source_rank,
+            )
+        candidate_envelope_out = (
+            self._build_candidate_envelope_surface(
+                conduction_candidate_generation_out,
+                trace_id=trace_id,
+                event_id=event_id,
+                source_rank=source_rank,
+            )
+            if enable_candidate_envelope
+            else None
+        )
         conduction_out = conduction_candidate_generation_out
         self._log_pipeline_stage(
             trace_id=trace_id,
@@ -1277,12 +1471,15 @@ class FullWorkflowRunner:
                 "decision_reason": str(conduction_final_selection_out.get("decision_reason", "impl1_shadow_passthrough")),
                 "final_recommended_stocks": list(conduction_final_selection_out.get("final_recommended_stocks", [])),
             },
+            **({"candidate_envelope": candidate_envelope_out} if candidate_envelope_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
                 "enable_replace_legacy_output": enable_replace_legacy_output,
                 "enable_semantic_prepass": enable_semantic_prepass,
                 "enable_conduction_split": enable_conduction_split,
+                "enable_source_metadata_propagation": enable_source_metadata_propagation,
+                "enable_candidate_envelope": enable_candidate_envelope,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

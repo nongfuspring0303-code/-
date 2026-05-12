@@ -104,7 +104,7 @@ def test_candidate_envelope_contract_binds_both_required_tests():
 
 
 def test_resolver_merge_contract_binds_required_tests():
-    """PR-3 CI gate must pre-bind both resolver and candidate-merge test files."""
+    """PR-3 CI gate must allow resolver and merge tests to land independently."""
     workflow = _load_workflow()
     steps = _workflow_steps_by_name(workflow)
     step = steps.get("resolver-merge-contract")
@@ -117,6 +117,15 @@ def test_resolver_merge_contract_binds_required_tests():
     assert "tests/test_candidate_merge.py" in run_cmd, (
         "resolver-merge-contract must reference tests/test_candidate_merge.py"
     )
-    assert "[SKIP] resolver/merge tests not yet added" in run_cmd, (
-        "resolver-merge-contract should remain support-only until Member B adds runtime tests"
+    assert 'if [ -f tests/test_entity_resolver.py ]; then' in run_cmd, (
+        "resolver-merge-contract must allow tests/test_entity_resolver.py to run independently"
+    )
+    assert 'if [ -f tests/test_candidate_merge.py ]; then' in run_cmd, (
+        "resolver-merge-contract must allow tests/test_candidate_merge.py to run independently"
+    )
+    assert "[SKIP] entity resolver tests not yet added" in run_cmd, (
+        "resolver-merge-contract should emit an independent entity-resolver skip message"
+    )
+    assert "[SKIP] candidate merge tests not yet added" in run_cmd, (
+        "resolver-merge-contract should emit an independent candidate-merge skip message"
     )

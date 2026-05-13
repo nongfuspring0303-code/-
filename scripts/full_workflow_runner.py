@@ -1150,7 +1150,10 @@ class FullWorkflowRunner:
         return indexed
 
     @staticmethod
-    def _index_peer_market_evidence(payload: Dict[str, Any], validation_out: Dict[str, Any]) -> Dict[tuple[str, str], Dict[str, Any]]:
+    def _index_peer_market_evidence(
+        payload: Dict[str, Any],
+        validation_out: Dict[str, Any],
+    ) -> tuple[Dict[tuple[str, str], Dict[str, Any]], int]:
         """Index peer-level market evidence by anchor/symbol and symbol."""
         indexed: Dict[tuple[str, str], Dict[str, Any]] = {}
 
@@ -1177,7 +1180,8 @@ class FullWorkflowRunner:
                 sources.append(validation_peer_market_data)
             return sources
 
-        for item in _collect_sources():
+        sources = _collect_sources()
+        for item in sources:
             symbol = str(item.get("symbol", "")).strip().upper()
             if not symbol:
                 continue
@@ -1201,7 +1205,7 @@ class FullWorkflowRunner:
                 indexed[pair_key] = evidence
             if symbol_key not in indexed:
                 indexed[symbol_key] = evidence
-        return indexed
+        return indexed, len(sources)
 
     def _build_unified_candidate_pool_surface(
         self,
@@ -1423,7 +1427,7 @@ class FullWorkflowRunner:
         market_data_default_used = bool(validation_out.get("market_data_default_used", False))
         market_data_fallback_used = bool(validation_out.get("market_data_fallback_used", False))
         market_data_blocked = market_data_stale or market_data_default_used or market_data_fallback_used
-        peer_market_evidence_index = self._index_peer_market_evidence(payload, validation_out)
+        peer_market_evidence_index, peer_market_data_count = self._index_peer_market_evidence(payload, validation_out)
 
         validated_peer_candidates: List[Dict[str, Any]] = []
         rejected_peer_candidates: List[Dict[str, Any]] = []
@@ -1632,6 +1636,23 @@ class FullWorkflowRunner:
             "compatibility_surface": "peer_market_validation",
             "compatibility_only": True,
             "source_surface": "semantic_full_peer_expansion",
+            "output_authority": "shadow_only",
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "final_recommendation_allowed": False,
+            "production_authority": False,
+            "release_status": "observe_only",
+            "validated_candidates_are_final": False,
+            "validated_peer_candidates_authority": "shadow_only",
+            "requires_downstream_adjudication": True,
+            "source_contract_required": "semantic_full_peer_expansion.peer_candidates",
+            "market_data_scope": "peer_level",
+            "upstream_market_data_present": market_data_present,
+            "upstream_market_data_stale": market_data_stale,
+            "upstream_market_data_default_used": market_data_default_used,
+            "upstream_market_data_fallback_used": market_data_fallback_used,
+            "peer_market_data_present": bool(peer_market_evidence_index),
+            "peer_market_data_count": peer_market_data_count,
             "validation_mode": "peer_scoped_market_validation",
             "trace_id": trace_id,
             "event_id": event_id,

@@ -239,6 +239,23 @@ def test_peer_market_validation_uses_peer_level_market_evidence(tmp_path: Path) 
     assert surface["compatibility_surface"] == "peer_market_validation"
     assert surface["compatibility_only"] is True
     assert surface["source_surface"] == "semantic_full_peer_expansion"
+    assert surface["output_authority"] == "shadow_only"
+    assert surface["allows_final_selection"] is False
+    assert surface["allows_execution"] is False
+    assert surface["final_recommendation_allowed"] is False
+    assert surface["production_authority"] is False
+    assert surface["release_status"] == "observe_only"
+    assert surface["validated_candidates_are_final"] is False
+    assert surface["validated_peer_candidates_authority"] == "shadow_only"
+    assert surface["requires_downstream_adjudication"] is True
+    assert surface["source_contract_required"] == "semantic_full_peer_expansion.peer_candidates"
+    assert surface["market_data_scope"] == "peer_level"
+    assert surface["upstream_market_data_present"] is True
+    assert surface["upstream_market_data_stale"] is False
+    assert surface["upstream_market_data_default_used"] is False
+    assert surface["upstream_market_data_fallback_used"] is False
+    assert surface["peer_market_data_present"] is True
+    assert surface["peer_market_data_count"] == 3
     assert surface["validation_mode"] == "peer_scoped_market_validation"
     assert surface["validated_count"] == 1
     assert surface["rejected_count"] >= 1
@@ -255,6 +272,53 @@ def test_peer_market_validation_uses_peer_level_market_evidence(tmp_path: Path) 
     assert all("market_evidence" in item for item in surface["downgraded_peer_candidates"])
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_peer_market_validation_authority_boundary(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM peers up 5%", "peer_market_data": _peer_market_data()})
+    surface = out["analysis"]["peer_market_validation"]
+
+    assert surface["output_authority"] == "shadow_only"
+    assert surface["allows_final_selection"] is False
+    assert surface["allows_execution"] is False
+    assert surface["final_recommendation_allowed"] is False
+    assert surface["production_authority"] is False
+    assert surface["release_status"] == "observe_only"
+    assert surface["release_status"] != "valid"
+    assert surface["validated_candidates_are_final"] is False
+    assert surface["validated_peer_candidates_authority"] == "shadow_only"
+    assert surface["requires_downstream_adjudication"] is True
+    assert surface["source_contract_required"] == "semantic_full_peer_expansion.peer_candidates"
+
+
+def test_validated_peer_candidates_remain_non_final_shadow_only(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM peers up 5%", "peer_market_data": _peer_market_data()})
+    surface = out["analysis"]["peer_market_validation"]
+
+    assert all(item["is_final"] is False for item in surface["validated_peer_candidates"])
+    assert all(item["non_final"] is True for item in surface["validated_peer_candidates"])
+    validated_symbols = {item["symbol"] for item in surface["validated_peer_candidates"]}
+    assert not validated_symbols.intersection(set(out["analysis"]["conduction_final_selection"]["final_recommended_stocks"]))
+    assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_peer_market_validation_reports_peer_market_data_presence_separately(tmp_path: Path) -> None:
+    with_peer = _runner(tmp_path).run({"headline": "QCOM peers up 5%", "peer_market_data": _peer_market_data()})
+    without_peer = _runner(tmp_path).run({"headline": "QCOM peers up 5%"})
+
+    with_surface = with_peer["analysis"]["peer_market_validation"]
+    without_surface = without_peer["analysis"]["peer_market_validation"]
+
+    assert with_surface["market_data_scope"] == "peer_level"
+    assert with_surface["peer_market_data_present"] is True
+    assert with_surface["peer_market_data_count"] == 3
+    assert with_surface["upstream_market_data_present"] is True
+    assert with_surface["upstream_market_data_present"] != with_surface["peer_market_data_present"] or with_surface["peer_market_data_count"] != 0
+    assert without_surface["peer_market_data_present"] is False
+    assert without_surface["peer_market_data_count"] == 0
+    assert without_surface["upstream_market_data_present"] is True
+    assert without_surface["validated_count"] == 0
+    assert without_surface["rejected_count"] == len(without_surface["rejected_peer_candidates"])
 
 
 def test_peer_market_validation_does_not_classify_by_relation_type_only(tmp_path: Path) -> None:
@@ -275,6 +339,10 @@ def test_missing_peer_market_data_does_not_default_validate(tmp_path: Path) -> N
     surface = out["analysis"]["peer_market_validation"]
 
     assert surface["status"] == "shadow_only"
+    assert surface["market_data_scope"] == "peer_level"
+    assert surface["peer_market_data_present"] is False
+    assert surface["peer_market_data_count"] == 0
+    assert surface["upstream_market_data_present"] is True
     assert surface["validated_count"] == 0
     assert surface["downgraded_count"] == 0
     assert surface["rejected_count"] == len(surface["rejected_peer_candidates"])

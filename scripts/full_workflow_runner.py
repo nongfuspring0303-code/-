@@ -1154,7 +1154,7 @@ class FullWorkflowRunner:
         payload: Dict[str, Any],
         validation_out: Dict[str, Any],
     ) -> tuple[Dict[tuple[str, str], Dict[str, Any]], int]:
-        """Index peer-level market evidence by anchor/symbol and symbol."""
+        """Index peer-level market evidence only by exact anchor/symbol pairs."""
         indexed: Dict[tuple[str, str], Dict[str, Any]] = {}
 
         def _collect_sources() -> List[Dict[str, Any]]:
@@ -1186,6 +1186,8 @@ class FullWorkflowRunner:
             if not symbol:
                 continue
             anchor_symbol = str(item.get("anchor_symbol", "")).strip().upper()
+            if not anchor_symbol:
+                continue
             evidence = {
                 "symbol": symbol,
                 "anchor_symbol": anchor_symbol,
@@ -1200,12 +1202,9 @@ class FullWorkflowRunner:
                 "market_data_fallback_used": bool(item.get("market_data_fallback_used", False)),
             }
             pair_key = (anchor_symbol, symbol)
-            symbol_key = (symbol, "")
             if pair_key not in indexed:
                 indexed[pair_key] = evidence
-            if symbol_key not in indexed:
-                indexed[symbol_key] = evidence
-        return indexed, len(sources)
+        return indexed, len(indexed)
 
     def _build_unified_candidate_pool_surface(
         self,
@@ -1458,7 +1457,7 @@ class FullWorkflowRunner:
             canonical_symbol = str(candidate.get("canonical_symbol", "")).strip().upper() or symbol
             anchor_symbol = str(candidate.get("anchor_symbol", "")).strip().upper()
             relation_evidence = candidate.get("relation_evidence")
-            evidence = peer_market_evidence_index.get((anchor_symbol, symbol)) or peer_market_evidence_index.get((symbol, ""))
+            evidence = peer_market_evidence_index.get((anchor_symbol, symbol))
             if not isinstance(relation_evidence, dict) or not relation_evidence:
                 rejected_peer_candidates.append(
                     {

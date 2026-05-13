@@ -226,6 +226,19 @@ def _peer_market_data():
     ]
 
 
+def _single_anchor_peer_market_data():
+    return [
+        {
+            "symbol": "AVGO",
+            "anchor_symbol": "QCOM",
+            "reaction_status": "fully_reacted",
+            "price_change_pct": 4.2,
+            "volume_change_pct": 9.1,
+            "relative_move": 1.4,
+        }
+    ]
+
+
 def test_peer_market_validation_uses_peer_level_market_evidence(tmp_path: Path) -> None:
     out = _runner(tmp_path).run(
         {
@@ -332,6 +345,23 @@ def test_peer_market_validation_does_not_classify_by_relation_type_only(tmp_path
 
     assert any(item["relation_type"] == "same_sector_peer" and item["validation_reason"] == "lagging_peer" for item in surface["validated_peer_candidates"])
     assert any(item["relation_type"] == "same_sector_peer" and item["validation_reason"] == "fully_reacted" for item in surface["rejected_peer_candidates"])
+
+
+def test_peer_market_validation_does_not_cross_anchor_fallback(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM peers up 5%", "peer_market_data": _single_anchor_peer_market_data()})
+    surface = out["analysis"]["peer_market_validation"]
+
+    rejected = {item["anchor_symbol"]: item for item in surface["rejected_peer_candidates"] if item["symbol"] == "AVGO"}
+
+    assert surface["validated_count"] == 0
+    assert rejected["QCOM"]["validation_reason"] == "fully_reacted"
+    assert rejected["QCOM"]["reject_reason"] == "fully_reacted"
+    assert rejected["AMD"]["validation_reason"] == "missing_peer_market_data"
+    assert rejected["AMD"]["reject_reason"] == "missing_peer_market_data"
+    assert rejected["NVDA"]["validation_reason"] == "missing_peer_market_data"
+    assert rejected["NVDA"]["reject_reason"] == "missing_peer_market_data"
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert out["execution"]["final"]["action"] == "WATCH"
 
 
 def test_missing_peer_market_data_does_not_default_validate(tmp_path: Path) -> None:

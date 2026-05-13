@@ -954,7 +954,12 @@ class FullWorkflowRunner:
         return str(symbol or "").strip().upper()
 
     def _load_entity_alias_registry(self) -> tuple[Dict[str, str], set[str]]:
-        """Load an optional alias registry for deterministic entity normalization."""
+        """Load an optional alias registry for deterministic entity normalization.
+
+        The default path is a deterministic resolver scaffold: strip / uppercase /
+        validity checks only. Any alias-backed resolution must come through this
+        injectable registry and carry its own dedicated tests.
+        """
         return {}, set()
 
     def _build_entity_resolution_surface(
@@ -970,6 +975,16 @@ class FullWorkflowRunner:
         alias_to_canonical, alias_conflicts = self._load_entity_alias_registry()
         alias_to_canonical = dict(alias_to_canonical or {})
         alias_conflicts = set(alias_conflicts or set())
+        envelope_rejections: Dict[str, str] = {}
+        if isinstance(candidate_envelope_out, dict):
+            for item in candidate_envelope_out.get("envelopes", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("status") != "rejected":
+                    continue
+                envelope_symbol = self._normalize_entity_symbol(item.get("symbol"))
+                if envelope_symbol and envelope_symbol not in envelope_rejections:
+                    envelope_rejections[envelope_symbol] = str(item.get("reject_reason") or "rejected")
 
         input_surface = "conduction_candidate_generation"
         raw_entries = list(candidate_generation_out.get("stock_candidates", []) or [])
@@ -1023,6 +1038,9 @@ class FullWorkflowRunner:
                     resolver_status = "not_found"
                     reject_reason = "not_found"
                     canonical_symbol = symbol
+            if symbol in envelope_rejections and resolver_status != "rejected":
+                resolver_status = "rejected"
+                reject_reason = envelope_rejections[symbol]
 
             if cand.get("status") == "rejected" and not reject_reason:
                 resolver_status = "rejected"

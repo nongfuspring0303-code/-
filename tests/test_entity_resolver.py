@@ -357,6 +357,35 @@ def test_entity_resolver_invalid_symbol_rejected_and_flag_off_keeps_legacy_behav
     assert out_off["execution"]["final"]["action"] == "WATCH"
 
 
+def test_entity_resolver_respects_candidate_envelope_rejected_boundary(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        stock_candidates=[
+            {
+                "symbol": "QCOM",
+                "role": "anchor",
+                "relation": "anchor",
+                "event_id": "evt-3",
+                "candidate_origin": "rule",
+            }
+        ],
+        enable_entity_resolver=True,
+        enable_candidate_envelope=True,
+        enable_source_metadata_propagation=True,
+    )
+
+    out = runner.run({"headline": "QCOM headline", "source": "https://example.com/qcom"})
+    entity = out["analysis"]["entity_resolution"]["entries"][0]
+    envelope = next(item for item in out["analysis"]["candidate_envelope"]["envelopes"] if item["symbol"] == "QCOM")
+
+    assert envelope["status"] == "rejected"
+    assert envelope["reject_reason"] == "missing_source"
+    assert entity["resolver_status"] == "rejected"
+    assert entity["reject_reason"] == "missing_source"
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
+    assert out["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == []
+
+
 def test_entity_resolver_ambiguous_alias_conflict(tmp_path: Path) -> None:
     runner = _runner(
         tmp_path,

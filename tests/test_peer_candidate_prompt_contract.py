@@ -204,7 +204,7 @@ def test_relation_source_and_evidence_source_are_consistent(tmp_path: Path) -> N
         assert item["relation_evidence"]["evidence_source"] == item["relation_source"]
 
 
-def test_semantic_guess_without_anchor_is_rejected(tmp_path: Path) -> None:
+def test_semantic_guess_without_upstream_anchor_uses_semantic_fallback_non_authoritative(tmp_path: Path) -> None:
     class _NoAnchorConduction(_FakeConduction):
         def run(self, payload):
             out = super().run(payload)
@@ -215,9 +215,6 @@ def test_semantic_guess_without_anchor_is_rejected(tmp_path: Path) -> None:
     runner.conduction = _NoAnchorConduction()
     out = runner.run({"headline": "QCOM up 5%"})
     surface = out["analysis"]["semantic_full_peer_expansion"]
-    # semantic fallback rows require anchor_symbol; without anchors they must be rejected
-    assert len(surface["peer_candidates"]) == 0
-    assert any(
-        rej.get("reject_reason") == "missing_anchor_symbol"
-        for rej in surface["peer_candidate_rejections"]
-    )
+    # no upstream anchors -> fallback to semantic anchors, still shadow-only/non-final
+    assert surface["anchor_stocks"] == ["QCOM", "AMD", "AVGO"]
+    assert all(item["non_final"] is True and item["is_final"] is False for item in surface["peer_candidates"])

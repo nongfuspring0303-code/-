@@ -1393,7 +1393,7 @@ class FullWorkflowRunner:
         *,
         semantic_out: Dict[str, Any],
         candidate_generation_out: Dict[str, Any],
-        final_recommended_stocks: List[str],
+        anchor_symbols: List[str],
         source_rank: Dict[str, Any],
         trace_id: str,
         event_id: str,
@@ -1404,7 +1404,7 @@ class FullWorkflowRunner:
         It is not a production peer registry, not market validation, and does not
         provide final recommendation authority.
         """
-        anchor_stocks = self._dedupe_ordered_symbols(final_recommended_stocks)
+        anchor_stocks = self._dedupe_ordered_symbols(anchor_symbols)
         semantic_event_type = str(semantic_out.get("event_type", "unknown"))
         semantic_confidence = float(semantic_out.get("confidence", 0.0) or 0.0)
 
@@ -1619,6 +1619,8 @@ class FullWorkflowRunner:
         return {
             "status": "shadow_only",
             "compatibility_surface": "semantic_full_peer_expansion",
+            "compatibility_only": True,
+            "peer_expansion_mode": "deterministic_scaffold_with_semantic_fallback",
             "trace_id": trace_id,
             "event_id": event_id,
             "prompt_contract": {
@@ -1638,7 +1640,64 @@ class FullWorkflowRunner:
             "peer_candidates": peer_candidates,
             "peer_candidate_count": len(peer_candidates),
             "peer_candidate_rejections": peer_candidate_rejections,
+            "candidate_count": len(peer_candidates),
+            "rejected_count": len(peer_candidate_rejections),
+            "downgraded_count": 0,
+            "source_rank": dict(source_rank),
         }
+
+    def _select_peer_anchor_symbols(
+        self,
+        *,
+        unified_candidate_pool_out: Dict[str, Any] | None,
+        entity_resolution_out: Dict[str, Any] | None,
+        candidate_envelope_out: Dict[str, Any] | None,
+        candidate_generation_out: Dict[str, Any],
+        semantic_out: Dict[str, Any],
+    ) -> List[str]:
+        anchors: List[str] = []
+        if isinstance(unified_candidate_pool_out, dict):
+            for item in unified_candidate_pool_out.get("items", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("status", "")).strip() != "candidate":
+                    continue
+                if str(item.get("resolver_status", "")).strip() != "resolved":
+                    continue
+                symbol = str(item.get("canonical_symbol") or item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors and isinstance(entity_resolution_out, dict):
+            for item in entity_resolution_out.get("entries", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("resolver_status", "")).strip() != "resolved":
+                    continue
+                symbol = str(item.get("canonical_symbol") or item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors and isinstance(candidate_envelope_out, dict):
+            for item in candidate_envelope_out.get("envelopes", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("status", "")).strip() != "candidate":
+                    continue
+                symbol = str(item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors:
+            for item in candidate_generation_out.get("stock_candidates", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                symbol = str(item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors and isinstance(semantic_out, dict):
+            for symbol in semantic_out.get("recommended_stocks", []) or []:
+                sym = str(symbol).strip().upper()
+                if sym:
+                    anchors.append(sym)
+        return self._dedupe_ordered_symbols(anchors)
 
     def _build_market_validation_input(self, payload: Dict[str, Any], event_object: Dict[str, Any], conduction_out: Dict[str, Any]) -> Dict[str, Any]:
         raw_price = payload.get("price_changes")
@@ -2127,6 +2186,40 @@ class FullWorkflowRunner:
             details={"primary_path": (path_out.get("primary_path") or {}).get("path_text", "undetermined")},
         )
 
+        peer_anchor_symbols = self._select_peer_anchor_symbols(
+            unified_candidate_pool_out=unified_candidate_pool_out,
+            entity_resolution_out=entity_resolution_out,
+            candidate_envelope_out=candidate_envelope_out,
+            candidate_generation_out=conduction_candidate_generation_out,
+            semantic_out=semantic_out,
+        )
+        semantic_full_peer_expansion_out = (
+            self._build_semantic_full_peer_expansion_surface(
+                semantic_out=semantic_out,
+                candidate_generation_out=conduction_candidate_generation_out,
+                anchor_symbols=peer_anchor_symbols,
+                source_rank=source_rank,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_semantic_full_peer_expansion
+            else None
+        )
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=10,
+            stage="semantic_full_peer_expansion",
+            status="success" if semantic_full_peer_expansion_out is not None else "skipped",
+            details={
+                "anchor_count": len(peer_anchor_symbols),
+                "peer_count": len((semantic_full_peer_expansion_out or {}).get("peer_candidates", [])),
+            },
+        )
+
         conduction_final_selection_out = self._run_conduction_final_selection(
             candidate_generation_out=conduction_candidate_generation_out,
             enable_v5_shadow_output=enable_v5_shadow_output,
@@ -2150,25 +2243,13 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=10,
+            stage_seq=11,
             stage="conduction_final_selection",
             status="success",
             details={
                 "shadow_only": conduction_final_selection_out.get("shadow_only"),
                 "final_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
             },
-        )
-        semantic_full_peer_expansion_out = (
-            self._build_semantic_full_peer_expansion_surface(
-                semantic_out=semantic_out,
-                candidate_generation_out=conduction_candidate_generation_out,
-                final_recommended_stocks=list(conduction_final_selection_out.get("final_recommended_stocks", [])),
-                source_rank=source_rank,
-                trace_id=trace_id,
-                event_id=event_id,
-            )
-            if enable_semantic_full_peer_expansion
-            else None
         )
 
         signal_out = self.scorer.run(
@@ -2197,7 +2278,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=11,
+            stage_seq=12,
             stage="signal",
             status="success",
             details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from edt_module_base import ModuleStatus
@@ -232,3 +233,44 @@ def test_peer_candidates_never_enter_final_recommended_stocks(tmp_path: Path) ->
     finals = set(analysis["conduction_final_selection"]["final_recommended_stocks"])
     peer_symbols = {item["symbol"] for item in analysis["semantic_full_peer_expansion"]["peer_candidates"]}
     assert finals.isdisjoint(peer_symbols)
+
+
+def test_semantic_full_peer_expansion_does_not_consume_final_recommended_stocks(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    original = runner._run_conduction_final_selection
+
+    def _patched_final_selection(*, candidate_generation_out, enable_v5_shadow_output, enable_replace_legacy_output):
+        out = original(
+            candidate_generation_out=candidate_generation_out,
+            enable_v5_shadow_output=enable_v5_shadow_output,
+            enable_replace_legacy_output=enable_replace_legacy_output,
+        )
+        return {**out, "final_recommended_stocks": []}
+
+    runner._run_conduction_final_selection = _patched_final_selection  # type: ignore[method-assign]
+    out = runner.run({"headline": "QCOM up 5%"})
+    analysis = out["analysis"]
+    surface = analysis["semantic_full_peer_expansion"]
+    # expansion must still anchor from upstream candidate context
+    assert surface["anchor_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert surface["peer_candidate_count"] >= 1
+    # patched final output remains independent and empty
+    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == []
+
+
+def test_semantic_full_peer_expansion_is_pre_final_selection_candidate_surface(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    out = runner.run({"headline": "QCOM up 5%"})
+    analysis = out["analysis"]
+    stages = []
+    for line in (tmp_path / "pipeline_stage.jsonl").read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        stages.append((int(row.get("stage_seq", 0)), row.get("stage")))
+    names = [name for _, name in sorted(stages, key=lambda x: x[0])]
+    assert "semantic_full_peer_expansion" in names
+    assert "conduction_final_selection" in names
+    assert names.index("semantic_full_peer_expansion") < names.index("conduction_final_selection")
+    assert "semantic_full_peer_expansion" in analysis
+    assert "conduction_final_selection" in analysis

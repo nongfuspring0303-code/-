@@ -1394,11 +1394,13 @@ class FullWorkflowRunner:
         semantic_out: Dict[str, Any],
         candidate_generation_out: Dict[str, Any],
         final_recommended_stocks: List[str],
+        source_rank: Dict[str, Any],
         trace_id: str,
         event_id: str,
     ) -> Dict[str, Any]:
         """Build a shadow-only semantic peer expansion surface for Stage8A Impl-4."""
         anchor_stocks = self._dedupe_ordered_symbols(final_recommended_stocks)
+        anchor_symbol = anchor_stocks[0] if anchor_stocks else ""
         semantic_candidates = self._dedupe_ordered_symbols(
             semantic_out.get("recommended_stocks", []) if isinstance(semantic_out, dict) else []
         )
@@ -1417,17 +1419,43 @@ class FullWorkflowRunner:
 
         peer_candidates: List[Dict[str, Any]] = []
         for symbol in peer_symbols:
+            semantic_confidence = float(semantic_out.get("confidence", 0.0) or 0.0)
+            relation_evidence = {
+                "evidence_type": "same_sector_peer",
+                "evidence_value": {
+                    "anchor_symbol": anchor_symbol or symbol,
+                    "peer_symbol": symbol,
+                    "semantic_event_type": str(semantic_out.get("event_type", "unknown")),
+                    "transmission_candidates": list(semantic_out.get("transmission_candidates", []) or []),
+                },
+                "evidence_source": "semantic_full_prompt",
+                "evidence_text": (
+                    f"Peer {symbol} is derived from semantic full expansion anchored on {anchor_symbol or symbol}"
+                ),
+                "confidence": semantic_confidence,
+                "audit_note": "shadow_only_peer_candidate_contract",
+            }
             peer_candidates.append(
                 {
                     "symbol": symbol,
+                    "canonical_symbol": symbol,
+                    "peer_symbol": symbol,
+                    "anchor_symbol": anchor_symbol or symbol,
                     "relation_type": "same_sector_peer",
-                    "relation_evidence": {
-                        "evidence_source": "semantic_full_prompt",
-                        "semantic_event_type": str(semantic_out.get("event_type", "unknown")),
-                        "semantic_confidence": float(semantic_out.get("confidence", 0.0) or 0.0),
-                    },
+                    "relation_evidence": relation_evidence,
+                    "relation_evidence_source": "semantic_full_prompt",
+                    "event_id": event_id,
+                    "trace_id": trace_id,
                     "candidate_origin": "semantic_full_peer_expansion",
+                    "source": "semantic_full_peer_expansion",
+                    "source_rank": dict(source_rank),
+                    "semantic_confidence": semantic_confidence,
+                    "peer_confidence": semantic_confidence,
+                    "resolver_status": "resolved",
                     "status": "candidate",
+                    "reject_reason": None,
+                    "downgrade_reason": None,
+                    "is_final": False,
                     "non_final": True,
                 }
             )
@@ -1439,11 +1467,57 @@ class FullWorkflowRunner:
             "event_id": event_id,
             "prompt_contract": {
                 "schema_version": "stage8a.peer_prompt_contract.v1",
-                "required_output_fields": ["symbol", "relation_type", "relation_evidence"],
+                "required_output_fields": [
+                    "symbol",
+                    "canonical_symbol",
+                    "peer_symbol",
+                    "anchor_symbol",
+                    "relation_type",
+                    "relation_evidence",
+                    "relation_evidence_source",
+                    "event_id",
+                    "trace_id",
+                    "candidate_origin",
+                    "source",
+                    "source_rank",
+                    "semantic_confidence",
+                    "peer_confidence",
+                    "resolver_status",
+                    "status",
+                    "reject_reason",
+                    "downgrade_reason",
+                    "is_final",
+                ],
+                "relation_evidence_required_fields": [
+                    "evidence_type",
+                    "evidence_value",
+                    "evidence_source",
+                    "evidence_text",
+                    "confidence",
+                ],
+                "peer_validation_input_fields": [
+                    "peer_symbol",
+                    "anchor_symbol",
+                    "canonical_symbol",
+                    "relation_type",
+                    "relation_evidence",
+                    "relation_evidence_source",
+                    "semantic_confidence",
+                    "peer_confidence",
+                    "source_rank",
+                    "event_id",
+                    "trace_id",
+                    "candidate_origin",
+                    "status",
+                    "reject_reason",
+                    "downgrade_reason",
+                    "is_final",
+                ],
                 "relation_evidence_required": True,
                 "mode": "shadow_only",
             },
             "anchor_stocks": anchor_stocks,
+            "anchor_symbol": anchor_symbol or None,
             "peer_candidates": peer_candidates,
             "peer_candidate_count": len(peer_candidates),
             "validated_peer_candidates": [],
@@ -1973,6 +2047,7 @@ class FullWorkflowRunner:
                 semantic_out=semantic_out,
                 candidate_generation_out=conduction_candidate_generation_out,
                 final_recommended_stocks=list(conduction_final_selection_out.get("final_recommended_stocks", [])),
+                source_rank=source_rank,
                 trace_id=trace_id,
                 event_id=event_id,
             )

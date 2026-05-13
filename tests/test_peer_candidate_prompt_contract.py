@@ -130,15 +130,92 @@ def test_peer_candidate_prompt_contract_fields_and_evidence(tmp_path: Path) -> N
     assert contract["schema_version"] == "stage8a.peer_prompt_contract.v1"
     assert contract["relation_evidence_required"] is True
     assert contract["mode"] == "shadow_only"
-    assert contract["required_output_fields"] == ["symbol", "relation_type", "relation_evidence"]
+    assert contract["required_output_fields"] == [
+        "symbol",
+        "canonical_symbol",
+        "peer_symbol",
+        "anchor_symbol",
+        "relation_type",
+        "relation_evidence",
+        "relation_evidence_source",
+        "event_id",
+        "trace_id",
+        "candidate_origin",
+        "source",
+        "source_rank",
+        "semantic_confidence",
+        "peer_confidence",
+        "resolver_status",
+        "status",
+        "reject_reason",
+        "downgrade_reason",
+        "is_final",
+    ]
+    assert contract["relation_evidence_required_fields"] == [
+        "evidence_type",
+        "evidence_value",
+        "evidence_source",
+        "evidence_text",
+        "confidence",
+    ]
+    assert contract["peer_validation_input_fields"] == [
+        "peer_symbol",
+        "anchor_symbol",
+        "canonical_symbol",
+        "relation_type",
+        "relation_evidence",
+        "relation_evidence_source",
+        "semantic_confidence",
+        "peer_confidence",
+        "source_rank",
+        "event_id",
+        "trace_id",
+        "candidate_origin",
+        "status",
+        "reject_reason",
+        "downgrade_reason",
+        "is_final",
+    ]
 
     for item in surface["peer_candidates"]:
         assert item["status"] == "candidate"
         assert item["non_final"] is True
         assert isinstance(item["symbol"], str) and item["symbol"]
         assert isinstance(item["relation_type"], str) and item["relation_type"]
+        assert isinstance(item["canonical_symbol"], str) and item["canonical_symbol"]
+        assert isinstance(item["peer_symbol"], str) and item["peer_symbol"]
+        assert isinstance(item["anchor_symbol"], str) and item["anchor_symbol"]
+        assert isinstance(item["event_id"], str) and item["event_id"]
+        assert isinstance(item["trace_id"], str) and item["trace_id"]
+        assert isinstance(item["candidate_origin"], str) and item["candidate_origin"]
+        assert isinstance(item["source"], str) and item["source"]
+        assert isinstance(item["source_rank"], dict)
+        assert isinstance(item["semantic_confidence"], float)
+        assert isinstance(item["peer_confidence"], float)
+        assert item["resolver_status"] == "resolved"
+        assert item["reject_reason"] is None
+        assert item["downgrade_reason"] is None
+        assert item["is_final"] is False
         evidence = item["relation_evidence"]
         assert isinstance(evidence, dict)
+        assert evidence["evidence_type"] == "same_sector_peer"
         assert isinstance(evidence.get("evidence_source"), str) and evidence["evidence_source"]
-        assert "semantic_event_type" in evidence
-        assert "semantic_confidence" in evidence
+        assert isinstance(evidence.get("evidence_value"), dict)
+        assert "semantic_event_type" in evidence["evidence_value"]
+        assert "transmission_candidates" in evidence["evidence_value"]
+        assert "evidence_text" in evidence
+        assert "confidence" in evidence
+
+
+def test_peer_candidate_prompt_contract_flag_off_keeps_surface_absent(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    runner._load_feature_flags = lambda: {
+        "enable_v5_shadow_output": True,
+        "enable_replace_legacy_output": False,
+        "enable_conduction_split": True,
+        "enable_semantic_prepass": True,
+        "enable_semantic_full_peer_expansion": False,
+    }
+
+    out = runner.run({"headline": "QCOM up 5%"})
+    assert "semantic_full_peer_expansion" not in out["analysis"]

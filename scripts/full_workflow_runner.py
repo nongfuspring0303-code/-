@@ -1164,6 +1164,8 @@ class FullWorkflowRunner:
         raw_candidates = list(candidate_generation_out.get("stock_candidates", []) or [])
         entity_resolution_index = self._index_entity_resolution_entries(entity_resolution_out)
         envelope_index = self._index_candidate_envelope_entries(candidate_envelope_out)
+        has_entity_resolution = isinstance(entity_resolution_out, dict) and isinstance(entity_resolution_out.get("entries"), list)
+        effective_multisource_merge = bool(enable_multisource_merge and has_entity_resolution)
 
         records: List[Dict[str, Any]] = []
         for cand in raw_candidates:
@@ -1192,15 +1194,21 @@ class FullWorkflowRunner:
             event_id_value = str(cand.get("event_id") or (provenance_list[0].get("event_id") if provenance_list else event_id) or event_id).strip() or event_id
             candidate_origin = str(cand.get("candidate_origin") or (provenance_list[0].get("candidate_origin") if provenance_list else candidate_generation_out.get("mapping_source") or "conduction_candidate_generation") or "conduction_candidate_generation").strip() or "conduction_candidate_generation"
 
-            entity_resolution_entry = entity_resolution_index.get(symbol, {})
+            entity_resolution_entry = entity_resolution_index.get(symbol, {}) if has_entity_resolution else {}
             envelope_entries = list(envelope_index.get(symbol, []) or [])
-            canonical_symbol = self._normalize_entity_symbol(
-                entity_resolution_entry.get("canonical_symbol") or symbol
-            ) or symbol
-            resolver_status = str(entity_resolution_entry.get("resolver_status") or ("resolved" if symbol else "rejected"))
-            reject_reason = str(entity_resolution_entry.get("reject_reason") or "").strip() or None
+            canonical_symbol = symbol
+            resolver_status = "missing_entity_resolution"
+            reject_reason = None
             downgrade_reason = None
-            status = "candidate"
+            status = "downgraded"
+
+            if has_entity_resolution and entity_resolution_entry:
+                canonical_symbol = self._normalize_entity_symbol(
+                    entity_resolution_entry.get("canonical_symbol") or symbol
+                ) or symbol
+                resolver_status = str(entity_resolution_entry.get("resolver_status") or ("resolved" if symbol else "rejected"))
+                reject_reason = str(entity_resolution_entry.get("reject_reason") or "").strip() or None
+                status = "candidate"
 
             envelope_reject_reason = None
             envelope_downgrade_reason = None
@@ -1228,6 +1236,16 @@ class FullWorkflowRunner:
                 status = "downgraded"
                 downgrade_reason = envelope_downgrade_reason or reject_reason or "partial_provenance"
 
+            if not has_entity_resolution:
+                status = "rejected" if any(status_value == "rejected" for status_value in envelope_statuses) else "downgraded"
+                resolver_status = "rejected" if status == "rejected" else "missing_entity_resolution"
+                if status == "rejected":
+                    reject_reason = envelope_reject_reason or reject_reason or "missing_entity_resolution"
+                    downgrade_reason = None
+                else:
+                    downgrade_reason = "missing_entity_resolution"
+                    reject_reason = None
+
             if status == "candidate" and cand.get("status") == "rejected":
                 status = "rejected"
                 reject_reason = str(cand.get("reject_reason") or "rejected")
@@ -1254,7 +1272,7 @@ class FullWorkflowRunner:
                 }
             )
 
-        if not enable_multisource_merge:
+        if not effective_multisource_merge:
             items = [
                 {
                     **record,

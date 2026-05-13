@@ -390,3 +390,33 @@ def test_candidate_merge_disable_merge_keeps_same_symbol_provenance_separate(tmp
     assert [item["source_list"] for item in pool["items"]] == [["tier1_ticker_pool"], ["config"]]
     assert [item["merge_status"] for item in pool["items"]] == ["unmerged", "unmerged"]
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM"]
+
+
+def test_candidate_merge_missing_entity_resolution_does_not_silently_resolve_or_merge(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        stock_candidates=_qcom_candidates(),
+        enable_unified_candidate_pool=True,
+        enable_multisource_merge=True,
+        enable_entity_resolver=False,
+    )
+
+    out = runner.run({"headline": "QCOM up 5%", "source": "https://www.reuters.com/markets/us/qcom"})
+    analysis = out["analysis"]
+    pool = analysis["unified_candidate_pool"]
+
+    # Without entity_resolution, PR-3C must stay on the safe side of the boundary:
+    # source-specific records remain separate and are explicitly marked non-final.
+    assert pool["item_count"] == 2
+    assert pool["merged_count"] == 0
+    assert pool["rejected_count"] == 0
+    assert pool["downgraded_count"] == 2
+    assert _symbols(pool["items"]) == ["QCOM", "QCOM"]
+    assert [item["merge_status"] for item in pool["items"]] == ["downgraded", "downgraded"]
+    assert [item["status"] for item in pool["items"]] == ["downgraded", "downgraded"]
+    assert [item["resolver_status"] for item in pool["items"]] == ["missing_entity_resolution", "missing_entity_resolution"]
+    assert [item["downgrade_reason"] for item in pool["items"]] == ["missing_entity_resolution", "missing_entity_resolution"]
+    assert [item["source_list"] for item in pool["items"]] == [["tier1_ticker_pool"], ["config"]]
+    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM"]
+    assert analysis["v5_shadow"]["v5_shadow_final_recommended_stocks"] == ["QCOM"]
+    assert out["execution"]["final"]["action"] == "WATCH"

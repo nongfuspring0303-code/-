@@ -232,6 +232,34 @@ def test_feature_flags_impl3_resolver_merge_flags_exist():
     assert not invalid, "Invalid Stage8A Impl-3 feature flag metadata:\n" + "\n".join(invalid)
 
 
+def test_feature_flags_impl4_phase3_flags_exist():
+    """Phase 3 support flags must exist and stay disabled by default until runtime lands."""
+    config_path = os.path.join(REPO_ROOT, "configs", "feature_flags_v22.yaml")
+    with open(config_path) as f:
+        cfg = _yaml.safe_load(f)
+    flags = cfg.get("flags", {})
+
+    required = {
+        "enable_semantic_full_peer_expansion": "member_b",
+        "enable_market_validation_gate": "member_b",
+    }
+    missing = [name for name in required if name not in flags]
+    assert not missing, f"Required Stage8A Phase 3 flags missing from config: {missing}"
+
+    invalid = []
+    for name, owner in required.items():
+        flag = flags.get(name, {})
+        if flag.get("default") is not False:
+            invalid.append(f"{name}.default must be false before Phase 3 runtime lands")
+        if flag.get("owner") != owner:
+            invalid.append(f"{name}.owner must be {owner}")
+        if flag.get("rollback_owner") != owner:
+            invalid.append(f"{name}.rollback_owner must be {owner}")
+        if not str(flag.get("description", "")).strip():
+            invalid.append(f"{name}.description must be non-empty")
+    assert not invalid, "Invalid Stage8A Phase 3 feature flag metadata:\n" + "\n".join(invalid)
+
+
 def test_missing_config_fails_fast():
     """Loading a non-existent config file must raise, not silently skip."""
     missing_path = os.path.join(REPO_ROOT, "configs", "__nonexistent_config_test__.yaml")

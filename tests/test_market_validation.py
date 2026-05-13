@@ -46,7 +46,15 @@ class _FakeLifecycle:
 
 class _FakeFatigue:
     def run(self, payload):
-        return _Obj({"fatigue_final": 10, "fatigue_score": 10, "fatigue_bucket": "low", "watch_mode": False, "a_minus_1_discount_factor": 1.0})
+        return _Obj(
+            {
+                "fatigue_final": 10,
+                "fatigue_score": 10,
+                "fatigue_bucket": "low",
+                "watch_mode": False,
+                "a_minus_1_discount_factor": 1.0,
+            }
+        )
 
 
 class _FakeConduction:
@@ -189,50 +197,132 @@ def _runner(
     return r
 
 
-def test_peer_market_validation_shadow_surface_filters_fully_reacted_and_lagging(tmp_path: Path) -> None:
-    out = _runner(tmp_path).run({"headline": "QCOM peers up 5%"})
-    analysis = out["analysis"]
+def _peer_market_data():
+    return [
+        {
+            "symbol": "AVGO",
+            "anchor_symbol": "QCOM",
+            "reaction_status": "fully_reacted",
+            "price_change_pct": 4.2,
+            "volume_change_pct": 9.1,
+            "relative_move": 1.4,
+        },
+        {
+            "symbol": "AVGO",
+            "anchor_symbol": "AMD",
+            "reaction_status": "lagging",
+            "price_change_pct": 1.6,
+            "volume_change_pct": 2.4,
+            "relative_move": 0.7,
+        },
+        {
+            "symbol": "AVGO",
+            "anchor_symbol": "NVDA",
+            "reaction_status": "insufficient_market_signal",
+            "price_change_pct": 0.2,
+            "volume_change_pct": 0.8,
+            "relative_move": 0.1,
+        },
+    ]
 
-    assert "peer_market_validation" in analysis
-    surface = analysis["peer_market_validation"]
+
+def test_peer_market_validation_uses_peer_level_market_evidence(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run(
+        {
+            "headline": "QCOM peers up 5%",
+            "peer_market_data": _peer_market_data(),
+        }
+    )
+    surface = out["analysis"]["peer_market_validation"]
+
     assert surface["status"] == "shadow_only"
     assert surface["compatibility_surface"] == "peer_market_validation"
     assert surface["compatibility_only"] is True
     assert surface["source_surface"] == "semantic_full_peer_expansion"
     assert surface["validation_mode"] == "peer_scoped_market_validation"
-    assert surface["validated_count"] > 0
-    assert surface["rejected_count"] > 0
-    assert any(item["validation_reason"] == "lagging_peer" for item in surface["validated_peer_candidates"])
+    assert surface["validated_count"] == 1
+    assert surface["rejected_count"] >= 1
+    assert surface["downgraded_count"] == 1
     assert any(item["validation_reason"] == "fully_reacted" for item in surface["rejected_peer_candidates"])
-    assert all(item["is_final"] is False for item in surface["validated_peer_candidates"] + surface["rejected_peer_candidates"])
+    assert any(item["validation_reason"] == "lagging_peer" for item in surface["validated_peer_candidates"])
+    assert any(item["validation_reason"] == "insufficient_market_signal" for item in surface["downgraded_peer_candidates"])
+    assert all(item["is_final"] is False for item in surface["validated_peer_candidates"] + surface["rejected_peer_candidates"] + surface["downgraded_peer_candidates"])
     assert all(item["status"] == "validated" for item in surface["validated_peer_candidates"])
     assert all(item["status"] == "rejected" for item in surface["rejected_peer_candidates"])
-    assert analysis["semantic_full_peer_expansion"]["peer_candidates"]
-    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert all(item["status"] == "downgraded" for item in surface["downgraded_peer_candidates"])
+    assert all("market_evidence" in item for item in surface["validated_peer_candidates"])
+    assert any("market_evidence" in item for item in surface["rejected_peer_candidates"])
+    assert all("market_evidence" in item for item in surface["downgraded_peer_candidates"])
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"
 
 
-def test_peer_market_validation_missing_market_data_does_not_default_validate(tmp_path: Path) -> None:
-    out = _runner(
-        tmp_path,
-        market_data_present=False,
-        market_data_stale=True,
-        market_data_default_used=True,
-        market_data_fallback_used=True,
-    ).run({"headline": "QCOM peers up 5%"})
+def test_peer_market_validation_does_not_classify_by_relation_type_only(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run(
+        {
+            "headline": "QCOM peers up 5%",
+            "peer_market_data": _peer_market_data(),
+        }
+    )
+    surface = out["analysis"]["peer_market_validation"]
+
+    assert any(item["relation_type"] == "same_sector_peer" and item["validation_reason"] == "lagging_peer" for item in surface["validated_peer_candidates"])
+    assert any(item["relation_type"] == "same_sector_peer" and item["validation_reason"] == "fully_reacted" for item in surface["rejected_peer_candidates"])
+
+
+def test_missing_peer_market_data_does_not_default_validate(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM peers up 5%"})
     surface = out["analysis"]["peer_market_validation"]
 
     assert surface["status"] == "shadow_only"
     assert surface["validated_count"] == 0
+    assert surface["downgraded_count"] == 0
     assert surface["rejected_count"] == len(surface["rejected_peer_candidates"])
-    assert all(item["validation_reason"] == "missing_market_data" for item in surface["rejected_peer_candidates"])
-    assert all(item["reject_reason"] == "missing_market_data" for item in surface["rejected_peer_candidates"])
+    assert all(item["validation_reason"] == "missing_peer_market_data" for item in surface["rejected_peer_candidates"])
+    assert all(item["reject_reason"] == "missing_peer_market_data" for item in surface["rejected_peer_candidates"])
     assert all(item["status"] == "rejected" for item in surface["rejected_peer_candidates"])
-    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+
+
+def test_fully_reacted_peer_rejected_from_peer_market_evidence(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM peers up 5%", "peer_market_data": _peer_market_data()})
+    surface = out["analysis"]["peer_market_validation"]
+
+    fully_reacted = [item for item in surface["rejected_peer_candidates"] if item["validation_reason"] == "fully_reacted"]
+    assert fully_reacted
+    assert all(item["reject_reason"] == "fully_reacted" for item in fully_reacted)
+
+
+def test_lagging_peer_validated_from_peer_market_evidence(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM peers up 5%", "peer_market_data": _peer_market_data()})
+    surface = out["analysis"]["peer_market_validation"]
+
+    lagging = [item for item in surface["validated_peer_candidates"] if item["validation_reason"] == "lagging_peer"]
+    assert lagging
+    assert all(item["status"] == "validated" for item in lagging)
+    assert all(item["market_validation_status"] == "validated" for item in lagging)
+
+
+def test_downgraded_peer_not_in_validated_peer_candidates(tmp_path: Path) -> None:
+    out = _runner(
+        tmp_path,
+        market_data_stale=True,
+        market_data_default_used=True,
+        market_data_fallback_used=True,
+    ).run({"headline": "QCOM peers up 5%", "peer_market_data": _peer_market_data()})
+    surface = out["analysis"]["peer_market_validation"]
+
+    assert surface["validated_count"] == 0
+    assert surface["downgraded_count"] > 0
+    assert surface["downgraded_peer_candidates"]
+    assert all(item["status"] == "downgraded" for item in surface["downgraded_peer_candidates"])
+    assert all(item["validation_reason"] == "insufficient_market_signal" for item in surface["downgraded_peer_candidates"])
+    assert all(item["status"] != "validated" for item in surface["downgraded_peer_candidates"])
+    assert all(item["is_final"] is False for item in surface["downgraded_peer_candidates"])
 
 
 def test_peer_market_validation_flag_off_omits_surface(tmp_path: Path) -> None:
-    out = _runner(tmp_path, market_validation_gate=False).run({"headline": "QCOM peers up 5%"})
+    out = _runner(tmp_path, market_validation_gate=False).run({"headline": "QCOM peers up 5%", "peer_market_data": _peer_market_data()})
 
     assert "peer_market_validation" not in out["analysis"]
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert out["execution"]["final"]["action"] == "WATCH"

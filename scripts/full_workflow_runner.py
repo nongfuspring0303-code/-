@@ -956,9 +956,10 @@ class FullWorkflowRunner:
     def _load_entity_alias_registry(self) -> tuple[Dict[str, str], set[str]]:
         """Load an optional alias registry for deterministic entity normalization.
 
-        The default path is a deterministic resolver scaffold: strip / uppercase /
-        validity checks only. Any alias-backed resolution must come through this
-        injectable registry and carry its own dedicated tests.
+        The default runtime registry is empty. The production path here only does
+        strip / uppercase / validity checks. Ambiguous / not_found behavior is
+        registry-backed extension scaffolding, not enabled by default in PR147.
+        Any future registry input path must ship with dedicated config and tests.
         """
         return {}, set()
 

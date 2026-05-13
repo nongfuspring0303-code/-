@@ -386,7 +386,7 @@ def test_entity_resolver_respects_candidate_envelope_rejected_boundary(tmp_path:
     assert out["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == []
 
 
-def test_entity_resolver_ambiguous_alias_conflict(tmp_path: Path) -> None:
+def test_entity_resolver_registry_hook_marks_ambiguous_alias_conflict_non_final(tmp_path: Path) -> None:
     runner = _runner(
         tmp_path,
         stock_candidates=[
@@ -408,6 +408,8 @@ def test_entity_resolver_ambiguous_alias_conflict(tmp_path: Path) -> None:
     out = runner.run({"headline": "Alias conflict headline", "source": "https://example.com/alias"})
     entity = out["analysis"]["entity_resolution"]["entries"][0]
 
+    # This uses an injected alias registry hook; it verifies scaffold behavior,
+    # not the default runtime path.
     assert entity["resolver_status"] == "ambiguous"
     assert entity["reject_reason"] == "ambiguous_identity"
     assert entity["canonical_symbol"] == "ALIASX"
@@ -415,7 +417,7 @@ def test_entity_resolver_ambiguous_alias_conflict(tmp_path: Path) -> None:
     assert out["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == []
 
 
-def test_entity_resolver_not_found_when_registry_has_no_match(tmp_path: Path) -> None:
+def test_entity_resolver_registry_hook_marks_not_found_non_final(tmp_path: Path) -> None:
     runner = _runner(
         tmp_path,
         stock_candidates=[
@@ -437,8 +439,38 @@ def test_entity_resolver_not_found_when_registry_has_no_match(tmp_path: Path) ->
     out = runner.run({"headline": "Unknown symbol headline", "source": "https://example.com/unknown"})
     entity = out["analysis"]["entity_resolution"]["entries"][0]
 
+    # This uses an injected alias registry hook; it verifies scaffold behavior,
+    # not the default runtime path.
     assert entity["resolver_status"] == "not_found"
     assert entity["reject_reason"] == "not_found"
     assert entity["canonical_symbol"] == "UNKNOWNX"
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
     assert out["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == []
+
+
+def test_entity_resolver_default_registry_path_does_not_claim_ambiguous_or_not_found(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        stock_candidates=[
+            {
+                "symbol": "UNKNOWNX",
+                "source": "semantic",
+                "role": "peer",
+                "relation": "peer",
+                "event_id": "evt-3",
+                "candidate_origin": "rule",
+            }
+        ],
+        enable_entity_resolver=True,
+        enable_candidate_envelope=False,
+        enable_source_metadata_propagation=False,
+    )
+
+    out = runner.run({"headline": "Unknown symbol headline", "source": "https://example.com/unknown"})
+    entity = out["analysis"]["entity_resolution"]["entries"][0]
+
+    assert entity["resolver_status"] == "resolved"
+    assert entity["canonical_symbol"] == "UNKNOWNX"
+    assert out["analysis"]["entity_resolution"]["ambiguous_count"] == 0
+    assert out["analysis"]["entity_resolution"]["not_found_count"] == 0
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["UNKNOWNX"]

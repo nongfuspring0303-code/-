@@ -104,3 +104,15 @@ flags:
     owner: member_b
     rollback_owner: member_b
     description: Enable same-ticker multi-source merge with provenance preservation and explicit reject or downgrade states.
+
+  enable_semantic_full_peer_expansion:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable semantic full peer expansion to produce peer candidates with relation evidence in a shadow-only surface.
+
+  enable_market_validation_gate:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable market validation gate for peer candidate filtering before any final recommendation surface.

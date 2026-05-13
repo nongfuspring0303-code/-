@@ -129,3 +129,38 @@ def test_resolver_merge_contract_binds_required_tests():
     assert "[SKIP] candidate merge tests not yet added" in run_cmd, (
         "resolver-merge-contract should emit an independent candidate-merge skip message"
     )
+
+
+def test_semantic_full_peer_contract_binds_required_tests():
+    """Phase 3 semantic peer gate must pre-bind both future PR-4 tests."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("semantic-full-peer-contract")
+
+    assert step, "semantic-full-peer-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_semantic_full_peer_expansion.py" in run_cmd, (
+        "semantic-full-peer-contract must reference tests/test_semantic_full_peer_expansion.py"
+    )
+    assert "tests/test_peer_candidate_prompt_contract.py" in run_cmd, (
+        "semantic-full-peer-contract must reference tests/test_peer_candidate_prompt_contract.py"
+    )
+    assert 'if [ -f tests/test_semantic_full_peer_expansion.py ] && [ -f tests/test_peer_candidate_prompt_contract.py ]; then' in run_cmd, (
+        "semantic-full-peer-contract must require both future PR-4 tests before running"
+    )
+
+
+def test_market_validation_contract_binds_required_test():
+    """Phase 3 market-validation gate must pre-bind the future PR-5 test."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("market-validation-contract")
+
+    assert step, "market-validation-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_market_validation.py" in run_cmd, (
+        "market-validation-contract must reference tests/test_market_validation.py"
+    )
+    assert 'if [ -f tests/test_market_validation.py ]; then' in run_cmd, (
+        "market-validation-contract must remain skip-if-missing until PR-5 lands"
+    )

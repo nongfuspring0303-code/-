@@ -151,8 +151,8 @@ jobs:
 
       - name: semantic-full-peer-contract
         run: |
-          if [ -f tests/test_semantic_full_peer_expansion.py ]; then
-            python -m pytest tests/test_semantic_full_peer_expansion.py -q
+          if [ -f tests/test_semantic_full_peer_expansion.py ] && [ -f tests/test_peer_candidate_prompt_contract.py ]; then
+            python -m pytest tests/test_semantic_full_peer_expansion.py tests/test_peer_candidate_prompt_contract.py -q
           else
             echo "[SKIP] semantic-full-peer tests not yet added (Stage8A-Impl-4 pending)"
           fi

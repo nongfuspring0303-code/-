@@ -139,6 +139,8 @@ class FullWorkflowRunner:
             "enable_source_metadata_propagation": False,
             "enable_candidate_envelope": False,
             "enable_entity_resolver": False,
+            "enable_unified_candidate_pool": False,
+            "enable_multisource_merge": False,
         }
         cfg_path = ROOT / "configs" / "feature_flags_v22.yaml"
         try:
@@ -776,6 +778,18 @@ class FullWorkflowRunner:
         return out
 
     @staticmethod
+    def _dedupe_ordered_text(values: List[Any]) -> List[str]:
+        out: List[str] = []
+        seen: set[str] = set()
+        for value in values:
+            normalized = str(value or "").strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            out.append(normalized)
+        return out
+
+    @staticmethod
     def _candidate_missing_provenance_reason(candidate: Dict[str, Any]) -> str | None:
         if not str(candidate.get("symbol", "")).strip():
             return "missing_symbol"
@@ -1107,6 +1121,231 @@ class FullWorkflowRunner:
                 symbols.append(canonical_symbol)
         return self._dedupe_ordered_symbols(symbols)
 
+    @staticmethod
+    def _index_entity_resolution_entries(entity_resolution_out: Dict[str, Any] | None) -> Dict[str, Dict[str, Any]]:
+        indexed: Dict[str, Dict[str, Any]] = {}
+        if not isinstance(entity_resolution_out, dict):
+            return indexed
+        for item in entity_resolution_out.get("entries", []) or []:
+            if not isinstance(item, dict):
+                continue
+            for key in (item.get("symbol"), item.get("original_symbol"), item.get("canonical_symbol")):
+                normalized = str(key or "").strip().upper()
+                if normalized and normalized not in indexed:
+                    indexed[normalized] = deepcopy(item)
+        return indexed
+
+    @staticmethod
+    def _index_candidate_envelope_entries(candidate_envelope_out: Dict[str, Any] | None) -> Dict[str, List[Dict[str, Any]]]:
+        indexed: Dict[str, List[Dict[str, Any]]] = {}
+        if not isinstance(candidate_envelope_out, dict):
+            return indexed
+        for item in candidate_envelope_out.get("envelopes", []) or []:
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol", "")).strip().upper()
+            if not symbol:
+                continue
+            indexed.setdefault(symbol, []).append(deepcopy(item))
+        return indexed
+
+    def _build_unified_candidate_pool_surface(
+        self,
+        candidate_generation_out: Dict[str, Any],
+        *,
+        candidate_envelope_out: Dict[str, Any] | None,
+        entity_resolution_out: Dict[str, Any] | None,
+        trace_id: str,
+        event_id: str,
+        source_rank: Dict[str, Any],
+        enable_multisource_merge: bool,
+    ) -> Dict[str, Any]:
+        """Create a shadow-only unified candidate pool compatibility surface."""
+        raw_candidates = list(candidate_generation_out.get("stock_candidates", []) or [])
+        entity_resolution_index = self._index_entity_resolution_entries(entity_resolution_out)
+        envelope_index = self._index_candidate_envelope_entries(candidate_envelope_out)
+        has_entity_resolution = isinstance(entity_resolution_out, dict) and isinstance(entity_resolution_out.get("entries"), list)
+        effective_multisource_merge = bool(enable_multisource_merge and has_entity_resolution)
+
+        records: List[Dict[str, Any]] = []
+        for cand in raw_candidates:
+            if not isinstance(cand, dict):
+                continue
+            symbol = self._normalize_entity_symbol(cand.get("symbol"))
+            provenance = cand.get("provenance")
+            if isinstance(provenance, list) and provenance:
+                provenance_list = deepcopy(provenance)
+            else:
+                provenance_list = [
+                    {
+                        "symbol": symbol,
+                        "source": str(cand.get("source", "")).strip() or "unknown",
+                        "role": str(cand.get("role", "")).strip() or "unknown",
+                        "relation": str(cand.get("relation", "")).strip() or "derived",
+                        "event_id": str(cand.get("event_id") or event_id),
+                        "candidate_origin": str(cand.get("candidate_origin") or candidate_generation_out.get("mapping_source") or "conduction_candidate_generation"),
+                        "source_rank": str(cand.get("source_rank") or source_rank.get("rank", "unknown") or "unknown"),
+                    }
+                ]
+
+            source = str(cand.get("source") or (provenance_list[0].get("source") if provenance_list else "") or "").strip() or "unknown"
+            role = str(cand.get("role") or (provenance_list[0].get("role") if provenance_list else "") or "").strip() or "unknown"
+            relation = str(cand.get("relation") or (provenance_list[0].get("relation") if provenance_list else "") or "").strip() or "derived"
+            event_id_value = str(cand.get("event_id") or (provenance_list[0].get("event_id") if provenance_list else event_id) or event_id).strip() or event_id
+            candidate_origin = str(cand.get("candidate_origin") or (provenance_list[0].get("candidate_origin") if provenance_list else candidate_generation_out.get("mapping_source") or "conduction_candidate_generation") or "conduction_candidate_generation").strip() or "conduction_candidate_generation"
+
+            entity_resolution_entry = entity_resolution_index.get(symbol, {}) if has_entity_resolution else {}
+            envelope_entries = list(envelope_index.get(symbol, []) or [])
+            canonical_symbol = symbol
+            resolver_status = "missing_entity_resolution"
+            reject_reason = None
+            downgrade_reason = None
+            status = "downgraded"
+
+            if has_entity_resolution and entity_resolution_entry:
+                canonical_symbol = self._normalize_entity_symbol(
+                    entity_resolution_entry.get("canonical_symbol") or symbol
+                ) or symbol
+                resolver_status = str(entity_resolution_entry.get("resolver_status") or ("resolved" if symbol else "rejected"))
+                reject_reason = str(entity_resolution_entry.get("reject_reason") or "").strip() or None
+                status = "candidate"
+
+            envelope_reject_reason = None
+            envelope_downgrade_reason = None
+            envelope_statuses = [str(item.get("status", "")).strip().lower() for item in envelope_entries]
+            if envelope_entries:
+                envelope_reject_reason = next(
+                    (str(item.get("reject_reason") or "").strip() for item in envelope_entries if str(item.get("reject_reason") or "").strip()),
+                    None,
+                )
+                envelope_downgrade_reason = next(
+                    (str(item.get("downgrade_reason") or "").strip() for item in envelope_entries if str(item.get("downgrade_reason") or "").strip()),
+                    None,
+                )
+
+            if any(status_value == "rejected" for status_value in envelope_statuses):
+                status = "rejected"
+                reject_reason = envelope_reject_reason or reject_reason or "rejected"
+            elif resolver_status == "rejected":
+                status = "rejected"
+                reject_reason = reject_reason or envelope_reject_reason or "rejected"
+            elif resolver_status in {"ambiguous", "not_found"}:
+                status = "downgraded"
+                downgrade_reason = reject_reason or resolver_status
+            elif any(status_value == "downgraded" for status_value in envelope_statuses):
+                status = "downgraded"
+                downgrade_reason = envelope_downgrade_reason or reject_reason or "partial_provenance"
+
+            if not has_entity_resolution:
+                status = "rejected" if any(status_value == "rejected" for status_value in envelope_statuses) else "downgraded"
+                resolver_status = "rejected" if status == "rejected" else "missing_entity_resolution"
+                if status == "rejected":
+                    reject_reason = envelope_reject_reason or reject_reason or "missing_entity_resolution"
+                    downgrade_reason = None
+                else:
+                    downgrade_reason = "missing_entity_resolution"
+                    reject_reason = None
+
+            if status == "candidate" and cand.get("status") == "rejected":
+                status = "rejected"
+                reject_reason = str(cand.get("reject_reason") or "rejected")
+
+            records.append(
+                {
+                    "symbol": symbol,
+                    "canonical_symbol": canonical_symbol,
+                    "source": source,
+                    "role": role,
+                    "relation": relation,
+                    "event_id": event_id_value,
+                    "candidate_origin": candidate_origin,
+                    "source_rank": dict(source_rank),
+                    "provenance": provenance_list,
+                    "resolver_status": resolver_status,
+                    "reject_reason": reject_reason,
+                    "downgrade_reason": downgrade_reason,
+                    "status": status,
+                    "source_list": [source],
+                    "role_list": [role],
+                    "relation_list": [relation],
+                    "event_ids": [event_id_value],
+                }
+            )
+
+        if not effective_multisource_merge:
+            items = [
+                {
+                    **record,
+                    "merge_status": "rejected"
+                    if record["status"] == "rejected"
+                    else "downgraded"
+                    if record["status"] == "downgraded"
+                    else "unmerged",
+                }
+                for record in records
+            ]
+        else:
+            grouped: List[Dict[str, Any]] = []
+            grouped_index: Dict[str, Dict[str, Any]] = {}
+            for record in records:
+                key = str(record.get("canonical_symbol", "")).strip().upper() or str(record.get("symbol", "")).strip().upper()
+                if key not in grouped_index:
+                    merged = deepcopy(record)
+                    grouped_index[key] = merged
+                    grouped.append(merged)
+                    continue
+                merged = grouped_index[key]
+                merged["source_list"].append(record["source"])
+                merged["role_list"].append(record["role"])
+                merged["relation_list"].append(record["relation"])
+                merged["event_ids"].append(record["event_id"])
+                merged["provenance"].extend(deepcopy(record["provenance"]))
+                if merged["candidate_origin"] == "conduction_candidate_generation" and record["candidate_origin"] != "conduction_candidate_generation":
+                    merged["candidate_origin"] = record["candidate_origin"]
+                if merged["resolver_status"] == "resolved" and record["resolver_status"] != "resolved":
+                    merged["resolver_status"] = record["resolver_status"]
+                if merged["status"] == "candidate" and record["status"] != "candidate":
+                    merged["status"] = record["status"]
+                if merged["status"] != "rejected" and record["status"] == "rejected":
+                    merged["status"] = "rejected"
+                    merged["reject_reason"] = record["reject_reason"] or merged.get("reject_reason") or "rejected"
+                elif merged["status"] == "candidate" and record["status"] == "downgraded":
+                    merged["status"] = "downgraded"
+                    merged["downgrade_reason"] = record["downgrade_reason"] or merged.get("downgrade_reason") or "partial_provenance"
+                if record["status"] == "candidate" and merged.get("status") == "candidate":
+                    pass
+                if merged.get("status") == "downgraded" and not merged.get("downgrade_reason") and record.get("downgrade_reason"):
+                    merged["downgrade_reason"] = record["downgrade_reason"]
+                if merged.get("status") == "rejected" and not merged.get("reject_reason") and record.get("reject_reason"):
+                    merged["reject_reason"] = record["reject_reason"]
+
+            items = grouped
+
+        for item in items:
+            item["source_list"] = self._dedupe_ordered_text(item.get("source_list", []))
+            item["role_list"] = self._dedupe_ordered_text(item.get("role_list", []))
+            item["relation_list"] = self._dedupe_ordered_text(item.get("relation_list", []))
+            item["event_ids"] = self._dedupe_ordered_text(item.get("event_ids", []))
+            if item.get("status") == "candidate":
+                item["merge_status"] = "merged" if len(item.get("provenance", [])) > 1 else "unmerged"
+            elif item.get("status") == "downgraded":
+                item["merge_status"] = "downgraded"
+            else:
+                item["merge_status"] = "rejected"
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "unified_candidate_pool",
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "source_rank": dict(source_rank),
+            "item_count": len(items),
+            "merged_count": sum(1 for item in items if item.get("merge_status") == "merged"),
+            "rejected_count": sum(1 for item in items if item.get("status") == "rejected"),
+            "downgraded_count": sum(1 for item in items if item.get("status") == "downgraded"),
+            "items": items,
+        }
+
     def _run_conduction_candidate_generation(
         self,
         *,
@@ -1266,6 +1505,8 @@ class FullWorkflowRunner:
         enable_source_metadata_propagation = bool(loaded_flags.get("enable_source_metadata_propagation", False))
         enable_candidate_envelope = bool(loaded_flags.get("enable_candidate_envelope", False))
         enable_entity_resolver = bool(loaded_flags.get("enable_entity_resolver", False))
+        enable_unified_candidate_pool = bool(loaded_flags.get("enable_unified_candidate_pool", False))
+        enable_multisource_merge = bool(loaded_flags.get("enable_multisource_merge", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -1475,6 +1716,19 @@ class FullWorkflowRunner:
                 source_rank=source_rank,
             )
             if enable_entity_resolver
+            else None
+        )
+        unified_candidate_pool_out = (
+            self._build_unified_candidate_pool_surface(
+                conduction_candidate_generation_out,
+                candidate_envelope_out=candidate_envelope_out,
+                entity_resolution_out=entity_resolution_out,
+                trace_id=trace_id,
+                event_id=event_id,
+                source_rank=source_rank,
+                enable_multisource_merge=enable_multisource_merge,
+            )
+            if enable_unified_candidate_pool
             else None
         )
         conduction_out = conduction_candidate_generation_out
@@ -1702,6 +1956,7 @@ class FullWorkflowRunner:
             },
             **({"candidate_envelope": candidate_envelope_out} if candidate_envelope_out is not None else {}),
             **({"entity_resolution": entity_resolution_out} if entity_resolution_out is not None else {}),
+            **({"unified_candidate_pool": unified_candidate_pool_out} if unified_candidate_pool_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,

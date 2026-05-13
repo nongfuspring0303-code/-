@@ -196,3 +196,21 @@ def test_semantic_full_peer_expansion_shadow_surface(tmp_path: Path) -> None:
         assert item["event_id"] == "evt-4"
     assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_semantic_full_peer_expansion_flag_off_hides_surface(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    runner._load_feature_flags = lambda: {
+        "enable_v5_shadow_output": True,
+        "enable_replace_legacy_output": False,
+        "enable_conduction_split": True,
+        "enable_semantic_prepass": True,
+        "enable_semantic_full_peer_expansion": False,
+    }
+
+    out = runner.run({"headline": "QCOM up 5%"})
+    analysis = out["analysis"]
+
+    assert "semantic_full_peer_expansion" not in analysis
+    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert out["execution"]["final"]["action"] == "WATCH"

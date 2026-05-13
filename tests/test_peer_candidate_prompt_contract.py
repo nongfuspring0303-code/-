@@ -163,3 +163,39 @@ def test_peer_candidate_prompt_contract_fields_and_evidence(tmp_path: Path) -> N
         assert isinstance(evidence.get("evidence_source"), str) and evidence["evidence_source"]
         assert "semantic_event_type" in evidence
         assert "semantic_confidence" in evidence
+
+
+def test_peer_candidate_prompt_contract_rejects_missing_relation_evidence(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    original = runner._build_semantic_full_peer_rows
+
+    def _malformed_rows(**kwargs):
+        rows = original(**kwargs)
+        rows.append(
+            {
+                "symbol": "MISSINGEV",
+                "canonical_symbol": "MISSINGEV",
+                "anchor_symbol": "QCOM",
+                "relation_type": "same_theme_peer",
+                "relation_evidence": {},
+                "relation_source": "test_injected_row",
+                "event_id": "evt-4",
+                "trace_id": "evt-4",
+                "candidate_origin": "semantic_full_peer_expansion",
+                "confidence": 88.0,
+                "status": "candidate",
+                "non_final": True,
+            }
+        )
+        return rows
+
+    runner._build_semantic_full_peer_rows = _malformed_rows
+    out = runner.run({"headline": "QCOM up 5%"})
+    surface = out["analysis"]["semantic_full_peer_expansion"]
+
+    assert all(item["symbol"] != "MISSINGEV" for item in surface["peer_candidates"])
+    rejection = next(item for item in surface["peer_candidate_rejections"] if item["symbol"] == "MISSINGEV")
+    assert rejection["anchor_symbol"] == "QCOM"
+    assert rejection["reject_reason"] == "missing_relation_evidence"
+    assert rejection["rejected_by_prompt_contract"] is True
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]

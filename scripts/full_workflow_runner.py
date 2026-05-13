@@ -1402,79 +1402,15 @@ class FullWorkflowRunner:
         semantic_event_type = str(semantic_out.get("event_type", "unknown"))
         semantic_confidence = float(semantic_out.get("confidence", 0.0) or 0.0)
 
-        # Deterministic scaffold for PR-4. PR-5 will consume this stable surface.
-        peer_map: Dict[str, List[str]] = {
-            "QCOM": ["AVGO", "AMD"],
-            "NVDA": ["AMD", "AVGO", "TSM"],
-            "AMD": ["NVDA", "AVGO"],
-            "TSLA": ["F", "GM", "RIVN"],
-            "XOM": ["CVX", "COP"],
-        }
-
-        semantic_candidates = self._dedupe_ordered_symbols(
-            semantic_out.get("recommended_stocks", []) if isinstance(semantic_out, dict) else []
+        raw_peer_rows = self._build_semantic_full_peer_rows(
+            anchor_stocks=anchor_stocks,
+            semantic_out=semantic_out,
+            candidate_generation_out=candidate_generation_out,
+            semantic_event_type=semantic_event_type,
+            semantic_confidence=semantic_confidence,
+            trace_id=trace_id,
+            event_id=event_id,
         )
-        fallback_candidates = self._dedupe_ordered_symbols(
-            [
-                str(item.get("symbol", "")).strip().upper()
-                for item in candidate_generation_out.get("stock_candidates", [])
-                if isinstance(item, dict) and str(item.get("symbol", "")).strip()
-            ]
-        )
-
-        raw_peer_rows: List[Dict[str, Any]] = []
-        for anchor in anchor_stocks:
-            for peer_symbol in peer_map.get(anchor, []):
-                raw_peer_rows.append(
-                    {
-                        "symbol": peer_symbol,
-                        "canonical_symbol": peer_symbol,
-                        "anchor_symbol": anchor,
-                        "relation_type": "same_sector_peer",
-                        "relation_evidence": {
-                            "anchor_symbol": anchor,
-                            "relation_summary": f"{peer_symbol} is treated as a semiconductor peer related to {anchor} under the same event context.",
-                            "semantic_event_type": semantic_event_type,
-                            "semantic_confidence": semantic_confidence,
-                            "evidence_source": "semantic_full_prompt",
-                        },
-                        "relation_source": "deterministic_peer_map",
-                        "event_id": event_id,
-                        "trace_id": trace_id,
-                        "candidate_origin": "semantic_full_peer_expansion",
-                        "confidence": semantic_confidence,
-                        "status": "candidate",
-                        "non_final": True,
-                    }
-                )
-
-        # Keep semantic signal, but still enforce deterministic contract shape.
-        default_anchor = anchor_stocks[0] if anchor_stocks else ""
-        for symbol in semantic_candidates + fallback_candidates:
-            if not symbol or symbol in anchor_stocks:
-                continue
-            raw_peer_rows.append(
-                {
-                    "symbol": symbol,
-                    "canonical_symbol": symbol,
-                    "anchor_symbol": default_anchor,
-                    "relation_type": "same_theme_peer",
-                    "relation_evidence": {
-                        "anchor_symbol": default_anchor,
-                        "relation_summary": f"{symbol} is treated as a same-theme peer under semantic context.",
-                        "semantic_event_type": semantic_event_type,
-                        "semantic_confidence": semantic_confidence,
-                        "evidence_source": "semantic_full_prompt",
-                    },
-                    "relation_source": "semantic_recommended_stocks",
-                    "event_id": event_id,
-                    "trace_id": trace_id,
-                    "candidate_origin": "semantic_full_peer_expansion",
-                    "confidence": semantic_confidence,
-                    "status": "candidate",
-                    "non_final": True,
-                }
-            )
 
         required_fields = [
             "symbol",
@@ -1561,6 +1497,94 @@ class FullWorkflowRunner:
             "peer_candidate_count": len(peer_candidates),
             "peer_candidate_rejections": peer_candidate_rejections,
         }
+
+    def _build_semantic_full_peer_rows(
+        self,
+        *,
+        anchor_stocks: List[str],
+        semantic_out: Dict[str, Any],
+        candidate_generation_out: Dict[str, Any],
+        semantic_event_type: str,
+        semantic_confidence: float,
+        trace_id: str,
+        event_id: str,
+    ) -> List[Dict[str, Any]]:
+        """Build deterministic raw peer rows before contract validation."""
+        # Deterministic scaffold for PR-4. PR-5 will consume this stable surface.
+        peer_map: Dict[str, List[str]] = {
+            "QCOM": ["AVGO", "AMD"],
+            "NVDA": ["AMD", "AVGO", "TSM"],
+            "AMD": ["NVDA", "AVGO"],
+            "TSLA": ["F", "GM", "RIVN"],
+            "XOM": ["CVX", "COP"],
+        }
+
+        semantic_candidates = self._dedupe_ordered_symbols(
+            semantic_out.get("recommended_stocks", []) if isinstance(semantic_out, dict) else []
+        )
+        fallback_candidates = self._dedupe_ordered_symbols(
+            [
+                str(item.get("symbol", "")).strip().upper()
+                for item in candidate_generation_out.get("stock_candidates", [])
+                if isinstance(item, dict) and str(item.get("symbol", "")).strip()
+            ]
+        )
+
+        raw_peer_rows: List[Dict[str, Any]] = []
+        for anchor in anchor_stocks:
+            for peer_symbol in peer_map.get(anchor, []):
+                raw_peer_rows.append(
+                    {
+                        "symbol": peer_symbol,
+                        "canonical_symbol": peer_symbol,
+                        "anchor_symbol": anchor,
+                        "relation_type": "same_sector_peer",
+                        "relation_evidence": {
+                            "anchor_symbol": anchor,
+                            "relation_summary": f"{peer_symbol} is treated as a semiconductor peer related to {anchor} under the same event context.",
+                            "semantic_event_type": semantic_event_type,
+                            "semantic_confidence": semantic_confidence,
+                            "evidence_source": "semantic_full_prompt",
+                        },
+                        "relation_source": "deterministic_peer_map",
+                        "event_id": event_id,
+                        "trace_id": trace_id,
+                        "candidate_origin": "semantic_full_peer_expansion",
+                        "confidence": semantic_confidence,
+                        "status": "candidate",
+                        "non_final": True,
+                    }
+                )
+
+        # Keep semantic signal, but still enforce deterministic contract shape.
+        default_anchor = anchor_stocks[0] if anchor_stocks else ""
+        for symbol in semantic_candidates + fallback_candidates:
+            if not symbol or symbol in anchor_stocks:
+                continue
+            raw_peer_rows.append(
+                {
+                    "symbol": symbol,
+                    "canonical_symbol": symbol,
+                    "anchor_symbol": default_anchor,
+                    "relation_type": "same_theme_peer",
+                    "relation_evidence": {
+                        "anchor_symbol": default_anchor,
+                        "relation_summary": f"{symbol} is treated as a same-theme peer under semantic context.",
+                        "semantic_event_type": semantic_event_type,
+                        "semantic_confidence": semantic_confidence,
+                        "evidence_source": "semantic_full_prompt",
+                    },
+                    "relation_source": "semantic_recommended_stocks",
+                    "event_id": event_id,
+                    "trace_id": trace_id,
+                    "candidate_origin": "semantic_full_peer_expansion",
+                    "confidence": semantic_confidence,
+                    "status": "candidate",
+                        "non_final": True,
+                    }
+                )
+
+        return raw_peer_rows
 
     def _build_market_validation_input(self, payload: Dict[str, Any], event_object: Dict[str, Any], conduction_out: Dict[str, Any]) -> Dict[str, Any]:
         raw_price = payload.get("price_changes")

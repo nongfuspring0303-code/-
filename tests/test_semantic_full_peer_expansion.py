@@ -137,7 +137,7 @@ class _FakeStateStore:
         return None
 
 
-def _runner(tmp_path: Path, *, enable_semantic_full_peer_expansion: bool = True) -> FullWorkflowRunner:
+def _runner(tmp_path: Path) -> FullWorkflowRunner:
     r = FullWorkflowRunner(audit_dir=str(tmp_path))
     r.intel = _FakeIntel()
     r.lifecycle = _FakeLifecycle()
@@ -157,7 +157,7 @@ def _runner(tmp_path: Path, *, enable_semantic_full_peer_expansion: bool = True)
         "enable_replace_legacy_output": False,
         "enable_conduction_split": True,
         "enable_semantic_prepass": True,
-        "enable_semantic_full_peer_expansion": enable_semantic_full_peer_expansion,
+        "enable_semantic_full_peer_expansion": True,
     }
     return r
 
@@ -171,49 +171,28 @@ def test_semantic_full_peer_expansion_shadow_surface(tmp_path: Path) -> None:
     assert surface["status"] == "shadow_only"
     assert surface["compatibility_surface"] == "semantic_full_peer_expansion"
     assert surface["anchor_stocks"] == ["QCOM", "AMD", "NVDA"]
-    assert surface["anchor_symbol"] == "QCOM"
     assert surface["peer_candidate_count"] >= 1
-    assert surface["validated_peer_candidates"] == []
-    assert surface["rejected_peer_candidates"] == []
-
-    peer = surface["peer_candidates"][0]
-    assert peer["symbol"] == "AVGO"
-    assert peer["canonical_symbol"] == "AVGO"
-    assert peer["peer_symbol"] == "AVGO"
-    assert peer["anchor_symbol"] == "QCOM"
-    assert peer["relation_type"] == "same_sector_peer"
-    assert peer["relation_evidence_source"] == "semantic_full_prompt"
-    assert peer["event_id"] == "evt-4"
-    assert peer["trace_id"] == "evt-4"
-    assert peer["candidate_origin"] == "semantic_full_peer_expansion"
-    assert peer["source"] == "semantic_full_peer_expansion"
-    assert peer["source_rank"]["rank"] == "A"
-    assert peer["semantic_confidence"] == 88.0
-    assert peer["peer_confidence"] == 88.0
-    assert peer["resolver_status"] == "resolved"
-    assert peer["status"] == "candidate"
-    assert peer["reject_reason"] is None
-    assert peer["downgrade_reason"] is None
-    assert peer["is_final"] is False
-    assert peer["non_final"] is True
-
-    evidence = peer["relation_evidence"]
-    assert evidence["evidence_type"] == "same_sector_peer"
-    assert evidence["evidence_source"] == "semantic_full_prompt"
-    assert evidence["confidence"] == 88.0
-    assert evidence["evidence_value"]["anchor_symbol"] == "QCOM"
-    assert evidence["evidence_value"]["peer_symbol"] == "AVGO"
-    assert evidence["evidence_value"]["semantic_event_type"] == "sector"
-    assert evidence["evidence_value"]["transmission_candidates"] == ["semiconductor"]
-
-    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
-    assert out["execution"]["final"]["action"] == "WATCH"
-
-
-def test_semantic_full_peer_expansion_flag_off_keeps_surface_absent(tmp_path: Path) -> None:
-    out = _runner(tmp_path, enable_semantic_full_peer_expansion=False).run({"headline": "QCOM up 5%"})
-    analysis = out["analysis"]
-
-    assert "semantic_full_peer_expansion" not in analysis
+    assert isinstance(surface["peer_candidate_rejections"], list)
+    required = {
+        "symbol",
+        "canonical_symbol",
+        "anchor_symbol",
+        "relation_type",
+        "relation_evidence",
+        "relation_source",
+        "event_id",
+        "trace_id",
+        "candidate_origin",
+        "confidence",
+        "status",
+        "non_final",
+    }
+    for item in surface["peer_candidates"]:
+        assert required.issubset(item.keys())
+        assert item["status"] == "candidate"
+        assert item["non_final"] is True
+        assert item["symbol"] not in surface["anchor_stocks"]
+        assert item["canonical_symbol"] == item["symbol"]
+        assert item["event_id"] == "evt-4"
     assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"

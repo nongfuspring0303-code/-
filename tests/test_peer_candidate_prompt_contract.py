@@ -132,70 +132,92 @@ def test_peer_candidate_prompt_contract_fields_and_evidence(tmp_path: Path) -> N
     assert contract["mode"] == "shadow_only"
     assert contract["required_output_fields"] == [
         "symbol",
+        "peer_symbol",
         "canonical_symbol",
         "anchor_symbol",
         "relation_type",
         "relation_evidence",
         "relation_source",
+        "relation_evidence_source",
         "event_id",
         "trace_id",
         "candidate_origin",
+        "source",
+        "source_rank",
+        "semantic_confidence",
+        "peer_confidence",
+        "resolver_status",
         "confidence",
         "status",
+        "reject_reason",
+        "downgrade_reason",
+        "is_final",
         "non_final",
     ]
+    assert contract["allows_final_selection"] is False
+    assert contract["allows_market_validation"] is False
+    assert contract["allows_execution"] is False
+    assert contract["output_authority"] == "shadow_only"
+    assert contract["final_recommendation_allowed"] is False
+    assert contract["relation_evidence_missing_behavior"] == "reject"
 
     for item in surface["peer_candidates"]:
         assert item["status"] == "candidate"
         assert item["non_final"] is True
+        assert item["is_final"] is False
         assert isinstance(item["symbol"], str) and item["symbol"]
+        assert item["peer_symbol"] == item["symbol"]
         assert isinstance(item["canonical_symbol"], str) and item["canonical_symbol"]
         assert isinstance(item["anchor_symbol"], str) and item["anchor_symbol"]
         assert isinstance(item["relation_type"], str) and item["relation_type"]
         assert isinstance(item["relation_source"], str) and item["relation_source"]
+        assert isinstance(item["relation_evidence_source"], str) and item["relation_evidence_source"]
         assert item["event_id"] == "evt-4"
         assert item["trace_id"] == "evt-4"
         assert isinstance(item["confidence"], float)
+        assert isinstance(item["source"], str) and item["source"]
+        assert isinstance(item["source_rank"], dict)
+        assert isinstance(item["semantic_confidence"], float)
+        assert isinstance(item["peer_confidence"], float)
+        assert item["resolver_status"] == "not_applicable"
+        assert item["reject_reason"] is None
+        assert item["downgrade_reason"] is None
         evidence = item["relation_evidence"]
         assert isinstance(evidence, dict)
+        assert evidence["evidence_type"] in {"same_sector", "same_theme"}
+        assert isinstance(evidence["evidence_value"], str) and evidence["evidence_value"]
         assert evidence["anchor_symbol"] == item["anchor_symbol"]
         assert isinstance(evidence["relation_summary"], str) and evidence["relation_summary"]
         assert isinstance(evidence.get("evidence_source"), str) and evidence["evidence_source"]
+        assert evidence["evidence_source"] == item["relation_evidence_source"]
+        assert evidence["confidence"] == item["peer_confidence"]
+        assert evidence["audit_note"]
+        assert evidence["evidence_text"]
         assert "semantic_event_type" in evidence
         assert "semantic_confidence" in evidence
 
 
-def test_peer_candidate_prompt_contract_rejects_missing_relation_evidence(tmp_path: Path) -> None:
+def test_relation_source_and_evidence_source_are_consistent(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM up 5%"})
+    for item in out["analysis"]["semantic_full_peer_expansion"]["peer_candidates"]:
+        assert item["relation_source"] == item["relation_evidence_source"]
+        assert item["relation_evidence"]["evidence_source"] == item["relation_source"]
+
+
+def test_semantic_guess_without_anchor_is_rejected(tmp_path: Path) -> None:
+    class _NoAnchorConduction(_FakeConduction):
+        def run(self, payload):
+            out = super().run(payload)
+            out.data["stock_candidates"] = []
+            return out
+
     runner = _runner(tmp_path)
-    original = runner._build_semantic_full_peer_rows
-
-    def _malformed_rows(**kwargs):
-        rows = original(**kwargs)
-        rows.append(
-            {
-                "symbol": "MISSINGEV",
-                "canonical_symbol": "MISSINGEV",
-                "anchor_symbol": "QCOM",
-                "relation_type": "same_theme_peer",
-                "relation_evidence": {},
-                "relation_source": "test_injected_row",
-                "event_id": "evt-4",
-                "trace_id": "evt-4",
-                "candidate_origin": "semantic_full_peer_expansion",
-                "confidence": 88.0,
-                "status": "candidate",
-                "non_final": True,
-            }
-        )
-        return rows
-
-    runner._build_semantic_full_peer_rows = _malformed_rows
+    runner.conduction = _NoAnchorConduction()
     out = runner.run({"headline": "QCOM up 5%"})
     surface = out["analysis"]["semantic_full_peer_expansion"]
-
-    assert all(item["symbol"] != "MISSINGEV" for item in surface["peer_candidates"])
-    rejection = next(item for item in surface["peer_candidate_rejections"] if item["symbol"] == "MISSINGEV")
-    assert rejection["anchor_symbol"] == "QCOM"
-    assert rejection["reject_reason"] == "missing_relation_evidence"
-    assert rejection["rejected_by_prompt_contract"] is True
-    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    # semantic fallback rows require anchor_symbol; without anchors they must be rejected
+    assert len(surface["peer_candidates"]) == 0
+    assert any(
+        rej.get("reject_reason") == "missing_anchor_symbol"
+        for rej in surface["peer_candidate_rejections"]
+    )

@@ -175,42 +175,60 @@ def test_semantic_full_peer_expansion_shadow_surface(tmp_path: Path) -> None:
     assert isinstance(surface["peer_candidate_rejections"], list)
     required = {
         "symbol",
+        "peer_symbol",
         "canonical_symbol",
         "anchor_symbol",
         "relation_type",
         "relation_evidence",
         "relation_source",
+        "relation_evidence_source",
         "event_id",
         "trace_id",
         "candidate_origin",
+        "source",
+        "source_rank",
+        "semantic_confidence",
+        "peer_confidence",
+        "resolver_status",
         "confidence",
         "status",
+        "reject_reason",
+        "downgrade_reason",
+        "is_final",
         "non_final",
     }
     for item in surface["peer_candidates"]:
         assert required.issubset(item.keys())
         assert item["status"] == "candidate"
         assert item["non_final"] is True
+        assert item["is_final"] is False
+        assert item["resolver_status"] == "not_applicable"
         assert item["symbol"] not in surface["anchor_stocks"]
         assert item["canonical_symbol"] == item["symbol"]
+        assert item["peer_symbol"] == item["symbol"]
         assert item["event_id"] == "evt-4"
+        assert item["source"] == "semantic_full_peer_expansion"
+        assert item["source_rank"]["rank"] == "A"
+        assert item["relation_source"] == item["relation_evidence_source"]
+        assert item["relation_evidence"]["evidence_source"] == item["relation_evidence_source"]
+        assert item["relation_evidence"]["evidence_type"] in {"same_sector", "same_theme"}
+        assert item["relation_evidence"]["evidence_text"]
+        assert item["relation_evidence"]["audit_note"]
     assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"
 
 
-def test_semantic_full_peer_expansion_flag_off_hides_surface(tmp_path: Path) -> None:
-    runner = _runner(tmp_path)
-    runner._load_feature_flags = lambda: {
-        "enable_v5_shadow_output": True,
-        "enable_replace_legacy_output": False,
-        "enable_conduction_split": True,
-        "enable_semantic_prepass": True,
-        "enable_semantic_full_peer_expansion": False,
-    }
+def test_peer_map_scaffold_boundary_is_explicit(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM up 5%"})
+    contract = out["analysis"]["semantic_full_peer_expansion"]["prompt_contract"]
+    assert contract["scaffold_boundary_note"]
+    assert contract["output_authority"] == "shadow_only"
+    assert contract["final_recommendation_allowed"] is False
 
-    out = runner.run({"headline": "QCOM up 5%"})
+
+def test_peer_candidates_never_enter_final_recommended_stocks(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM up 5%"})
     analysis = out["analysis"]
-
-    assert "semantic_full_peer_expansion" not in analysis
-    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
-    assert out["execution"]["final"]["action"] == "WATCH"
+    finals = set(analysis["conduction_final_selection"]["final_recommended_stocks"])
+    peer_symbols = {item["symbol"] for item in analysis["semantic_full_peer_expansion"]["peer_candidates"]}
+    assert finals.isdisjoint(peer_symbols)

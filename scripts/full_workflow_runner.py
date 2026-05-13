@@ -1149,6 +1149,63 @@ class FullWorkflowRunner:
             indexed.setdefault(symbol, []).append(deepcopy(item))
         return indexed
 
+    @staticmethod
+    def _index_peer_market_evidence(
+        payload: Dict[str, Any],
+        validation_out: Dict[str, Any],
+    ) -> tuple[Dict[tuple[str, str], Dict[str, Any]], int]:
+        """Index peer-level market evidence only by exact anchor/symbol pairs."""
+        indexed: Dict[tuple[str, str], Dict[str, Any]] = {}
+
+        def _collect_sources() -> List[Dict[str, Any]]:
+            sources: List[Dict[str, Any]] = []
+            payload_peer_market_data = payload.get("peer_market_data")
+            if isinstance(payload_peer_market_data, list):
+                sources.extend([item for item in payload_peer_market_data if isinstance(item, dict)])
+            elif isinstance(payload_peer_market_data, dict):
+                sources.append(payload_peer_market_data)
+
+            payload_market_data = payload.get("market_data")
+            if isinstance(payload_market_data, dict):
+                peers = payload_market_data.get("peers")
+                if isinstance(peers, list):
+                    sources.extend([item for item in peers if isinstance(item, dict)])
+                elif isinstance(peers, dict):
+                    sources.append(peers)
+
+            validation_peer_market_data = validation_out.get("peer_market_data")
+            if isinstance(validation_peer_market_data, list):
+                sources.extend([item for item in validation_peer_market_data if isinstance(item, dict)])
+            elif isinstance(validation_peer_market_data, dict):
+                sources.append(validation_peer_market_data)
+            return sources
+
+        sources = _collect_sources()
+        for item in sources:
+            symbol = str(item.get("symbol", "")).strip().upper()
+            if not symbol:
+                continue
+            anchor_symbol = str(item.get("anchor_symbol", "")).strip().upper()
+            if not anchor_symbol:
+                continue
+            evidence = {
+                "symbol": symbol,
+                "anchor_symbol": anchor_symbol,
+                "reaction_status": str(item.get("reaction_status", "")).strip().lower() or "missing_market_data",
+                "price_change_pct": item.get("price_change_pct", item.get("price_change")),
+                "volume_change_pct": item.get("volume_change_pct", item.get("volume_change")),
+                "relative_move": item.get("relative_move"),
+                "market_data_source": str(item.get("market_data_source", "")).strip() or "peer_market_data",
+                "market_data_timestamp": item.get("market_data_timestamp"),
+                "market_data_stale": bool(item.get("market_data_stale", False)),
+                "market_data_default_used": bool(item.get("market_data_default_used", False)),
+                "market_data_fallback_used": bool(item.get("market_data_fallback_used", False)),
+            }
+            pair_key = (anchor_symbol, symbol)
+            if pair_key not in indexed:
+                indexed[pair_key] = evidence
+        return indexed, len(indexed)
+
     def _build_unified_candidate_pool_surface(
         self,
         candidate_generation_out: Dict[str, Any],
@@ -1344,6 +1401,273 @@ class FullWorkflowRunner:
             "rejected_count": sum(1 for item in items if item.get("status") == "rejected"),
             "downgraded_count": sum(1 for item in items if item.get("status") == "downgraded"),
             "items": items,
+        }
+
+    def _build_peer_market_validation_surface(
+        self,
+        *,
+        payload: Dict[str, Any],
+        semantic_full_peer_expansion_out: Dict[str, Any] | None,
+        validation_out: Dict[str, Any],
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any] | None:
+        """Build a shadow-only peer-scoped market validation surface for Stage8A Impl-5.
+
+        NOTE: This layer consumes peer_candidates from semantic_full_peer_expansion only.
+        It is compatibility-only and must not become production authority.
+        """
+        if not isinstance(semantic_full_peer_expansion_out, dict):
+            return None
+
+        peer_candidates = list(semantic_full_peer_expansion_out.get("peer_candidates", []) or [])
+        market_data_present = bool(validation_out.get("market_data_present", False))
+        market_data_stale = bool(validation_out.get("market_data_stale", False))
+        market_data_default_used = bool(validation_out.get("market_data_default_used", False))
+        market_data_fallback_used = bool(validation_out.get("market_data_fallback_used", False))
+        market_data_blocked = market_data_stale or market_data_default_used or market_data_fallback_used
+        peer_market_evidence_index, peer_market_data_count = self._index_peer_market_evidence(payload, validation_out)
+
+        validated_peer_candidates: List[Dict[str, Any]] = []
+        rejected_peer_candidates: List[Dict[str, Any]] = []
+        downgraded_peer_candidates: List[Dict[str, Any]] = []
+        lagging_count = 0
+        fully_reacted_count = 0
+        missing_market_data_count = 0
+        downgraded_count = 0
+
+        for peer in peer_candidates:
+            if not isinstance(peer, dict):
+                rejected_peer_candidates.append(
+                    {
+                        "status": "rejected",
+                        "market_validation_status": "rejected",
+                        "validation_reason": "invalid_peer_candidate",
+                        "reject_reason": "invalid_peer_candidate",
+                        "downgrade_reason": None,
+                        "is_final": False,
+                        "non_final": True,
+                        "candidate_origin": "semantic_full_peer_expansion",
+                    }
+                )
+                continue
+
+            candidate = deepcopy(peer)
+            symbol = str(candidate.get("symbol", "")).strip().upper()
+            canonical_symbol = str(candidate.get("canonical_symbol", "")).strip().upper() or symbol
+            anchor_symbol = str(candidate.get("anchor_symbol", "")).strip().upper()
+            relation_evidence = candidate.get("relation_evidence")
+            evidence = peer_market_evidence_index.get((anchor_symbol, symbol))
+            if not isinstance(relation_evidence, dict) or not relation_evidence:
+                rejected_peer_candidates.append(
+                    {
+                        **candidate,
+                        "symbol": symbol,
+                        "canonical_symbol": canonical_symbol,
+                        "anchor_symbol": anchor_symbol,
+                        "status": "rejected",
+                        "market_validation_status": "rejected",
+                        "validation_reason": "missing_relation_evidence",
+                        "reject_reason": "missing_relation_evidence",
+                        "downgrade_reason": None,
+                        "is_final": False,
+                        "non_final": True,
+                    }
+                )
+                continue
+
+            if not evidence:
+                missing_market_data_count += 1
+                rejected_peer_candidates.append(
+                    {
+                        **candidate,
+                        "symbol": symbol,
+                        "canonical_symbol": canonical_symbol,
+                        "anchor_symbol": anchor_symbol,
+                        "status": "rejected",
+                        "market_validation_status": "rejected",
+                        "validation_reason": "missing_peer_market_data",
+                        "reject_reason": "missing_peer_market_data",
+                        "downgrade_reason": None,
+                        "is_final": False,
+                        "non_final": True,
+                    }
+                )
+                continue
+
+            reaction_status = str(evidence.get("reaction_status", "")).strip().lower()
+            semantic_confidence = float(candidate.get("semantic_confidence", 0.0) or 0.0)
+            peer_confidence = float(candidate.get("peer_confidence", semantic_confidence) or semantic_confidence)
+            market_evidence = {
+                **deepcopy(evidence),
+                "symbol": symbol,
+                "anchor_symbol": anchor_symbol,
+                "relation_type": str(candidate.get("relation_type", "")).strip(),
+                "relation_evidence": deepcopy(relation_evidence),
+            }
+
+            if reaction_status == "fully_reacted":
+                fully_reacted_count += 1
+                rejected_peer_candidates.append(
+                    {
+                        **candidate,
+                        "symbol": symbol,
+                        "canonical_symbol": canonical_symbol,
+                        "anchor_symbol": anchor_symbol,
+                        "status": "rejected",
+                        "market_validation_status": "rejected",
+                        "validation_reason": "fully_reacted",
+                        "reject_reason": "fully_reacted",
+                        "downgrade_reason": None,
+                        "peer_confidence": peer_confidence,
+                        "market_evidence": market_evidence,
+                        "is_final": False,
+                        "non_final": True,
+                    }
+                )
+                continue
+
+            if reaction_status == "lagging":
+                if market_data_blocked:
+                    downgraded_count += 1
+                    downgraded_peer_candidates.append(
+                        {
+                            **candidate,
+                            "symbol": symbol,
+                            "canonical_symbol": canonical_symbol,
+                            "anchor_symbol": anchor_symbol,
+                            "status": "downgraded",
+                            "market_validation_status": "downgraded",
+                            "validation_reason": "insufficient_market_signal",
+                            "reject_reason": None,
+                            "downgrade_reason": "insufficient_market_signal",
+                            "peer_confidence": peer_confidence,
+                            "market_evidence": market_evidence,
+                            "is_final": False,
+                            "non_final": True,
+                        }
+                    )
+                    continue
+
+                lagging_count += 1
+                validated_peer_candidates.append(
+                    {
+                        **candidate,
+                        "symbol": symbol,
+                        "canonical_symbol": canonical_symbol,
+                        "anchor_symbol": anchor_symbol,
+                        "status": "validated",
+                        "market_validation_status": "validated",
+                        "validation_reason": "lagging_peer",
+                        "reject_reason": None,
+                        "downgrade_reason": None,
+                        "peer_confidence": peer_confidence,
+                        "market_evidence": market_evidence,
+                        "is_final": False,
+                        "non_final": True,
+                    }
+                )
+                continue
+
+            if reaction_status == "insufficient_market_signal":
+                downgraded_count += 1
+                downgraded_peer_candidates.append(
+                    {
+                        **candidate,
+                        "symbol": symbol,
+                        "canonical_symbol": canonical_symbol,
+                        "anchor_symbol": anchor_symbol,
+                        "status": "downgraded",
+                        "market_validation_status": "downgraded",
+                        "validation_reason": "insufficient_market_signal",
+                        "reject_reason": None,
+                        "downgrade_reason": "insufficient_market_signal",
+                        "peer_confidence": peer_confidence,
+                        "market_evidence": market_evidence,
+                        "is_final": False,
+                        "non_final": True,
+                    }
+                )
+                continue
+
+            if reaction_status == "missing_market_data":
+                missing_market_data_count += 1
+                rejected_peer_candidates.append(
+                    {
+                        **candidate,
+                        "symbol": symbol,
+                        "canonical_symbol": canonical_symbol,
+                        "anchor_symbol": anchor_symbol,
+                        "status": "rejected",
+                        "market_validation_status": "rejected",
+                        "validation_reason": "missing_peer_market_data",
+                        "reject_reason": "missing_peer_market_data",
+                        "downgrade_reason": None,
+                        "peer_confidence": peer_confidence,
+                        "market_evidence": market_evidence,
+                        "is_final": False,
+                        "non_final": True,
+                    }
+                )
+                continue
+
+            downgraded_count += 1
+            downgraded_peer_candidates.append(
+                {
+                    **candidate,
+                    "symbol": symbol,
+                    "canonical_symbol": canonical_symbol,
+                    "anchor_symbol": anchor_symbol,
+                    "status": "downgraded",
+                    "market_validation_status": "downgraded",
+                    "validation_reason": "insufficient_market_signal",
+                    "reject_reason": None,
+                    "downgrade_reason": "insufficient_market_signal",
+                    "peer_confidence": peer_confidence,
+                    "market_evidence": market_evidence,
+                    "is_final": False,
+                    "non_final": True,
+                }
+            )
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "peer_market_validation",
+            "compatibility_only": True,
+            "source_surface": "semantic_full_peer_expansion",
+            "output_authority": "shadow_only",
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "final_recommendation_allowed": False,
+            "production_authority": False,
+            "release_status": "observe_only",
+            "validated_candidates_are_final": False,
+            "validated_peer_candidates_authority": "shadow_only",
+            "requires_downstream_adjudication": True,
+            "source_contract_required": "semantic_full_peer_expansion.peer_candidates",
+            "market_data_scope": "peer_level",
+            "upstream_market_data_present": market_data_present,
+            "upstream_market_data_stale": market_data_stale,
+            "upstream_market_data_default_used": market_data_default_used,
+            "upstream_market_data_fallback_used": market_data_fallback_used,
+            "peer_market_data_present": bool(peer_market_evidence_index),
+            "peer_market_data_count": peer_market_data_count,
+            "validation_mode": "peer_scoped_market_validation",
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "market_data_present": market_data_present,
+            "market_data_stale": market_data_stale,
+            "market_data_default_used": market_data_default_used,
+            "market_data_fallback_used": market_data_fallback_used,
+            "validated_peer_candidates": validated_peer_candidates,
+            "rejected_peer_candidates": rejected_peer_candidates,
+            "downgraded_peer_candidates": downgraded_peer_candidates,
+            "validated_count": len(validated_peer_candidates),
+            "rejected_count": len(rejected_peer_candidates),
+            "downgraded_count": len(downgraded_peer_candidates),
+            "lagging_count": lagging_count,
+            "fully_reacted_count": fully_reacted_count,
+            "missing_market_data_count": missing_market_data_count,
         }
 
     def _run_conduction_candidate_generation(
@@ -1819,6 +2143,7 @@ class FullWorkflowRunner:
         enable_unified_candidate_pool = bool(loaded_flags.get("enable_unified_candidate_pool", False))
         enable_multisource_merge = bool(loaded_flags.get("enable_multisource_merge", False))
         enable_semantic_full_peer_expansion = bool(loaded_flags.get("enable_semantic_full_peer_expansion", False))
+        enable_market_validation_gate = bool(loaded_flags.get("enable_market_validation_gate", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -2220,6 +2545,18 @@ class FullWorkflowRunner:
             },
         )
 
+        peer_market_validation_out = (
+            self._build_peer_market_validation_surface(
+                payload=payload,
+                semantic_full_peer_expansion_out=semantic_full_peer_expansion_out,
+                validation_out=validation_out,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_market_validation_gate
+            else None
+        )
+
         conduction_final_selection_out = self._run_conduction_final_selection(
             candidate_generation_out=conduction_candidate_generation_out,
             enable_v5_shadow_output=enable_v5_shadow_output,
@@ -2304,6 +2641,7 @@ class FullWorkflowRunner:
             **({"entity_resolution": entity_resolution_out} if entity_resolution_out is not None else {}),
             **({"unified_candidate_pool": unified_candidate_pool_out} if unified_candidate_pool_out is not None else {}),
             **({"semantic_full_peer_expansion": semantic_full_peer_expansion_out} if semantic_full_peer_expansion_out is not None else {}),
+            **({"peer_market_validation": peer_market_validation_out} if peer_market_validation_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,

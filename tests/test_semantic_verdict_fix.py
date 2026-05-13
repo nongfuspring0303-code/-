@@ -197,8 +197,12 @@ def test_semantic_verdict_fix_normalizes_unknown_verdict_to_watch(tmp_path: Path
     assert surface["output_authority"] == "shadow_only"
     assert surface["allows_final_selection"] is False
     assert surface["allows_execution"] is False
+    assert surface["final_recommendation_allowed"] is False
     assert surface["production_authority"] is False
     assert surface["release_status"] == "observe_only"
+    assert surface["normalized_verdict_is_final"] is False
+    assert surface["requires_path_adjudication"] is True
+    assert surface["allowed_verdicts"] == ["long", "short", "watch", "abstain"]
     assert surface["normalized_verdict"] == "watch"
     assert surface["normalization_source"] == "sentiment_confidence_map"
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
@@ -217,3 +221,32 @@ def test_semantic_verdict_fix_flag_off_omits_surface(tmp_path: Path) -> None:
     assert "semantic_verdict_fix" not in out["analysis"]
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
 
+
+def test_semantic_verdict_fix_is_non_final_signal(tmp_path: Path) -> None:
+    out = _runner(tmp_path, verdict="long", sentiment="positive", confidence=95).run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["semantic_verdict_fix"]
+    assert surface["final_recommendation_allowed"] is False
+    assert surface["normalized_verdict_is_final"] is False
+    assert surface["requires_path_adjudication"] is True
+    assert surface["normalized_verdict"] in {"long", "short", "watch", "abstain"}
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
+    assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_semantic_verdict_fix_does_not_consume_final_recommended_stocks(tmp_path: Path) -> None:
+    runner = _runner(tmp_path, verdict="short", sentiment="negative", confidence=92)
+
+    def _forced_final_selection(**kwargs):
+        return {
+            "final_recommended_stocks": [],
+            "shadow_only": True,
+            "selection_mode": "forced_test",
+            "decision_reason": "forced_test",
+        }
+
+    runner._run_conduction_final_selection = _forced_final_selection  # type: ignore[assignment]
+    out = runner.run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["semantic_verdict_fix"]
+    assert surface["normalized_verdict"] == "short"
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
+    assert out["execution"]["final"]["action"] == "WATCH"

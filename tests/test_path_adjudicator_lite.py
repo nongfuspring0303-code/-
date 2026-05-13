@@ -185,11 +185,70 @@ def test_path_adjudicator_lite_surface_shadow_only_and_non_authoritative(tmp_pat
     assert surface["allows_execution"] is False
     assert surface["production_authority"] is False
     assert surface["release_status"] == "observe_only"
+    assert surface["override_allowed"] is False
+    assert surface["shadow_override_suggested"] is True
+    assert surface["override_scope"] == "shadow_only"
+    assert surface["override_affects_final_selection"] is False
+    assert surface["override_affects_execution"] is False
+    assert surface["override_affects_final_recommended_stocks"] is False
     assert surface["final_path"] == "semantic_anchor_path"
     assert surface["decision_reason"] == "semantic_anchor_override"
-    assert surface["override_allowed"] is True
+    assert surface["accepted_paths"] == ["semantic_anchor_path"]
+    assert "path_decision_log" in surface and len(surface["path_decision_log"]) >= 1
+    assert surface["path_decision_log"][0]["decision"] == "accepted"
+    assert surface["dominant_path"]["path"] == "semantic_anchor_path"
+    assert surface["dominant_path"]["is_final"] is False
+    assert surface["routing_authority_decision"]["status"] == "shadow_only"
+    assert surface["routing_authority_decision"]["allows_final_selection"] is False
+    assert surface["routing_authority_decision"]["allows_execution"] is False
+    assert surface["routing_authority_decision"]["production_authority"] is False
     assert surface["non_final"] is True
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
+    assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_path_adjudicator_lite_decision_log_and_path_buckets(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["path_adjudicator_lite"]
+    assert isinstance(surface["accepted_paths"], list)
+    assert isinstance(surface["rejected_paths"], list)
+    assert isinstance(surface["downgraded_paths"], list)
+    assert isinstance(surface["competing_paths"], list)
+    assert isinstance(surface["suppressed_paths"], list)
+    assert surface["dominant_path"]["authority"] == "shadow_only"
+    assert surface["dominant_path"]["is_final"] is False
+    assert any(row["decision"] in {"accepted", "rejected", "downgraded"} for row in surface["path_decision_log"])
+
+
+def test_path_adjudicator_lite_override_is_shadow_only(tmp_path: Path) -> None:
+    out = _runner(tmp_path).run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["path_adjudicator_lite"]
+    assert surface["shadow_override_suggested"] in {True, False}
+    assert surface["override_allowed"] is False
+    assert surface["override_scope"] == "shadow_only"
+    assert surface["override_affects_final_selection"] is False
+    assert surface["override_affects_execution"] is False
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
+    assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_path_adjudicator_lite_does_not_consume_final_recommended_stocks(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+
+    def _forced_final_selection(**kwargs):
+        return {
+            "final_recommended_stocks": [],
+            "shadow_only": True,
+            "selection_mode": "forced_test",
+            "decision_reason": "forced_test",
+        }
+
+    runner._run_conduction_final_selection = _forced_final_selection  # type: ignore[assignment]
+    out = runner.run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["path_adjudicator_lite"]
+    assert surface["final_path"] == "semantic_anchor_path"
+    assert surface["decision_reason"] == "semantic_anchor_override"
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
     assert out["execution"]["final"]["action"] == "WATCH"
 
 
@@ -199,4 +258,3 @@ def test_path_adjudicator_lite_flag_off_omits_surface(tmp_path: Path) -> None:
     assert "path_adjudicator_lite" not in out["analysis"]
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
     assert out["execution"]["final"]["action"] == "WATCH"
-

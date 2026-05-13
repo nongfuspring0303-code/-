@@ -1714,8 +1714,12 @@ class FullWorkflowRunner:
             "output_authority": "shadow_only",
             "allows_final_selection": False,
             "allows_execution": False,
+            "final_recommendation_allowed": False,
             "production_authority": False,
             "release_status": "observe_only",
+            "normalized_verdict_is_final": False,
+            "requires_path_adjudication": True,
+            "allowed_verdicts": ["long", "short", "watch", "abstain"],
             "raw_verdict": raw_verdict or "missing",
             "sentiment": sentiment,
             "semantic_confidence": confidence,
@@ -1743,19 +1747,69 @@ class FullWorkflowRunner:
         if normalized_verdict == "abstain":
             final_path = "abstain_manual_review_path"
             decision_reason = "semantic_abstain_requires_manual_review"
-            override_allowed = False
+            shadow_override_suggested = False
         elif route_type == "company_anchor" and semantic_confidence >= 0.70:
             final_path = "semantic_anchor_path"
             decision_reason = "semantic_anchor_override"
-            override_allowed = True
+            shadow_override_suggested = True
         elif route_type == "macro_event" and conduction_confidence >= 70.0:
             final_path = "template_macro_path"
             decision_reason = "strong_macro_rule_precedence"
-            override_allowed = False
+            shadow_override_suggested = False
         else:
             final_path = "observe_only_shadow_path"
             decision_reason = "low_confidence_or_conflict"
-            override_allowed = False
+            shadow_override_suggested = False
+
+        accepted_paths: List[str] = [final_path]
+        rejected_paths: List[str] = []
+        downgraded_paths: List[str] = []
+        competing_paths: List[str] = []
+        suppressed_paths: List[str] = []
+
+        if final_path != "semantic_anchor_path":
+            competing_paths.append("semantic_anchor_path")
+            suppressed_paths.append("semantic_anchor_path")
+        if final_path != "template_macro_path":
+            competing_paths.append("template_macro_path")
+        if final_path == "observe_only_shadow_path":
+            downgraded_paths.append("semantic_anchor_path")
+            downgraded_paths.append("template_macro_path")
+        if final_path == "abstain_manual_review_path":
+            rejected_paths.extend(["semantic_anchor_path", "template_macro_path"])
+
+        path_decision_log = [
+            {
+                "path": final_path,
+                "input_source": "semantic_prepass",
+                "decision": "accepted",
+                "reason": decision_reason,
+                "authority": "shadow_only",
+                "is_final": False,
+            }
+        ]
+        for path in rejected_paths:
+            path_decision_log.append(
+                {
+                    "path": path,
+                    "input_source": "semantic_prepass",
+                    "decision": "rejected",
+                    "reason": "suppressed_by_primary_decision",
+                    "authority": "shadow_only",
+                    "is_final": False,
+                }
+            )
+        for path in downgraded_paths:
+            path_decision_log.append(
+                {
+                    "path": path,
+                    "input_source": "semantic_prepass",
+                    "decision": "downgraded",
+                    "reason": "observe_only_conflict_or_low_confidence",
+                    "authority": "shadow_only",
+                    "is_final": False,
+                }
+            )
 
         return {
             "status": "shadow_only",
@@ -1768,13 +1822,39 @@ class FullWorkflowRunner:
             "allows_execution": False,
             "production_authority": False,
             "release_status": "observe_only",
+            "override_allowed": False,
+            "shadow_override_suggested": shadow_override_suggested,
+            "override_scope": "shadow_only",
+            "override_affects_final_selection": False,
+            "override_affects_execution": False,
+            "override_affects_final_recommended_stocks": False,
             "route_type": route_type,
             "semantic_confidence": semantic_confidence,
             "normalized_verdict": normalized_verdict,
             "upstream_primary_path": primary_path_text,
             "final_path": final_path,
             "decision_reason": decision_reason,
-            "override_allowed": override_allowed,
+            "path_decision_log": path_decision_log,
+            "accepted_paths": accepted_paths,
+            "rejected_paths": rejected_paths,
+            "downgraded_paths": downgraded_paths,
+            "dominant_path": {
+                "path": final_path,
+                "reason": decision_reason,
+                "authority": "shadow_only",
+                "is_final": False,
+            },
+            "competing_paths": competing_paths,
+            "suppressed_paths": suppressed_paths,
+            "routing_authority_decision": {
+                "status": "shadow_only",
+                "decision": "accepted_shadow_path",
+                "is_final": False,
+                "allows_final_selection": False,
+                "allows_execution": False,
+                "production_authority": False,
+                "release_status": "observe_only",
+            },
             "non_final": True,
         }
 

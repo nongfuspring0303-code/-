@@ -1388,6 +1388,68 @@ class FullWorkflowRunner:
             "decision_reason": "impl1_shadow_passthrough",
         }
 
+    def _build_semantic_full_peer_expansion_surface(
+        self,
+        *,
+        semantic_out: Dict[str, Any],
+        candidate_generation_out: Dict[str, Any],
+        final_recommended_stocks: List[str],
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any]:
+        """Build a shadow-only semantic peer expansion surface for Stage8A Impl-4."""
+        anchor_stocks = self._dedupe_ordered_symbols(final_recommended_stocks)
+        semantic_candidates = self._dedupe_ordered_symbols(
+            semantic_out.get("recommended_stocks", []) if isinstance(semantic_out, dict) else []
+        )
+        fallback_candidates = self._dedupe_ordered_symbols(
+            [
+                str(item.get("symbol", "")).strip().upper()
+                for item in candidate_generation_out.get("stock_candidates", [])
+                if isinstance(item, dict) and str(item.get("symbol", "")).strip()
+            ]
+        )
+
+        peer_symbols: List[str] = []
+        for symbol in semantic_candidates + fallback_candidates:
+            if symbol and symbol not in anchor_stocks and symbol not in peer_symbols:
+                peer_symbols.append(symbol)
+
+        peer_candidates: List[Dict[str, Any]] = []
+        for symbol in peer_symbols:
+            peer_candidates.append(
+                {
+                    "symbol": symbol,
+                    "relation_type": "same_sector_peer",
+                    "relation_evidence": {
+                        "evidence_source": "semantic_full_prompt",
+                        "semantic_event_type": str(semantic_out.get("event_type", "unknown")),
+                        "semantic_confidence": float(semantic_out.get("confidence", 0.0) or 0.0),
+                    },
+                    "candidate_origin": "semantic_full_peer_expansion",
+                    "status": "candidate",
+                    "non_final": True,
+                }
+            )
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "semantic_full_peer_expansion",
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "prompt_contract": {
+                "schema_version": "stage8a.peer_prompt_contract.v1",
+                "required_output_fields": ["symbol", "relation_type", "relation_evidence"],
+                "relation_evidence_required": True,
+                "mode": "shadow_only",
+            },
+            "anchor_stocks": anchor_stocks,
+            "peer_candidates": peer_candidates,
+            "peer_candidate_count": len(peer_candidates),
+            "validated_peer_candidates": [],
+            "rejected_peer_candidates": [],
+        }
+
     def _build_market_validation_input(self, payload: Dict[str, Any], event_object: Dict[str, Any], conduction_out: Dict[str, Any]) -> Dict[str, Any]:
         raw_price = payload.get("price_changes")
         raw_volume = payload.get("volume_changes")
@@ -1507,6 +1569,7 @@ class FullWorkflowRunner:
         enable_entity_resolver = bool(loaded_flags.get("enable_entity_resolver", False))
         enable_unified_candidate_pool = bool(loaded_flags.get("enable_unified_candidate_pool", False))
         enable_multisource_merge = bool(loaded_flags.get("enable_multisource_merge", False))
+        enable_semantic_full_peer_expansion = bool(loaded_flags.get("enable_semantic_full_peer_expansion", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -1905,6 +1968,17 @@ class FullWorkflowRunner:
                 "final_count": len(conduction_final_selection_out.get("final_recommended_stocks", [])),
             },
         )
+        semantic_full_peer_expansion_out = (
+            self._build_semantic_full_peer_expansion_surface(
+                semantic_out=semantic_out,
+                candidate_generation_out=conduction_candidate_generation_out,
+                final_recommended_stocks=list(conduction_final_selection_out.get("final_recommended_stocks", [])),
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_semantic_full_peer_expansion
+            else None
+        )
 
         signal_out = self.scorer.run(
             {
@@ -1957,6 +2031,7 @@ class FullWorkflowRunner:
             **({"candidate_envelope": candidate_envelope_out} if candidate_envelope_out is not None else {}),
             **({"entity_resolution": entity_resolution_out} if entity_resolution_out is not None else {}),
             **({"unified_candidate_pool": unified_candidate_pool_out} if unified_candidate_pool_out is not None else {}),
+            **({"semantic_full_peer_expansion": semantic_full_peer_expansion_out} if semantic_full_peer_expansion_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -1966,6 +2041,7 @@ class FullWorkflowRunner:
                 "enable_source_metadata_propagation": enable_source_metadata_propagation,
                 "enable_candidate_envelope": enable_candidate_envelope,
                 "enable_entity_resolver": enable_entity_resolver,
+                "enable_semantic_full_peer_expansion": enable_semantic_full_peer_expansion,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

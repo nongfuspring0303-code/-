@@ -1071,6 +1071,23 @@ class FullWorkflowRunner:
         ]
         return self._dedupe_ordered_symbols(symbols)
 
+    def _entity_resolution_final_symbols(self, entity_resolution_out: Dict[str, Any] | None) -> List[str]:
+        if not isinstance(entity_resolution_out, dict):
+            return []
+        entries = entity_resolution_out.get("entries", [])
+        if not isinstance(entries, list):
+            return []
+        symbols: List[str] = []
+        for item in entries:
+            if not isinstance(item, dict):
+                continue
+            if item.get("resolver_status") != "resolved":
+                continue
+            canonical_symbol = str(item.get("canonical_symbol", "")).strip().upper()
+            if canonical_symbol:
+                symbols.append(canonical_symbol)
+        return self._dedupe_ordered_symbols(symbols)
+
     def _run_conduction_candidate_generation(
         self,
         *,
@@ -1589,7 +1606,13 @@ class FullWorkflowRunner:
             enable_v5_shadow_output=enable_v5_shadow_output,
             enable_replace_legacy_output=enable_replace_legacy_output,
         )
-        if enable_candidate_envelope and candidate_envelope_out is not None:
+        if enable_entity_resolver and entity_resolution_out is not None:
+            candidate_envelope_symbols = self._entity_resolution_final_symbols(entity_resolution_out)
+            conduction_final_selection_out = {
+                **conduction_final_selection_out,
+                "final_recommended_stocks": candidate_envelope_symbols,
+            }
+        elif enable_candidate_envelope and candidate_envelope_out is not None:
             candidate_envelope_symbols = self._candidate_envelope_final_symbols(candidate_envelope_out)
             conduction_final_selection_out = {
                 **conduction_final_selection_out,

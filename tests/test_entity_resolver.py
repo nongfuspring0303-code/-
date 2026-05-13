@@ -298,6 +298,8 @@ def test_entity_resolver_strips_and_upcases_symbol_and_keeps_shadow_surface(tmp_
     assert broken["reject_reason"] == "missing_symbol"
     assert broken["original_symbol"] == ""
     assert broken["symbol"] == ""
+    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM"]
+    assert analysis["v5_shadow"]["v5_shadow_final_recommended_stocks"] == ["QCOM"]
 
     baseline = _runner(
         tmp_path / "baseline",
@@ -306,8 +308,8 @@ def test_entity_resolver_strips_and_upcases_symbol_and_keeps_shadow_surface(tmp_
         enable_candidate_envelope=True,
         enable_source_metadata_propagation=True,
     ).run({"headline": "QCOM up 5%", "source": "https://www.reuters.com/markets/us/qcom"})
-    assert analysis["conduction_final_selection"]["final_recommended_stocks"] == baseline["analysis"]["conduction_final_selection"]["final_recommended_stocks"]
-    assert analysis["v5_shadow"]["v5_shadow_final_recommended_stocks"] == baseline["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"]
+    assert baseline["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM"]
+    assert baseline["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == ["QCOM"]
     assert out["execution"]["final"]["action"] == "WATCH"
     assert "entity_resolution" not in out["execution"]
 
@@ -337,6 +339,8 @@ def test_entity_resolver_invalid_symbol_rejected_and_flag_off_keeps_legacy_behav
     assert entity["reject_reason"] == "invalid_symbol"
     assert entity["original_symbol"] == "BAD SYMBOL"
     assert out_on["analysis"]["entity_resolution"]["status"] == "shadow_only"
+    assert out_on["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
+    assert out_on["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == []
 
     runner_off = _runner(
         tmp_path / "off",
@@ -347,8 +351,8 @@ def test_entity_resolver_invalid_symbol_rejected_and_flag_off_keeps_legacy_behav
     )
     out_off = runner_off.run({"headline": "Bad symbol headline", "source": "https://example.com/bad"})
     assert "entity_resolution" not in out_off["analysis"]
-    assert out_on["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == out_off["analysis"]["conduction_final_selection"]["final_recommended_stocks"]
-    assert out_on["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == out_off["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"]
+    assert out_off["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["BAD SYMBOL"]
+    assert out_off["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == ["BAD SYMBOL"]
     assert out_on["execution"]["final"]["action"] == "WATCH"
     assert out_off["execution"]["final"]["action"] == "WATCH"
 
@@ -378,7 +382,8 @@ def test_entity_resolver_ambiguous_alias_conflict(tmp_path: Path) -> None:
     assert entity["resolver_status"] == "ambiguous"
     assert entity["reject_reason"] == "ambiguous_identity"
     assert entity["canonical_symbol"] == "ALIASX"
-    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["ALIASX"]
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
+    assert out["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == []
 
 
 def test_entity_resolver_not_found_when_registry_has_no_match(tmp_path: Path) -> None:
@@ -406,4 +411,5 @@ def test_entity_resolver_not_found_when_registry_has_no_match(tmp_path: Path) ->
     assert entity["resolver_status"] == "not_found"
     assert entity["reject_reason"] == "not_found"
     assert entity["canonical_symbol"] == "UNKNOWNX"
-    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["UNKNOWNX"]
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
+    assert out["analysis"]["v5_shadow"]["v5_shadow_final_recommended_stocks"] == []

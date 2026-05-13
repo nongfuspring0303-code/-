@@ -138,10 +138,15 @@ jobs:
 
       - name: resolver-merge-contract
         run: |
-          if [ -f tests/test_entity_resolver.py ] && [ -f tests/test_candidate_merge.py ]; then
-            python -m pytest tests/test_entity_resolver.py tests/test_candidate_merge.py -q
+          if [ -f tests/test_entity_resolver.py ]; then
+            python -m pytest tests/test_entity_resolver.py -q
           else
-            echo "[SKIP] resolver/merge tests not yet added (Stage8A-Impl-3 pending)"
+            echo "[SKIP] entity resolver tests not yet added (Stage8A-Impl-3B pending)"
+          fi
+          if [ -f tests/test_candidate_merge.py ]; then
+            python -m pytest tests/test_candidate_merge.py -q
+          else
+            echo "[SKIP] candidate merge tests not yet added (Stage8A-Impl-3C pending)"
           fi
 
       - name: semantic-full-peer-contract

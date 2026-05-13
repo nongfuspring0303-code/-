@@ -86,3 +86,21 @@ flags:
     owner: member_b
     rollback_owner: member_b
     description: Enable CandidateEnvelope compatibility surface for stable candidate identity, provenance, and routing context.
+
+  enable_entity_resolver:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable deterministic entity resolution for candidate identity normalization before merge.
+
+  enable_unified_candidate_pool:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable shadow-only unified_candidate_pool compatibility surface without replacing final recommendations.
+
+  enable_multisource_merge:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable same-ticker multi-source merge with provenance preservation and explicit reject or downgrade states.

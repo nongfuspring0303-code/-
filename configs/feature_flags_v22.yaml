@@ -116,3 +116,51 @@ flags:
     owner: member_b
     rollback_owner: member_b
     description: Enable market validation gate for peer candidate filtering before any final recommendation surface.
+
+  enable_path_adjudicator_lite:
+    default: false
+    owner: member_a
+    rollback_owner: member_a
+    description: Enable PathAdjudicator Lite routing compatibility surface before any final recommendation authority.
+
+  enable_semantic_verdict_fix:
+    default: false
+    owner: member_a
+    rollback_owner: member_a
+    description: Enable semantic verdict normalization and routing verdict fixes in shadow-only Phase 4 rollout.
+
+  enable_output_adapter_v5:
+    default: false
+    owner: member_a
+    rollback_owner: member_a
+    description: Enable v5 output adapter compatibility formatting without mutating final_recommended_stocks.
+
+  enable_gate_diagnostics:
+    default: false
+    owner: member_c
+    rollback_owner: member_c
+    description: Enable shadow-only gate diagnostics surfaces and contract visibility checks.
+
+  enable_advisory_governance:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable advisory governance guardrails before any recommendation-layer authority changes.
+
+  enable_cross_news_guard:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable cross-news consistency guardrails for shadow-only advisory governance.
+
+  enable_crowding_guard:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable crowding guard checks for advisory governance in shadow-only mode.
+
+  enable_lifecycle_fatigue_governance:
+    default: false
+    owner: member_b
+    rollback_owner: member_b
+    description: Enable lifecycle and fatigue governance overlay for advisory-only gating and diagnostics.

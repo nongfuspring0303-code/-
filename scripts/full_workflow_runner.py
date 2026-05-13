@@ -1388,6 +1388,317 @@ class FullWorkflowRunner:
             "decision_reason": "impl1_shadow_passthrough",
         }
 
+    def _build_semantic_full_peer_expansion_surface(
+        self,
+        *,
+        semantic_out: Dict[str, Any],
+        candidate_generation_out: Dict[str, Any],
+        anchor_symbols: List[str],
+        source_rank: Dict[str, Any],
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any]:
+        """Build a shadow-only semantic peer expansion surface for Stage8A Impl-4.
+
+        NOTE: peer_map below is deterministic scaffold for contract testing only.
+        It is not a production peer registry, not market validation, and does not
+        provide final recommendation authority.
+        """
+        anchor_stocks = self._dedupe_ordered_symbols(anchor_symbols)
+        semantic_event_type = str(semantic_out.get("event_type", "unknown"))
+        semantic_confidence = float(semantic_out.get("confidence", 0.0) or 0.0)
+
+        # Deterministic scaffold for PR-4. PR-5 will consume this stable surface.
+        peer_map: Dict[str, List[str]] = {
+            "QCOM": ["AVGO", "AMD"],
+            "NVDA": ["AMD", "AVGO", "TSM"],
+            "AMD": ["NVDA", "AVGO"],
+            "TSLA": ["F", "GM", "RIVN"],
+            "XOM": ["CVX", "COP"],
+        }
+
+        semantic_candidates = self._dedupe_ordered_symbols(
+            semantic_out.get("recommended_stocks", []) if isinstance(semantic_out, dict) else []
+        )
+        fallback_candidates = self._dedupe_ordered_symbols(
+            [
+                str(item.get("symbol", "")).strip().upper()
+                for item in candidate_generation_out.get("stock_candidates", [])
+                if isinstance(item, dict) and str(item.get("symbol", "")).strip()
+            ]
+        )
+
+        raw_peer_rows: List[Dict[str, Any]] = []
+        for anchor in anchor_stocks:
+            for peer_symbol in peer_map.get(anchor, []):
+                raw_peer_rows.append(
+                    {
+                        "symbol": peer_symbol,
+                        "peer_symbol": peer_symbol,
+                        "canonical_symbol": peer_symbol,
+                        "anchor_symbol": anchor,
+                        "relation_type": "same_sector_peer",
+                        "relation_evidence": {
+                            "evidence_type": "same_sector",
+                            "evidence_value": f"{anchor}->{peer_symbol}",
+                            "anchor_symbol": anchor,
+                            "relation_summary": f"{peer_symbol} is treated as a peer related to {anchor} under the same event context.",
+                            "semantic_event_type": semantic_event_type,
+                            "semantic_confidence": semantic_confidence,
+                            "evidence_source": "deterministic_peer_map_scaffold",
+                            "evidence_text": f"Deterministic peer-map scaffold linked {anchor} to {peer_symbol}.",
+                            "confidence": semantic_confidence,
+                            "audit_note": "scaffold_only_non_authoritative",
+                        },
+                        "relation_source": "deterministic_peer_map_scaffold",
+                        "relation_evidence_source": "deterministic_peer_map_scaffold",
+                        "event_id": event_id,
+                        "trace_id": trace_id,
+                        "candidate_origin": "semantic_full_peer_expansion",
+                        "source": "semantic_full_peer_expansion",
+                        "source_rank": dict(source_rank),
+                        "semantic_confidence": semantic_confidence,
+                        "peer_confidence": semantic_confidence,
+                        "resolver_status": "not_applicable",
+                        "confidence": semantic_confidence,
+                        "status": "candidate",
+                        "reject_reason": None,
+                        "downgrade_reason": None,
+                        "is_final": False,
+                        "non_final": True,
+                    }
+                )
+
+        # Keep semantic signal, but still enforce deterministic contract shape.
+        default_anchor = anchor_stocks[0] if anchor_stocks else ""
+        for symbol in semantic_candidates + fallback_candidates:
+            if not symbol or symbol in anchor_stocks:
+                continue
+            raw_peer_rows.append(
+                {
+                    "symbol": symbol,
+                    "peer_symbol": symbol,
+                    "canonical_symbol": symbol,
+                    "anchor_symbol": default_anchor,
+                    "relation_type": "same_theme_peer",
+                    "relation_evidence": {
+                        "evidence_type": "same_theme",
+                        "evidence_value": symbol,
+                        "anchor_symbol": default_anchor,
+                        "relation_summary": f"{symbol} is treated as a same-theme peer under semantic context.",
+                        "semantic_event_type": semantic_event_type,
+                        "semantic_confidence": semantic_confidence,
+                        "evidence_source": "semantic_output",
+                        "evidence_text": f"Semantic output suggested {symbol} as related peer.",
+                        "confidence": semantic_confidence,
+                        "audit_note": "semantic_suggestion_non_authoritative",
+                    },
+                    "relation_source": "semantic_output",
+                    "relation_evidence_source": "semantic_output",
+                    "event_id": event_id,
+                    "trace_id": trace_id,
+                    "candidate_origin": "semantic_full_peer_expansion",
+                    "source": "semantic_full_peer_expansion",
+                    "source_rank": dict(source_rank),
+                    "semantic_confidence": semantic_confidence,
+                    "peer_confidence": semantic_confidence,
+                    "resolver_status": "not_applicable",
+                    "confidence": semantic_confidence,
+                    "status": "candidate",
+                    "reject_reason": None,
+                    "downgrade_reason": None,
+                    "is_final": False,
+                    "non_final": True,
+                }
+            )
+
+        required_fields = [
+            "symbol",
+            "peer_symbol",
+            "canonical_symbol",
+            "anchor_symbol",
+            "relation_type",
+            "relation_evidence",
+            "relation_source",
+            "relation_evidence_source",
+            "event_id",
+            "trace_id",
+            "candidate_origin",
+            "source",
+            "source_rank",
+            "semantic_confidence",
+            "peer_confidence",
+            "resolver_status",
+            "confidence",
+            "status",
+            "reject_reason",
+            "downgrade_reason",
+            "is_final",
+            "non_final",
+        ]
+        peer_candidates: List[Dict[str, Any]] = []
+        peer_candidate_rejections: List[Dict[str, Any]] = []
+        dedupe_keys: set[tuple[str, str]] = set()
+
+        for row in raw_peer_rows:
+            reject_reason = None
+            for field in required_fields:
+                value = row.get(field)
+                if field == "relation_evidence":
+                    if not isinstance(value, dict) or not value:
+                        reject_reason = f"missing_{field}"
+                        break
+                    required_evidence_fields = [
+                        "evidence_type",
+                        "evidence_value",
+                        "evidence_source",
+                        "evidence_text",
+                        "confidence",
+                        "audit_note",
+                    ]
+                    if any(not value.get(k) for k in required_evidence_fields):
+                        reject_reason = "missing_relation_evidence_fields"
+                        break
+                    if value.get("evidence_source") != row.get("relation_evidence_source"):
+                        reject_reason = "relation_source_mismatch"
+                        break
+                elif field == "non_final":
+                    if value is not True:
+                        reject_reason = f"invalid_{field}"
+                        break
+                elif field == "is_final":
+                    if value is not False:
+                        reject_reason = f"invalid_{field}"
+                        break
+                elif field in {"source_rank"}:
+                    if not isinstance(value, dict):
+                        reject_reason = f"invalid_{field}"
+                        break
+                elif field in {"reject_reason", "downgrade_reason"}:
+                    # nullable in candidate state
+                    pass
+                elif value in (None, ""):
+                    reject_reason = f"missing_{field}"
+                    break
+            if reject_reason is not None:
+                peer_candidate_rejections.append(
+                    {
+                        "symbol": str(row.get("symbol", "")).strip().upper(),
+                        "anchor_symbol": str(row.get("anchor_symbol", "")).strip().upper(),
+                        "reject_reason": reject_reason,
+                        "rejected_by_prompt_contract": True,
+                    }
+                )
+                continue
+
+            symbol = str(row["symbol"]).strip().upper()
+            anchor = str(row["anchor_symbol"]).strip().upper()
+            if symbol in anchor_stocks:
+                peer_candidate_rejections.append(
+                    {
+                        "symbol": symbol,
+                        "anchor_symbol": anchor,
+                        "reject_reason": "peer_equals_anchor",
+                        "rejected_by_prompt_contract": True,
+                    }
+                )
+                continue
+            key = (anchor, symbol)
+            if key in dedupe_keys:
+                continue
+            dedupe_keys.add(key)
+            peer_candidates.append(
+                {
+                    **row,
+                    "symbol": symbol,
+                    "canonical_symbol": str(row["canonical_symbol"]).strip().upper(),
+                    "anchor_symbol": anchor,
+                }
+            )
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "semantic_full_peer_expansion",
+            "compatibility_only": True,
+            "peer_expansion_mode": "deterministic_scaffold_with_semantic_fallback",
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "prompt_contract": {
+                "schema_version": "stage8a.peer_prompt_contract.v1",
+                "required_output_fields": required_fields,
+                "relation_evidence_required": True,
+                "mode": "shadow_only",
+                "allows_final_selection": False,
+                "allows_market_validation": False,
+                "allows_execution": False,
+                "output_authority": "shadow_only",
+                "final_recommendation_allowed": False,
+                "relation_evidence_missing_behavior": "reject",
+                "scaffold_boundary_note": "deterministic peer map is scaffold-only and not production authority",
+            },
+            "anchor_stocks": anchor_stocks,
+            "peer_candidates": peer_candidates,
+            "peer_candidate_count": len(peer_candidates),
+            "peer_candidate_rejections": peer_candidate_rejections,
+            "candidate_count": len(peer_candidates),
+            "rejected_count": len(peer_candidate_rejections),
+            "downgraded_count": 0,
+            "source_rank": dict(source_rank),
+        }
+
+    def _select_peer_anchor_symbols(
+        self,
+        *,
+        unified_candidate_pool_out: Dict[str, Any] | None,
+        entity_resolution_out: Dict[str, Any] | None,
+        candidate_envelope_out: Dict[str, Any] | None,
+        candidate_generation_out: Dict[str, Any],
+        semantic_out: Dict[str, Any],
+    ) -> List[str]:
+        anchors: List[str] = []
+        if isinstance(unified_candidate_pool_out, dict):
+            for item in unified_candidate_pool_out.get("items", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("status", "")).strip() != "candidate":
+                    continue
+                if str(item.get("resolver_status", "")).strip() != "resolved":
+                    continue
+                symbol = str(item.get("canonical_symbol") or item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors and isinstance(entity_resolution_out, dict):
+            for item in entity_resolution_out.get("entries", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("resolver_status", "")).strip() != "resolved":
+                    continue
+                symbol = str(item.get("canonical_symbol") or item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors and isinstance(candidate_envelope_out, dict):
+            for item in candidate_envelope_out.get("envelopes", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("status", "")).strip() != "candidate":
+                    continue
+                symbol = str(item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors:
+            for item in candidate_generation_out.get("stock_candidates", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                symbol = str(item.get("symbol") or "").strip().upper()
+                if symbol:
+                    anchors.append(symbol)
+        if not anchors and isinstance(semantic_out, dict):
+            for symbol in semantic_out.get("recommended_stocks", []) or []:
+                sym = str(symbol).strip().upper()
+                if sym:
+                    anchors.append(sym)
+        return self._dedupe_ordered_symbols(anchors)
+
     def _build_market_validation_input(self, payload: Dict[str, Any], event_object: Dict[str, Any], conduction_out: Dict[str, Any]) -> Dict[str, Any]:
         raw_price = payload.get("price_changes")
         raw_volume = payload.get("volume_changes")
@@ -1507,6 +1818,7 @@ class FullWorkflowRunner:
         enable_entity_resolver = bool(loaded_flags.get("enable_entity_resolver", False))
         enable_unified_candidate_pool = bool(loaded_flags.get("enable_unified_candidate_pool", False))
         enable_multisource_merge = bool(loaded_flags.get("enable_multisource_merge", False))
+        enable_semantic_full_peer_expansion = bool(loaded_flags.get("enable_semantic_full_peer_expansion", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -1874,6 +2186,40 @@ class FullWorkflowRunner:
             details={"primary_path": (path_out.get("primary_path") or {}).get("path_text", "undetermined")},
         )
 
+        peer_anchor_symbols = self._select_peer_anchor_symbols(
+            unified_candidate_pool_out=unified_candidate_pool_out,
+            entity_resolution_out=entity_resolution_out,
+            candidate_envelope_out=candidate_envelope_out,
+            candidate_generation_out=conduction_candidate_generation_out,
+            semantic_out=semantic_out,
+        )
+        semantic_full_peer_expansion_out = (
+            self._build_semantic_full_peer_expansion_surface(
+                semantic_out=semantic_out,
+                candidate_generation_out=conduction_candidate_generation_out,
+                anchor_symbols=peer_anchor_symbols,
+                source_rank=source_rank,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_semantic_full_peer_expansion
+            else None
+        )
+        self._log_pipeline_stage(
+            trace_id=trace_id,
+            event_id=event_id,
+            request_id=request_id,
+            batch_id=batch_id,
+            event_hash=event_hash,
+            stage_seq=10,
+            stage="semantic_full_peer_expansion",
+            status="success" if semantic_full_peer_expansion_out is not None else "skipped",
+            details={
+                "anchor_count": len(peer_anchor_symbols),
+                "peer_count": len((semantic_full_peer_expansion_out or {}).get("peer_candidates", [])),
+            },
+        )
+
         conduction_final_selection_out = self._run_conduction_final_selection(
             candidate_generation_out=conduction_candidate_generation_out,
             enable_v5_shadow_output=enable_v5_shadow_output,
@@ -1897,7 +2243,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=10,
+            stage_seq=11,
             stage="conduction_final_selection",
             status="success",
             details={
@@ -1932,7 +2278,7 @@ class FullWorkflowRunner:
             request_id=request_id,
             batch_id=batch_id,
             event_hash=event_hash,
-            stage_seq=11,
+            stage_seq=12,
             stage="signal",
             status="success",
             details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},
@@ -1957,6 +2303,7 @@ class FullWorkflowRunner:
             **({"candidate_envelope": candidate_envelope_out} if candidate_envelope_out is not None else {}),
             **({"entity_resolution": entity_resolution_out} if entity_resolution_out is not None else {}),
             **({"unified_candidate_pool": unified_candidate_pool_out} if unified_candidate_pool_out is not None else {}),
+            **({"semantic_full_peer_expansion": semantic_full_peer_expansion_out} if semantic_full_peer_expansion_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -1966,6 +2313,7 @@ class FullWorkflowRunner:
                 "enable_source_metadata_propagation": enable_source_metadata_propagation,
                 "enable_candidate_envelope": enable_candidate_envelope,
                 "enable_entity_resolver": enable_entity_resolver,
+                "enable_semantic_full_peer_expansion": enable_semantic_full_peer_expansion,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

@@ -138,6 +138,7 @@ class FullWorkflowRunner:
             "enable_semantic_prepass": True,
             "enable_source_metadata_propagation": False,
             "enable_candidate_envelope": False,
+            "enable_entity_resolver": False,
         }
         cfg_path = ROOT / "configs" / "feature_flags_v22.yaml"
         try:
@@ -948,6 +949,137 @@ class FullWorkflowRunner:
             "envelopes": envelopes + rejected,
         }
 
+    @staticmethod
+    def _normalize_entity_symbol(symbol: Any) -> str:
+        return str(symbol or "").strip().upper()
+
+    def _load_entity_alias_registry(self) -> tuple[Dict[str, str], set[str]]:
+        """Load an optional alias registry for deterministic entity normalization.
+
+        The default runtime registry is empty. The production path here only does
+        strip / uppercase / validity checks. Ambiguous / not_found behavior is
+        registry-backed extension scaffolding, not enabled by default in PR147.
+        Any future registry input path must ship with dedicated config and tests.
+        """
+        return {}, set()
+
+    def _build_entity_resolution_surface(
+        self,
+        candidate_generation_out: Dict[str, Any],
+        *,
+        candidate_envelope_out: Dict[str, Any] | None,
+        trace_id: str,
+        event_id: str,
+        source_rank: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Create a shadow-only Entity Resolver compatibility surface."""
+        alias_to_canonical, alias_conflicts = self._load_entity_alias_registry()
+        alias_to_canonical = dict(alias_to_canonical or {})
+        alias_conflicts = set(alias_conflicts or set())
+        envelope_rejections: Dict[str, str] = {}
+        if isinstance(candidate_envelope_out, dict):
+            for item in candidate_envelope_out.get("envelopes", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("status") != "rejected":
+                    continue
+                envelope_symbol = self._normalize_entity_symbol(item.get("symbol"))
+                if envelope_symbol and envelope_symbol not in envelope_rejections:
+                    envelope_rejections[envelope_symbol] = str(item.get("reject_reason") or "rejected")
+
+        input_surface = "conduction_candidate_generation"
+        raw_entries = list(candidate_generation_out.get("stock_candidates", []) or [])
+
+        entries: List[Dict[str, Any]] = []
+        for cand in raw_entries:
+            if not isinstance(cand, dict):
+                continue
+            original_symbol = str(cand.get("symbol", "")).strip()
+            symbol = self._normalize_entity_symbol(original_symbol)
+            provenance = cand.get("provenance")
+            if isinstance(provenance, list) and provenance:
+                provenance_list = deepcopy(provenance)
+            else:
+                provenance_list = [
+                    {
+                        "symbol": symbol,
+                        "source": str(cand.get("source", "")).strip() or "unknown",
+                        "role": str(cand.get("role", "")).strip() or "unknown",
+                        "relation": str(cand.get("relation", "")).strip() or "derived",
+                        "event_id": str(cand.get("event_id") or event_id),
+                        "candidate_origin": str(cand.get("candidate_origin") or candidate_generation_out.get("mapping_source") or "conduction_candidate_generation"),
+                        "source_rank": str(cand.get("source_rank") or source_rank.get("rank", "unknown") or "unknown"),
+                    }
+                ]
+
+            source = str(cand.get("source") or (provenance_list[0].get("source") if provenance_list else "") or "").strip()
+            role = str(cand.get("role") or (provenance_list[0].get("role") if provenance_list else "") or "").strip()
+            relation = str(cand.get("relation") or (provenance_list[0].get("relation") if provenance_list else "") or "").strip()
+            event_id_value = str(cand.get("event_id") or (provenance_list[0].get("event_id") if provenance_list else event_id) or event_id).strip() or event_id
+            candidate_origin = str(cand.get("candidate_origin") or (provenance_list[0].get("candidate_origin") if provenance_list else candidate_generation_out.get("mapping_source") or "conduction_candidate_generation") or "conduction_candidate_generation").strip() or "conduction_candidate_generation"
+
+            resolver_status = "resolved"
+            reject_reason = None
+            canonical_symbol = symbol
+
+            if not original_symbol:
+                resolver_status = "rejected"
+                reject_reason = "missing_symbol"
+            elif not ConductionMapper._is_valid_symbol(symbol):
+                resolver_status = "rejected"
+                reject_reason = "invalid_symbol"
+            elif symbol in alias_conflicts:
+                resolver_status = "ambiguous"
+                reject_reason = "ambiguous_identity"
+            elif alias_to_canonical:
+                canonical_symbol = alias_to_canonical.get(symbol, "")
+                if canonical_symbol:
+                    canonical_symbol = self._normalize_entity_symbol(canonical_symbol)
+                else:
+                    resolver_status = "not_found"
+                    reject_reason = "not_found"
+                    canonical_symbol = symbol
+            if symbol in envelope_rejections and resolver_status != "rejected":
+                resolver_status = "rejected"
+                reject_reason = envelope_rejections[symbol]
+
+            if cand.get("status") == "rejected" and not reject_reason:
+                resolver_status = "rejected"
+                reject_reason = str(cand.get("reject_reason") or "rejected")
+
+            entries.append(
+                {
+                    "symbol": symbol,
+                    "canonical_symbol": canonical_symbol or symbol,
+                    "original_symbol": original_symbol,
+                    "resolver_status": resolver_status,
+                    "reject_reason": reject_reason,
+                    "candidate_origin": candidate_origin,
+                    "source": source or "unknown",
+                    "role": role or "unknown",
+                    "relation": relation or "derived",
+                    "event_id": event_id_value,
+                    "provenance": provenance_list,
+                    "compatibility_surface": "entity_resolution",
+                }
+            )
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "entity_resolution",
+            "input_surface": input_surface,
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "candidate_origin": str(candidate_generation_out.get("mapping_source") or "conduction_candidate_generation"),
+            "source_rank": dict(source_rank),
+            "resolver_count": len(entries),
+            "resolved_count": sum(1 for item in entries if item.get("resolver_status") == "resolved"),
+            "ambiguous_count": sum(1 for item in entries if item.get("resolver_status") == "ambiguous"),
+            "not_found_count": sum(1 for item in entries if item.get("resolver_status") == "not_found"),
+            "rejected_count": sum(1 for item in entries if item.get("resolver_status") == "rejected"),
+            "entries": entries,
+        }
+
     def _candidate_envelope_final_symbols(self, candidate_envelope_out: Dict[str, Any]) -> List[str]:
         if not isinstance(candidate_envelope_out, dict):
             return []
@@ -956,6 +1088,23 @@ class FullWorkflowRunner:
             for item in candidate_envelope_out.get("envelopes", [])
             if isinstance(item, dict) and item.get("status") == "candidate"
         ]
+        return self._dedupe_ordered_symbols(symbols)
+
+    def _entity_resolution_final_symbols(self, entity_resolution_out: Dict[str, Any] | None) -> List[str]:
+        if not isinstance(entity_resolution_out, dict):
+            return []
+        entries = entity_resolution_out.get("entries", [])
+        if not isinstance(entries, list):
+            return []
+        symbols: List[str] = []
+        for item in entries:
+            if not isinstance(item, dict):
+                continue
+            if item.get("resolver_status") != "resolved":
+                continue
+            canonical_symbol = str(item.get("canonical_symbol", "")).strip().upper()
+            if canonical_symbol:
+                symbols.append(canonical_symbol)
         return self._dedupe_ordered_symbols(symbols)
 
     def _run_conduction_candidate_generation(
@@ -1116,6 +1265,7 @@ class FullWorkflowRunner:
         enable_v5_shadow_output = bool(loaded_flags.get("enable_v5_shadow_output", True))
         enable_source_metadata_propagation = bool(loaded_flags.get("enable_source_metadata_propagation", False))
         enable_candidate_envelope = bool(loaded_flags.get("enable_candidate_envelope", False))
+        enable_entity_resolver = bool(loaded_flags.get("enable_entity_resolver", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -1316,6 +1466,17 @@ class FullWorkflowRunner:
             if enable_candidate_envelope
             else None
         )
+        entity_resolution_out = (
+            self._build_entity_resolution_surface(
+                conduction_candidate_generation_out,
+                candidate_envelope_out=candidate_envelope_out,
+                trace_id=trace_id,
+                event_id=event_id,
+                source_rank=source_rank,
+            )
+            if enable_entity_resolver
+            else None
+        )
         conduction_out = conduction_candidate_generation_out
         self._log_pipeline_stage(
             trace_id=trace_id,
@@ -1464,7 +1625,13 @@ class FullWorkflowRunner:
             enable_v5_shadow_output=enable_v5_shadow_output,
             enable_replace_legacy_output=enable_replace_legacy_output,
         )
-        if enable_candidate_envelope and candidate_envelope_out is not None:
+        if enable_entity_resolver and entity_resolution_out is not None:
+            candidate_envelope_symbols = self._entity_resolution_final_symbols(entity_resolution_out)
+            conduction_final_selection_out = {
+                **conduction_final_selection_out,
+                "final_recommended_stocks": candidate_envelope_symbols,
+            }
+        elif enable_candidate_envelope and candidate_envelope_out is not None:
             candidate_envelope_symbols = self._candidate_envelope_final_symbols(candidate_envelope_out)
             conduction_final_selection_out = {
                 **conduction_final_selection_out,
@@ -1534,6 +1701,7 @@ class FullWorkflowRunner:
                 "final_recommended_stocks": list(conduction_final_selection_out.get("final_recommended_stocks", [])),
             },
             **({"candidate_envelope": candidate_envelope_out} if candidate_envelope_out is not None else {}),
+            **({"entity_resolution": entity_resolution_out} if entity_resolution_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -1542,6 +1710,7 @@ class FullWorkflowRunner:
                 "enable_conduction_split": enable_conduction_split,
                 "enable_source_metadata_propagation": enable_source_metadata_propagation,
                 "enable_candidate_envelope": enable_candidate_envelope,
+                "enable_entity_resolver": enable_entity_resolver,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

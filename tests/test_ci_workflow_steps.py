@@ -39,6 +39,17 @@ def _workflow_steps_by_name(workflow):
     return steps
 
 
+def _workflow_step_name_list(workflow):
+    names = []
+    for job_def in workflow.get("jobs", {}).values():
+        if not isinstance(job_def, dict):
+            continue
+        for step in job_def.get("steps", []):
+            if isinstance(step, dict) and step.get("name"):
+                names.append(step["name"])
+    return names
+
+
 def _required_ci_step_names():
     """All CI step names declared in the Stage 8-A contract matrix."""
     return {
@@ -47,9 +58,11 @@ def _required_ci_step_names():
         "resolver-merge-contract",
         "semantic-full-peer-contract",
         "market-validation-contract",
-        "routing-authority-contract",
+        "path-adjudicator-lite-contract",
+        "semantic-verdict-contract",
         "output-adapter-contract",
-        "advanced-gates-contract",
+        "gate-diagnostics-contract",
+        "advisory-governance-contract",
         "threshold-config-contract",
         "compatibility-exit-contract",
         "ci-workflow-step-contract",
@@ -163,4 +176,106 @@ def test_market_validation_contract_binds_required_test():
     )
     assert 'if [ -f tests/test_market_validation.py ]; then' in run_cmd, (
         "market-validation-contract must remain skip-if-missing until PR-5 lands"
+    )
+
+
+def test_phase4_gate_names_are_unique():
+    """Phase 4 support gates must exist exactly once and must not duplicate names."""
+    workflow = _load_workflow()
+    names = _workflow_step_name_list(workflow)
+
+    required = [
+        "path-adjudicator-lite-contract",
+        "semantic-verdict-contract",
+        "output-adapter-contract",
+        "gate-diagnostics-contract",
+        "advisory-governance-contract",
+    ]
+    for name in required:
+        assert names.count(name) == 1, f"{name} must exist exactly once in the workflow"
+
+
+def test_path_adjudicator_lite_contract_binds_required_test():
+    """Phase 4 PR-6 path-adjudicator gate must pre-bind the future lite runtime test."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("path-adjudicator-lite-contract")
+
+    assert step, "path-adjudicator-lite-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_path_adjudicator_lite.py" in run_cmd, (
+        "path-adjudicator-lite-contract must reference tests/test_path_adjudicator_lite.py"
+    )
+    assert 'if [ -f tests/test_path_adjudicator_lite.py ]; then' in run_cmd, (
+        "path-adjudicator-lite-contract must remain skip-if-missing during support-only setup"
+    )
+
+
+def test_semantic_verdict_contract_binds_required_test():
+    """Phase 4 PR-6 semantic verdict gate must pre-bind the future runtime test."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("semantic-verdict-contract")
+
+    assert step, "semantic-verdict-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_semantic_verdict_fix.py" in run_cmd, (
+        "semantic-verdict-contract must reference tests/test_semantic_verdict_fix.py"
+    )
+    assert 'if [ -f tests/test_semantic_verdict_fix.py ]; then' in run_cmd, (
+        "semantic-verdict-contract must remain skip-if-missing during support-only setup"
+    )
+
+
+def test_output_adapter_contract_binds_required_test():
+    """Phase 4 PR-7 output adapter gate must pre-bind the future runtime test."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("output-adapter-contract")
+
+    assert step, "output-adapter-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_output_adapter_v5.py" in run_cmd, (
+        "output-adapter-contract must reference tests/test_output_adapter_v5.py"
+    )
+    assert 'if [ -f tests/test_output_adapter_v5.py ]; then' in run_cmd, (
+        "output-adapter-contract must remain skip-if-missing during support-only setup"
+    )
+
+
+def test_gate_diagnostics_contract_binds_required_test():
+    """Phase 4 PR-7 diagnostics gate must pre-bind the future runtime test."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("gate-diagnostics-contract")
+
+    assert step, "gate-diagnostics-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_gate_diagnostics.py" in run_cmd, (
+        "gate-diagnostics-contract must reference tests/test_gate_diagnostics.py"
+    )
+    assert 'if [ -f tests/test_gate_diagnostics.py ]; then' in run_cmd, (
+        "gate-diagnostics-contract must remain skip-if-missing during support-only setup"
+    )
+
+
+def test_advisory_governance_contract_binds_required_tests():
+    """Phase 4 PR-8 governance gate must pre-bind all future governance tests."""
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("advisory-governance-contract")
+
+    assert step, "advisory-governance-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "tests/test_advisory_governance.py" in run_cmd, (
+        "advisory-governance-contract must reference tests/test_advisory_governance.py"
+    )
+    assert "tests/test_lifecycle_fatigue_governance.py" in run_cmd, (
+        "advisory-governance-contract must reference tests/test_lifecycle_fatigue_governance.py"
+    )
+    assert "tests/test_cross_news_crowding_governance.py" in run_cmd, (
+        "advisory-governance-contract must reference tests/test_cross_news_crowding_governance.py"
+    )
+    assert 'if [ -f tests/test_advisory_governance.py ] && [ -f tests/test_lifecycle_fatigue_governance.py ] && [ -f tests/test_cross_news_crowding_governance.py ]; then' in run_cmd, (
+        "advisory-governance-contract must remain pre-binding until all future PR-8 tests land"
     )

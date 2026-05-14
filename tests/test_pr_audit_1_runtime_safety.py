@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 from edt_module_base import ModuleStatus
 from full_workflow_runner import FullWorkflowRunner
@@ -17,18 +16,20 @@ class _Obj:
 
 class _FakeIntel:
     def run(self, payload):
+        event_object = {
+            "event_id": "evt-audit-1",
+            "category": "A",
+            "severity": "E3",
+            "source_rank": "BROKEN_SHOULD_NOT_BE_USED",
+            "headline": payload.get("headline", "QCOM jumps"),
+            "detected_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+        }
+        if payload.get("drop_event_category"):
+            event_object["category"] = None
         return {
-            "event_object": {
-                "event_id": "evt-audit-1",
-                "category": "A",
-                "severity": "E3",
-                "source_rank": "BROKEN_SHOULD_NOT_BE_USED",
-                "headline": payload.get("headline", "QCOM jumps"),
-                "detected_at": "2026-01-01T00:00:00Z",
-                "updated_at": "2026-01-01T00:00:00Z",
-            },
+            "event_object": event_object,
             "source_rank": {"rank": "A", "needs_escalation": False, "confidence": 0.9},
-            # keep dict shape for default runtime path
             "severity": {"A0": 78},
         }
 
@@ -36,22 +37,27 @@ class _FakeIntel:
 class _FakeLifecycle:
     def __init__(self):
         self.last_payload = None
+        self.drop_keys = False
 
     def run(self, payload):
         self.last_payload = dict(payload)
-        return _Obj(
-            {
-                "lifecycle_state": "Active",
-                "internal_state": "ACTIVE_TRACK",
-                "catalyst_state": "Active",
-                "stale_event": {"is_stale": False},
-            }
-        )
+        data = {
+            "lifecycle_state": "Active",
+            "internal_state": "ACTIVE_TRACK",
+            "catalyst_state": "Active",
+            "stale_event": {"is_stale": False},
+        }
+        if self.drop_keys:
+            data.pop("lifecycle_state", None)
+            data.pop("internal_state", None)
+            data.pop("catalyst_state", None)
+        return _Obj(data)
 
 
 class _FakeFatigue:
     def __init__(self):
         self.drop_fatigue_score = False
+        self.drop_fatigue_final = False
 
     def run(self, payload):
         data = {
@@ -63,6 +69,8 @@ class _FakeFatigue:
         }
         if self.drop_fatigue_score:
             data.pop("fatigue_score", None)
+        if self.drop_fatigue_final:
+            data.pop("fatigue_final", None)
         return _Obj(data)
 
 
@@ -176,7 +184,6 @@ class _MutatingExecution:
 
     def run(self, payload):
         self.last_payload = dict(payload)
-        # Mutate incoming sector_impacts to prove conduction_out is isolated from candidate_generation_out.
         sector_impacts = payload.get("sector_impacts")
         if isinstance(sector_impacts, list):
             sector_impacts.append({"sector": "MUTATED", "direction": "watch"})
@@ -184,21 +191,28 @@ class _MutatingExecution:
 
 
 class _FakeStateStore:
+    def __init__(self):
+        self.last_event_id = None
+        self.last_state = None
+
     def get_state(self, event_id):
         return None
 
     def upsert_state(self, event_id, state):
+        self.last_event_id = event_id
+        self.last_state = dict(state)
         return None
 
 
 def _runner(
     tmp_path: Path, *, missing_a1: bool = False
-) -> tuple[FullWorkflowRunner, _FakeLifecycle, _FakeFatigue, _CapturingExecutionSuggestion, _MutatingExecution]:
+) -> tuple[FullWorkflowRunner, _FakeLifecycle, _FakeFatigue, _CapturingExecutionSuggestion, _MutatingExecution, _FakeStateStore]:
     lifecycle = _FakeLifecycle()
     fatigue = _FakeFatigue()
     execution_suggestion = _CapturingExecutionSuggestion()
-
     execution = _MutatingExecution()
+    state_store = _FakeStateStore()
+
     r = FullWorkflowRunner(audit_dir=str(tmp_path))
     r.intel = _FakeIntel()
     r.lifecycle = lifecycle
@@ -212,13 +226,13 @@ def _runner(
     r.execution_suggestion_builder = execution_suggestion
     r.path_quality_evaluator = _FakePathQuality()
     r.execution = execution
-    r.state_store = _FakeStateStore()
-    return r, lifecycle, fatigue, execution_suggestion, execution
+    r.state_store = state_store
+    return r, lifecycle, fatigue, execution_suggestion, execution, state_store
 
 
 def test_symbols_requested_none_uses_derived_symbols(tmp_path: Path) -> None:
-    runner, _, _, _, _ = _runner(tmp_path)
-    out = runner.run(
+    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner.run(
         {
             "headline": "QCOM jumps",
             "symbols_requested": None,
@@ -227,31 +241,76 @@ def test_symbols_requested_none_uses_derived_symbols(tmp_path: Path) -> None:
             "volume_changes": {"qcom": 0.10, "amd": 0.07, "nvda": 0.08},
         }
     )
-    log_path = Path(runner.market_data_provenance_log_path)
-    assert log_path.exists()
-    rec = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+    rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
     assert rec["symbols_requested"] == ["AMD", "NVDA", "QCOM"]
     assert rec["symbols_returned"] == ["AMD", "NVDA", "QCOM"]
 
 
+def test_symbols_requested_list_with_none_does_not_emit_NONE(tmp_path: Path) -> None:
+    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner.run(
+        {
+            "headline": "QCOM jumps",
+            "symbols_requested": [None, "AAPL"],
+            "symbols_returned": [None, "AAPL"],
+        }
+    )
+    rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert rec["symbols_requested"] == ["AAPL"]
+    assert rec["symbols_returned"] == ["AAPL"]
+    assert "NONE" not in rec["symbols_requested"]
+    assert "NONE" not in rec["symbols_returned"]
+
+
+def test_symbols_requested_empty_list_is_preserved(tmp_path: Path) -> None:
+    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner.run({"headline": "QCOM jumps", "symbols_requested": [], "symbols_returned": []})
+    rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert rec["symbols_requested"] == []
+    assert rec["symbols_returned"] == []
+
+
+def test_symbols_requested_explicit_list_is_preserved(tmp_path: Path) -> None:
+    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner.run({"headline": "QCOM jumps", "symbols_requested": ["AAPL"], "symbols_returned": ["AAPL"]})
+    rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert rec["symbols_requested"] == ["AAPL"]
+    assert rec["symbols_returned"] == ["AAPL"]
+
+
+def test_symbols_requested_missing_key_uses_derived_symbols(tmp_path: Path) -> None:
+    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner.run({"headline": "QCOM jumps", "price_changes": {"qcom": 0.05, "amd": 0.03, "nvda": 0.04}})
+    rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert rec["symbols_requested"] == ["AMD", "NVDA", "QCOM"]
+
+
 def test_conduction_out_does_not_alias_candidate_generation_output(tmp_path: Path) -> None:
-    runner, _, _, _, _ = _runner(tmp_path)
+    runner, _, _, _, _, _ = _runner(tmp_path)
     out = runner.run({"headline": "QCOM jumps"})
     cand_sectors = [x.get("sector") for x in out["analysis"]["conduction_candidate_generation"]["sector_impacts"]]
-    # execution.run mutates its input by appending MUTATED; candidate_generation output must remain untouched.
     assert "MUTATED" not in cand_sectors
 
 
 def test_fatigue_score_falls_back_to_fatigue_final_for_execution_suggestion(tmp_path: Path) -> None:
-    runner, _, fatigue, execution_suggestion, _ = _runner(tmp_path)
+    runner, _, fatigue, execution_suggestion, _, _ = _runner(tmp_path)
     fatigue.drop_fatigue_score = True
     runner.run({"headline": "QCOM jumps"})
     assert execution_suggestion.last_payload is not None
     assert execution_suggestion.last_payload["fatigue_score"] == 10
 
 
+def test_fatigue_score_missing_both_keys_uses_safe_default(tmp_path: Path) -> None:
+    runner, _, fatigue, execution_suggestion, _, _ = _runner(tmp_path)
+    fatigue.drop_fatigue_score = True
+    fatigue.drop_fatigue_final = True
+    runner.run({"headline": "QCOM jumps"})
+    assert execution_suggestion.last_payload is not None
+    assert execution_suggestion.last_payload["fatigue_score"] == 0
+
+
 def test_source_rank_for_lifecycle_and_execution_uses_intel_source_rank_object(tmp_path: Path) -> None:
-    runner, lifecycle, _, _, execution = _runner(tmp_path)
+    runner, lifecycle, _, _, execution, _ = _runner(tmp_path)
     runner.run({"headline": "QCOM jumps"})
     assert lifecycle.last_payload is not None
     assert lifecycle.last_payload["source_rank"] == "A"
@@ -261,8 +320,21 @@ def test_source_rank_for_lifecycle_and_execution_uses_intel_source_rank_object(t
 
 
 def test_missing_validation_a1_does_not_crash_signal_or_execution_payload(tmp_path: Path) -> None:
-    runner, _, _, _, execution = _runner(tmp_path, missing_a1=True)
+    runner, _, _, _, execution, _ = _runner(tmp_path, missing_a1=True)
     out = runner.run({"headline": "QCOM jumps"})
     assert out["analysis"]["signal"]["score"] == 78
     assert execution.last_payload is not None
     assert execution.last_payload["A1"] == 0.0
+
+
+def test_run_does_not_crash_on_missing_lifecycle_keys(tmp_path: Path) -> None:
+    runner, lifecycle, _, _, execution, state_store = _runner(tmp_path)
+    lifecycle.drop_keys = True
+    out = runner.run({"headline": "QCOM jumps", "drop_event_category": True})
+    assert out["execution"]["final"]["action"] == "WATCH"
+    assert execution.last_payload is not None
+    assert state_store.last_state is not None
+    assert state_store.last_state["internal_state"] is not None
+    assert state_store.last_state["lifecycle_state"] is not None
+    assert state_store.last_state["catalyst_state"] is not None
+    assert state_store.last_state["metadata"]["category"] is not None

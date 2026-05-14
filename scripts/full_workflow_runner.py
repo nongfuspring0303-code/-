@@ -188,7 +188,7 @@ class FullWorkflowRunner:
                 raw_items = list(value)
             else:
                 raw_items = [value]
-            return sorted({str(sym).strip().upper() for sym in raw_items if str(sym).strip()})
+            return sorted({str(sym).strip().upper() for sym in raw_items if sym is not None and str(sym).strip()})
 
         payload_symbols_requested = (
             _normalize_symbols(payload.get("symbols_requested"))
@@ -1882,11 +1882,11 @@ class FullWorkflowRunner:
         return self.conduction.run(
             {
                 "event_id": event_object["event_id"],
-                "category": event_object["category"],
-                "severity": event_object["severity"],
-                "headline": event_object["headline"],
-                "summary": payload.get("summary", event_object["headline"]),
-                "lifecycle_state": lifecycle_out["lifecycle_state"],
+                "category": event_object.get("category") or "unknown",
+                "severity": event_object.get("severity", "E3"),
+                "headline": event_object.get("headline", ""),
+                "summary": payload.get("summary", event_object.get("headline", "")),
+                "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
                 "narrative_tags": payload.get("narrative_tags", ["macro_event"]),
                 "policy_intervention": payload.get("policy_intervention", "NONE"),
             }
@@ -2920,11 +2920,11 @@ class FullWorkflowRunner:
         lifecycle_out = self.lifecycle.run(
             {
                 "event_id": event_object["event_id"],
-                "category": event_object["category"],
-                "severity": event_object["severity"],
+                "category": event_object.get("category") or "unknown",
+                "severity": event_object.get("severity", "E3"),
                 "source_rank": source_rank.get("rank"),
-                "headline": event_object["headline"],
-                "detected_at": event_object["detected_at"],
+                "headline": event_object.get("headline", ""),
+                "detected_at": event_object.get("detected_at"),
                 "is_official_confirmed": payload.get("is_official_confirmed", source_rank.get("rank") in ("A", "B")),
                 "market_validated": payload.get("market_validated", True),
                 "has_material_update": payload.get("has_material_update", True),
@@ -2949,8 +2949,8 @@ class FullWorkflowRunner:
         fatigue_out = self.fatigue.run(
             {
                 "event_id": event_object["event_id"],
-                "category": event_object["category"],
-                "lifecycle_state": lifecycle_out["lifecycle_state"],
+                "category": event_object.get("category") or "unknown",
+                "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
                 "narrative_tags": payload.get("narrative_tags", ["macro_event"]),
                 "category_active_count": payload.get("category_active_count", 3),
                 "tag_active_counts": payload.get("tag_active_counts", {"macro_event": 2}),
@@ -3465,7 +3465,7 @@ class FullWorkflowRunner:
                 "lifecycle_state": lifecycle_out.get("lifecycle_state"),
                 "time_scale": lifecycle_out.get("time_scale"),
                 "decay_profile": lifecycle_out.get("decay_profile"),
-                "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final")),
+                "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final", 0)),
                 "fatigue_bucket": fatigue_out.get("fatigue_bucket"),
                 "stale_event": lifecycle_out.get("stale_event"),
             },
@@ -3520,7 +3520,7 @@ class FullWorkflowRunner:
 
         execution_suggestion_in = {
             "score": signal_out.get("score"),
-            "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final")),
+            "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final", 0)),
             "has_opportunity": has_opportunity,
             "market_validated": validation_out.get("a1_market_validation") == "pass",
             "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
@@ -3807,12 +3807,12 @@ class FullWorkflowRunner:
         self.state_store.upsert_state(
             event_id,
             {
-                "internal_state": lifecycle_out.get("internal_state"),
-                "lifecycle_state": lifecycle_out.get("lifecycle_state"),
-                "catalyst_state": lifecycle_out.get("catalyst_state"),
+                "internal_state": lifecycle_out.get("internal_state") or "unknown",
+                "lifecycle_state": lifecycle_out.get("lifecycle_state") or "Detected",
+                "catalyst_state": lifecycle_out.get("catalyst_state") or "unknown",
                 "retry_count": retry_count + 1,
                 "metadata": {
-                    "category": event_object.get("category"),
+                    "category": event_object.get("category") or "unknown",
                 },
             },
         )

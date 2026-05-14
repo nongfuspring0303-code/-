@@ -199,11 +199,10 @@ jobs:
 
       - name: advisory-governance-contract
         run: |
-          if [ -f tests/test_advisory_governance.py ] && [ -f tests/test_lifecycle_fatigue_governance.py ] && [ -f tests/test_cross_news_crowding_governance.py ]; then
-            python -m pytest tests/test_advisory_governance.py tests/test_lifecycle_fatigue_governance.py tests/test_cross_news_crowding_governance.py -q
-          else
-            echo "[SKIP] advisory-governance tests not yet added (Phase 4 support pre-binding; PR-8 pending)"
-          fi
+          test -f tests/test_advisory_governance.py
+          test -f tests/test_lifecycle_fatigue_governance.py
+          test -f tests/test_cross_news_crowding_governance.py
+          python -m pytest tests/test_advisory_governance.py tests/test_lifecycle_fatigue_governance.py tests/test_cross_news_crowding_governance.py -q
 
       - name: threshold-config-contract
         run: |

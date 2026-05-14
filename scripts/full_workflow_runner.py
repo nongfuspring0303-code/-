@@ -1902,6 +1902,81 @@ class FullWorkflowRunner:
             "decision_reason": "impl1_shadow_passthrough",
         }
 
+    @staticmethod
+    def _compute_output_adapter_mutation(
+        legacy_symbols: List[str],
+        adapted_symbols: List[str],
+    ) -> Dict[str, Any]:
+        """Compute immutable-boundary mutation metrics for OutputAdapter."""
+        legacy = [str(x).strip().upper() for x in legacy_symbols if str(x).strip()]
+        adapted = [str(x).strip().upper() for x in adapted_symbols if str(x).strip()]
+        same_sequence = legacy == adapted
+        same_set = set(legacy) == set(adapted)
+        max_len = max(len(legacy), len(adapted), 1)
+        edit_distance = abs(len(legacy) - len(adapted))
+        positional_mismatches = sum(1 for a, b in zip(legacy, adapted) if a != b)
+        mismatch_count = edit_distance + positional_mismatches
+        mutation_rate = mismatch_count / max_len
+        return {
+            "legacy_symbols": legacy,
+            "adapted_symbols": adapted,
+            "same_sequence": same_sequence,
+            "same_set": same_set,
+            "mismatch_count": mismatch_count,
+            "mutation_rate": float(mutation_rate),
+            "mutation_detected": (not same_sequence) or (not same_set),
+        }
+
+    def _build_output_adapter_surface(
+        self,
+        *,
+        conduction_final_selection_out: Dict[str, Any],
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any]:
+        """Build shadow-only OutputAdapter v5 compatibility surface for Stage8A Impl-7."""
+        legacy_final = list(conduction_final_selection_out.get("final_recommended_stocks", []) or [])
+        adapted_output = {
+            "recommended_stocks": list(legacy_final),
+            "output_schema": "output_adapter.v5.shadow",
+            "source_surface": "conduction_final_selection.final_recommended_stocks",
+        }
+        metrics = self._compute_output_adapter_mutation(
+            legacy_symbols=legacy_final,
+            adapted_symbols=adapted_output["recommended_stocks"],
+        )
+        mutation_detected = bool(metrics["mutation_detected"])
+        mutation_rate = float(metrics["mutation_rate"])
+        adapter_mode = "compatibility_passthrough"
+        downgrade_reason = None
+        if mutation_detected or mutation_rate > 0.0:
+            adapter_mode = "downgraded_fail_closed"
+            downgrade_reason = "adapter_mutation_detected"
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "output_adapter",
+            "compatibility_only": True,
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "source_surface": "conduction_final_selection.final_recommended_stocks",
+            "adapter_mode": adapter_mode,
+            "legacy_final_recommended_stocks": list(legacy_final),
+            "adapted_output": adapted_output,
+            "mutation_detected": mutation_detected,
+            "mutation_rate": mutation_rate,
+            "output_adapter_mutation_rate": mutation_rate,
+            "downgrade_reason": downgrade_reason,
+            "output_authority": "shadow_only",
+            "production_authority": False,
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "allows_broker_action": False,
+            "final_action_allowed": False,
+            "final_recommendation_allowed": False,
+            "requires_downstream_adjudication": True,
+            "release_status": "observe_only",
+        }
+
     def _build_semantic_full_peer_expansion_surface(
         self,
         *,
@@ -2336,6 +2411,7 @@ class FullWorkflowRunner:
         enable_market_validation_gate = bool(loaded_flags.get("enable_market_validation_gate", False))
         enable_path_adjudicator_lite = bool(loaded_flags.get("enable_path_adjudicator_lite", False))
         enable_semantic_verdict_fix = bool(loaded_flags.get("enable_semantic_verdict_fix", False))
+        enable_output_adapter_v5 = bool(loaded_flags.get("enable_output_adapter_v5", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -2787,6 +2863,15 @@ class FullWorkflowRunner:
                 **conduction_final_selection_out,
                 "final_recommended_stocks": candidate_envelope_symbols,
             }
+        output_adapter_out = (
+            self._build_output_adapter_surface(
+                conduction_final_selection_out=conduction_final_selection_out,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_output_adapter_v5
+            else None
+        )
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -2861,6 +2946,8 @@ class FullWorkflowRunner:
             # Backward-compatible aliases kept during transition:
             **({"semantic_verdict_fix": semantic_verdict_fix_out} if semantic_verdict_fix_out is not None else {}),
             **({"path_adjudicator_lite": path_adjudicator_lite_out} if path_adjudicator_lite_out is not None else {}),
+            **({"output_adapter": output_adapter_out} if output_adapter_out is not None else {}),
+            **({"output_adapter_v5": output_adapter_out} if output_adapter_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -2874,6 +2961,7 @@ class FullWorkflowRunner:
                 "enable_market_validation_gate": enable_market_validation_gate,
                 "enable_semantic_verdict_fix": enable_semantic_verdict_fix,
                 "enable_path_adjudicator_lite": enable_path_adjudicator_lite,
+                "enable_output_adapter_v5": enable_output_adapter_v5,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

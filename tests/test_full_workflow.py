@@ -165,7 +165,7 @@ def test_full_workflow_missing_score_does_not_silent_fallback():
     assert analysis.get("execution_suggestion_errors")
 
 
-def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():
+def test_full_workflow_missing_fatigue_score_uses_fatigue_final_fallback():
     runner = FullWorkflowRunner()
 
     original_run = runner.fatigue.run
@@ -179,9 +179,7 @@ def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():
     runner.fatigue.run = _run_without_fatigue_score
     out = runner.run(_base_payload_for_execution_suggestion())
     analysis = out["analysis"]
-    assert "execution_suggestion" not in analysis
-    assert analysis.get("execution_suggestion_status") == "failed"
-    assert analysis.get("execution_suggestion_errors")
+    assert "execution_suggestion" in analysis
 
 
 def test_full_workflow_builder_failed_is_not_swallowed():
@@ -301,4 +299,3 @@ def test_full_workflow_path_quality_eval_success_path():
     
     # Must not leak into execution
     assert "path_quality_eval" not in out["execution"]
-

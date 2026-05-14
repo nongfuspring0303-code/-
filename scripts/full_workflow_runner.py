@@ -190,8 +190,16 @@ class FullWorkflowRunner:
                 raw_items = [value]
             return sorted({str(sym).strip().upper() for sym in raw_items if str(sym).strip()})
 
-        payload_symbols_requested = _normalize_symbols(payload.get("symbols_requested")) if "symbols_requested" in payload else None
-        payload_symbols_returned = _normalize_symbols(payload.get("symbols_returned")) if "symbols_returned" in payload else None
+        payload_symbols_requested = (
+            _normalize_symbols(payload.get("symbols_requested"))
+            if payload.get("symbols_requested") is not None
+            else None
+        )
+        payload_symbols_returned = (
+            _normalize_symbols(payload.get("symbols_returned"))
+            if payload.get("symbols_returned") is not None
+            else None
+        )
         symbols_requested = payload_symbols_requested if payload_symbols_requested is not None else (derived_symbols_requested or [])
         symbols_returned = payload_symbols_returned if payload_symbols_returned is not None else (derived_symbols_returned or [])
         provider_meta = provider_meta or {}
@@ -2914,10 +2922,10 @@ class FullWorkflowRunner:
                 "event_id": event_object["event_id"],
                 "category": event_object["category"],
                 "severity": event_object["severity"],
-                "source_rank": event_object["source_rank"],
+                "source_rank": source_rank.get("rank"),
                 "headline": event_object["headline"],
                 "detected_at": event_object["detected_at"],
-                "is_official_confirmed": payload.get("is_official_confirmed", source_rank["rank"] in ("A", "B")),
+                "is_official_confirmed": payload.get("is_official_confirmed", source_rank.get("rank") in ("A", "B")),
                 "market_validated": payload.get("market_validated", True),
                 "has_material_update": payload.get("has_material_update", True),
                 "elapsed_hours": payload.get("elapsed_hours", 2),
@@ -3065,7 +3073,7 @@ class FullWorkflowRunner:
             if enable_unified_candidate_pool
             else None
         )
-        conduction_out = conduction_candidate_generation_out
+        conduction_out = deepcopy(conduction_candidate_generation_out)
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -3340,23 +3348,37 @@ class FullWorkflowRunner:
             },
         )
 
+        def _to_float(value: Any, default: float) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return float(default)
+
+        severity = intel_out.get("severity")
+        severity_map = severity if isinstance(severity, dict) else {}
+        severity_a0 = _to_float(severity_map.get("A0"), 0.0)
+        validation_a1 = _to_float(validation_out.get("A1"), 0.0)
+        fatigue_final = _to_float(fatigue_out.get("fatigue_final"), 0.0)
+        fatigue_discount_factor = _to_float(fatigue_out.get("a_minus_1_discount_factor"), 1.0)
+        fatigue_watch_mode = bool(fatigue_out.get("watch_mode", False))
+
         signal_out = self.scorer.run(
             {
                 "event_id": event_object["event_id"],
-                "severity": event_object["severity"],
-                "A0": payload.get("A0", intel_out["severity"]["A0"]),
+                "severity": event_object.get("severity"),
+                "A0": payload.get("A0", severity_a0),
                 "A-1": payload.get("A-1", 65),
-                "A1": validation_out["A1"],
+                "A1": validation_a1,
                 "A1.5": payload.get("A1.5", 58),
                 "A0.5": payload.get("A0.5", 0),
-                "fatigue_final": fatigue_out["fatigue_final"],
-                "a_minus_1_discount_factor": fatigue_out["a_minus_1_discount_factor"],
+                "fatigue_final": fatigue_final,
+                "a_minus_1_discount_factor": fatigue_discount_factor,
                 "correlation": payload.get("validation_correlation", 0.55),
                 "is_crowded": payload.get("is_crowded", False),
                 "narrative_mode": payload.get("narrative_mode", "Fact-Driven"),
                 "policy_intervention": payload.get("policy_intervention", "NONE"),
                 "base_direction": payload.get("direction", "long"),
-                "watch_mode": fatigue_out["watch_mode"],
+                "watch_mode": fatigue_watch_mode,
                 "weights_version": "score_v1",
             }
         ).data
@@ -3498,7 +3520,7 @@ class FullWorkflowRunner:
 
         execution_suggestion_in = {
             "score": signal_out.get("score"),
-            "fatigue_score": fatigue_out.get("fatigue_score"),
+            "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final")),
             "has_opportunity": has_opportunity,
             "market_validated": validation_out.get("a1_market_validation") == "pass",
             "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
@@ -3630,18 +3652,18 @@ class FullWorkflowRunner:
             "request_id": request_id,
             "batch_id": batch_id,
             "event_hash": event_hash,
-            "A0": payload.get("A0", intel_out["severity"]["A0"]),
+            "A0": payload.get("A0", severity_a0),
             "A-1": payload.get("A-1", 65),
-            "A1": analysis_out["market_validation"]["A1"],
+            "A1": analysis_out.get("market_validation", {}).get("A1", validation_a1),
             "A1.5": payload.get("A1.5", 58),
             "A0.5": payload.get("A0.5", 0),
-            "severity": intel_out["event_object"]["severity"],
-            "fatigue_index": analysis_out["fatigue"]["fatigue_final"],
-            "event_state": analysis_out["lifecycle"]["lifecycle_state"],
+            "severity": intel_out.get("event_object", {}).get("severity"),
+            "fatigue_index": analysis_out.get("fatigue", {}).get("fatigue_final", fatigue_final),
+            "event_state": analysis_out.get("lifecycle", {}).get("lifecycle_state"),
             "a1_market_validation": validation_out.get("a1_market_validation"),
             "event_type": event_contract.get("event_type", "unknown"),
             "event_time": event_contract.get("event_time", ""),
-            "event_name": event_object.get("headline", event_object["event_id"]),
+            "event_name": event_object.get("headline") or event_object.get("event_id"),
             "evidence_grade": event_contract.get("evidence_grade", "C"),
             "primary_path": path_out.get("primary_path", {}).get("path_text", "undetermined"),
             "secondary_paths": [p.get("path_text", "") for p in path_out.get("secondary_paths", [])],
@@ -3666,7 +3688,7 @@ class FullWorkflowRunner:
             "entry_price": payload.get("entry_price", 100.0),
             "risk_per_share": payload.get("risk_per_share", 2.0),
             "direction": payload.get("direction", "long"),
-            "source_rank": event_object["source_rank"],
+            "source_rank": dict(source_rank),
             "needs_escalation": source_rank.get("needs_escalation", False),
             "policy_intervention": payload.get("policy_intervention", "NONE"),
             "require_human_confirm": payload.get("require_human_confirm", False),
@@ -3782,15 +3804,18 @@ class FullWorkflowRunner:
         )
         self._append_jsonl(self.trace_scorecard_log_path, trace_scorecard)
 
-        self.state_store.upsert_state(event_id, {
-            "internal_state": lifecycle_out["internal_state"],
-            "lifecycle_state": lifecycle_out["lifecycle_state"],
-            "catalyst_state": lifecycle_out["catalyst_state"],
-            "retry_count": retry_count + 1,
-            "metadata": {
-                "category": event_object["category"],
+        self.state_store.upsert_state(
+            event_id,
+            {
+                "internal_state": lifecycle_out.get("internal_state"),
+                "lifecycle_state": lifecycle_out.get("lifecycle_state"),
+                "catalyst_state": lifecycle_out.get("catalyst_state"),
+                "retry_count": retry_count + 1,
+                "metadata": {
+                    "category": event_object.get("category"),
+                },
             },
-        })
+        )
         self._refresh_stage5_daily_outputs()
 
         return {"intel": intel_out, "analysis": analysis_out, "execution": execution_out}

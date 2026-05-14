@@ -1670,6 +1670,196 @@ class FullWorkflowRunner:
             "missing_market_data_count": missing_market_data_count,
         }
 
+    @staticmethod
+    def _build_semantic_verdict_fix_surface(
+        *,
+        semantic_out: Dict[str, Any],
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any]:
+        """Build a shadow-only semantic verdict normalization surface for Stage8A Impl-6."""
+        raw_verdict = str(semantic_out.get("verdict", "") or "").strip().lower()
+        sentiment = str(semantic_out.get("sentiment", "neutral") or "neutral").strip().lower()
+        confidence_raw = semantic_out.get("confidence", 0.0)
+        try:
+            confidence = float(confidence_raw)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        if confidence > 1.0:
+            confidence = confidence / 100.0
+        confidence = max(0.0, min(1.0, confidence))
+
+        if raw_verdict in {"long", "short", "watch", "abstain"}:
+            normalized_verdict = raw_verdict
+            normalization_source = "semantic_verdict"
+        elif sentiment in {"positive", "bullish"} and confidence >= 0.6:
+            normalized_verdict = "long"
+            normalization_source = "sentiment_confidence_map"
+        elif sentiment in {"negative", "bearish"} and confidence >= 0.6:
+            normalized_verdict = "short"
+            normalization_source = "sentiment_confidence_map"
+        elif sentiment in {"mixed", "neutral"}:
+            normalized_verdict = "watch"
+            normalization_source = "sentiment_confidence_map"
+        else:
+            normalized_verdict = "abstain"
+            normalization_source = "safe_default"
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "semantic_verdict_fix",
+            "compatibility_only": True,
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "output_authority": "shadow_only",
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "final_recommendation_allowed": False,
+            "production_authority": False,
+            "release_status": "observe_only",
+            "normalized_verdict_is_final": False,
+            "requires_path_adjudication": True,
+            "allowed_verdicts": ["long", "short", "watch", "abstain"],
+            "raw_verdict": raw_verdict or "missing",
+            "sentiment": sentiment,
+            "semantic_confidence": confidence,
+            "normalized_verdict": normalized_verdict,
+            "normalization_source": normalization_source,
+        }
+
+    @staticmethod
+    def _build_path_adjudicator_lite_surface(
+        *,
+        semantic_prepass: Dict[str, Any],
+        semantic_verdict_fix_out: Dict[str, Any] | None,
+        path_out: Dict[str, Any],
+        conduction_out: Dict[str, Any],
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any]:
+        """Build a shadow-only PathAdjudicator Lite decision surface for Stage8A Impl-6."""
+        route_type = str(semantic_prepass.get("route_type", "unknown") or "unknown")
+        semantic_confidence = float(semantic_prepass.get("semantic_confidence", 0.0) or 0.0)
+        primary_path_text = str((path_out.get("primary_path") or {}).get("path_text", "undetermined") or "undetermined")
+        normalized_verdict = str((semantic_verdict_fix_out or {}).get("normalized_verdict", "abstain") or "abstain")
+        conduction_confidence = float(conduction_out.get("confidence", 0.0) or 0.0)
+
+        if normalized_verdict == "abstain":
+            final_path = "abstain_manual_review_path"
+            decision_reason = "semantic_abstain_requires_manual_review"
+            shadow_override_suggested = False
+        elif route_type == "company_anchor" and semantic_confidence >= 0.70:
+            final_path = "semantic_anchor_path"
+            decision_reason = "semantic_anchor_override"
+            shadow_override_suggested = True
+        elif route_type == "macro_event" and conduction_confidence >= 70.0:
+            final_path = "template_macro_path"
+            decision_reason = "strong_macro_rule_precedence"
+            shadow_override_suggested = False
+        else:
+            final_path = "observe_only_shadow_path"
+            decision_reason = "low_confidence_or_conflict"
+            shadow_override_suggested = False
+
+        accepted_paths: List[str] = [final_path]
+        rejected_paths: List[str] = []
+        downgraded_paths: List[str] = []
+        competing_paths: List[str] = []
+        suppressed_paths: List[str] = []
+
+        if final_path != "semantic_anchor_path":
+            competing_paths.append("semantic_anchor_path")
+            suppressed_paths.append("semantic_anchor_path")
+        if final_path != "template_macro_path":
+            competing_paths.append("template_macro_path")
+        if final_path == "observe_only_shadow_path":
+            downgraded_paths.append("semantic_anchor_path")
+            downgraded_paths.append("template_macro_path")
+        if final_path == "abstain_manual_review_path":
+            rejected_paths.extend(["semantic_anchor_path", "template_macro_path"])
+
+        path_decision_log = [
+            {
+                "path": final_path,
+                "input_source": "semantic_prepass",
+                "decision": "accepted",
+                "reason": decision_reason,
+                "authority": "shadow_only",
+                "is_final": False,
+            }
+        ]
+        for path in rejected_paths:
+            path_decision_log.append(
+                {
+                    "path": path,
+                    "input_source": "semantic_prepass",
+                    "decision": "rejected",
+                    "reason": "suppressed_by_primary_decision",
+                    "authority": "shadow_only",
+                    "is_final": False,
+                }
+            )
+        for path in downgraded_paths:
+            path_decision_log.append(
+                {
+                    "path": path,
+                    "input_source": "semantic_prepass",
+                    "decision": "downgraded",
+                    "reason": "observe_only_conflict_or_low_confidence",
+                    "authority": "shadow_only",
+                    "is_final": False,
+                }
+            )
+
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "path_adjudicator_lite",
+            "compatibility_only": True,
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "output_authority": "shadow_only",
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "final_recommendation_allowed": False,
+            "production_authority": False,
+            "release_status": "observe_only",
+            "requires_downstream_adjudication": True,
+            "override_allowed": False,
+            "shadow_override_suggested": shadow_override_suggested,
+            "override_scope": "shadow_only",
+            "override_affects_final_selection": False,
+            "override_affects_execution": False,
+            "override_affects_final_recommended_stocks": False,
+            "route_type": route_type,
+            "semantic_confidence": semantic_confidence,
+            "normalized_verdict": normalized_verdict,
+            "upstream_primary_path": primary_path_text,
+            "final_path": final_path,
+            "decision_reason": decision_reason,
+            "path_decision_log": path_decision_log,
+            "accepted_paths": accepted_paths,
+            "rejected_paths": rejected_paths,
+            "downgraded_paths": downgraded_paths,
+            "dominant_path": {
+                "path": final_path,
+                "reason": decision_reason,
+                "authority": "shadow_only",
+                "is_final": False,
+            },
+            "competing_paths": competing_paths,
+            "suppressed_paths": suppressed_paths,
+            "routing_authority_decision": {
+                "status": "shadow_only",
+                "decision": "accepted_shadow_path",
+                "is_final": False,
+                "allows_final_selection": False,
+                "allows_execution": False,
+                "production_authority": False,
+                "release_status": "observe_only",
+            },
+            "non_final": True,
+        }
+
     def _run_conduction_candidate_generation(
         self,
         *,
@@ -2144,6 +2334,8 @@ class FullWorkflowRunner:
         enable_multisource_merge = bool(loaded_flags.get("enable_multisource_merge", False))
         enable_semantic_full_peer_expansion = bool(loaded_flags.get("enable_semantic_full_peer_expansion", False))
         enable_market_validation_gate = bool(loaded_flags.get("enable_market_validation_gate", False))
+        enable_path_adjudicator_lite = bool(loaded_flags.get("enable_path_adjudicator_lite", False))
+        enable_semantic_verdict_fix = bool(loaded_flags.get("enable_semantic_verdict_fix", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -2556,6 +2748,27 @@ class FullWorkflowRunner:
             if enable_market_validation_gate
             else None
         )
+        semantic_verdict_fix_out = (
+            self._build_semantic_verdict_fix_surface(
+                semantic_out=semantic_out,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_semantic_verdict_fix
+            else None
+        )
+        path_adjudicator_lite_out = (
+            self._build_path_adjudicator_lite_surface(
+                semantic_prepass=semantic_prepass,
+                semantic_verdict_fix_out=semantic_verdict_fix_out,
+                path_out=path_out,
+                conduction_out=conduction_out,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_path_adjudicator_lite
+            else None
+        )
 
         conduction_final_selection_out = self._run_conduction_final_selection(
             candidate_generation_out=conduction_candidate_generation_out,
@@ -2642,6 +2855,12 @@ class FullWorkflowRunner:
             **({"unified_candidate_pool": unified_candidate_pool_out} if unified_candidate_pool_out is not None else {}),
             **({"semantic_full_peer_expansion": semantic_full_peer_expansion_out} if semantic_full_peer_expansion_out is not None else {}),
             **({"peer_market_validation": peer_market_validation_out} if peer_market_validation_out is not None else {}),
+            # Canonical PR-6 surfaces per Issue #155:
+            **({"semantic_verdict": semantic_verdict_fix_out} if semantic_verdict_fix_out is not None else {}),
+            **({"path_adjudication_lite": path_adjudicator_lite_out} if path_adjudicator_lite_out is not None else {}),
+            # Backward-compatible aliases kept during transition:
+            **({"semantic_verdict_fix": semantic_verdict_fix_out} if semantic_verdict_fix_out is not None else {}),
+            **({"path_adjudicator_lite": path_adjudicator_lite_out} if path_adjudicator_lite_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -2652,6 +2871,9 @@ class FullWorkflowRunner:
                 "enable_candidate_envelope": enable_candidate_envelope,
                 "enable_entity_resolver": enable_entity_resolver,
                 "enable_semantic_full_peer_expansion": enable_semantic_full_peer_expansion,
+                "enable_market_validation_gate": enable_market_validation_gate,
+                "enable_semantic_verdict_fix": enable_semantic_verdict_fix,
+                "enable_path_adjudicator_lite": enable_path_adjudicator_lite,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

@@ -193,6 +193,11 @@ def test_full_workflow_missing_fatigue_score_uses_fatigue_final_fallback():
     assert captured.get("fatigue_score") is not None
 
 
+def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():
+    # Backward-compatible alias for existing CI step names.
+    test_full_workflow_missing_fatigue_score_uses_fatigue_final_fallback()
+
+
 def test_full_workflow_builder_failed_is_not_swallowed():
     runner = FullWorkflowRunner()
 

@@ -1954,11 +1954,17 @@ class FullWorkflowRunner:
             downgrade_reason = "adapter_mutation_detected"
         return {
             "status": "shadow_only",
-            "compatibility_surface": "output_adapter",
+            "compatibility_surface": "output_adapter_v5",
             "compatibility_only": True,
+            "adapter_version": "v5",
+            "alias_surfaces": ["output_adapter"],
             "trace_id": trace_id,
             "event_id": event_id,
             "source_surface": "conduction_final_selection.final_recommended_stocks",
+            "source_immutable": True,
+            "adapter_mutates_tickers": False,
+            "preserves_order": bool(metrics["same_sequence"]),
+            "preserves_symbol_set": bool(metrics["same_set"]),
             "adapter_mode": adapter_mode,
             "legacy_final_recommended_stocks": list(legacy_final),
             "adapted_output": adapted_output,

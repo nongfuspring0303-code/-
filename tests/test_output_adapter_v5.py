@@ -182,9 +182,15 @@ def test_output_adapter_surface_shadow_only_and_immutable(tmp_path: Path) -> Non
 
     assert analysis["output_adapter_v5"] == surface
     assert surface["status"] == "shadow_only"
-    assert surface["compatibility_surface"] == "output_adapter"
+    assert surface["compatibility_surface"] == "output_adapter_v5"
     assert surface["compatibility_only"] is True
+    assert surface["adapter_version"] == "v5"
+    assert surface["alias_surfaces"] == ["output_adapter"]
     assert surface["source_surface"] == "conduction_final_selection.final_recommended_stocks"
+    assert surface["source_immutable"] is True
+    assert surface["adapter_mutates_tickers"] is False
+    assert surface["preserves_order"] is True
+    assert surface["preserves_symbol_set"] is True
     assert surface["adapter_mode"] == "compatibility_passthrough"
     assert surface["mutation_detected"] is False
     assert surface["mutation_rate"] == 0.0

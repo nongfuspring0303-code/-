@@ -2032,13 +2032,21 @@ class FullWorkflowRunner:
                 }
             )
 
-        overall_status = "pass"
-        if any(item["gate_status"] == "manual_review" for item in gate_diagnostics):
+        if not gate_diagnostics:
             overall_status = "manual_review"
+            overall_reason = "no_gate_diagnostic_sources_available"
         elif any(item["gate_status"] == "block" for item in gate_diagnostics):
             overall_status = "block"
+            overall_reason = "blocking_gate_detected"
+        elif any(item["gate_status"] == "manual_review" for item in gate_diagnostics):
+            overall_status = "manual_review"
+            overall_reason = "manual_review_gate_detected"
         elif any(item["gate_status"] == "downgrade" for item in gate_diagnostics):
             overall_status = "downgrade"
+            overall_reason = "downgrade_gate_detected"
+        else:
+            overall_status = "pass"
+            overall_reason = "all_gates_passed"
 
         return {
             "status": "advisory_only",
@@ -2053,9 +2061,10 @@ class FullWorkflowRunner:
             "final_action_allowed": False,
             "production_authority": False,
             "release_status": "observe_only",
-            "requires_human_review": overall_status == "manual_review",
+            "requires_human_review": overall_status in {"manual_review", "block"},
             "requires_downstream_adjudication": True,
             "overall_status": overall_status,
+            "overall_reason": overall_reason,
             "gate_count": len(gate_diagnostics),
             "source_surfaces": [item["source_surface"] for item in gate_diagnostics],
             "gate_diagnostics": gate_diagnostics,

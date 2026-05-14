@@ -235,12 +235,31 @@ def test_gate_diagnostics_flag_off_omits_surface(tmp_path: Path) -> None:
     assert out["execution"]["final"]["action"] == "WATCH"
 
 
+def test_gate_diagnostics_no_sources_does_not_pass(tmp_path: Path) -> None:
+    out = _runner(
+        tmp_path,
+        enable_gate_diagnostics=True,
+        enable_output_adapter=False,
+        enable_path_lite=False,
+        enable_semantic_verdict_fix=False,
+    ).run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["gate_diagnostics"]
+    assert surface["gate_count"] == 0
+    assert surface["overall_status"] == "manual_review"
+    assert surface["overall_status"] != "pass"
+    assert surface["overall_reason"] == "no_gate_diagnostic_sources_available"
+    assert surface["requires_human_review"] is True
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert out["execution"]["final"]["action"] == "WATCH"
+
+
 def test_gate_diagnostics_can_escalate_manual_review_from_path_adjudication(tmp_path: Path) -> None:
     out = _runner(tmp_path, verdict="abstain", sentiment="neutral").run({"headline": "QCOM jumps"})
     surface = out["analysis"]["gate_diagnostics"]
     path_gate = _gate(surface, "path_adjudication_lite")
 
     assert surface["overall_status"] == "manual_review"
+    assert surface["overall_reason"] == "manual_review_gate_detected"
     assert surface["requires_human_review"] is True
     assert path_gate["gate_status"] == "manual_review"
     assert path_gate["reason"] == "semantic_abstain_requires_manual_review"
@@ -267,7 +286,54 @@ def test_gate_diagnostics_can_report_output_adapter_downgrade(tmp_path: Path) ->
     adapter_gate = _gate(surface, "output_adapter_v5")
 
     assert surface["overall_status"] == "downgrade"
+    assert surface["overall_reason"] == "downgrade_gate_detected"
     assert surface["requires_human_review"] is False
     assert adapter_gate["gate_status"] == "downgrade"
     assert adapter_gate["reason"] == "adapter_mutation_detected"
     assert out["analysis"]["output_adapter"]["adapter_mode"] == "downgraded_fail_closed"
+
+
+def test_gate_diagnostics_block_status_is_reachable_and_dominates(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+
+    def _forced_path_surface(
+        *,
+        semantic_prepass,
+        semantic_verdict_fix_out,
+        path_out,
+        conduction_out,
+        trace_id,
+        event_id,
+    ):
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "path_adjudication_lite",
+            "compatibility_only": True,
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "output_authority": "shadow_only",
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "final_recommendation_allowed": False,
+            "production_authority": False,
+            "release_status": "observe_only",
+            "requires_downstream_adjudication": True,
+            "final_path": "unsupported_path",
+            "decision_reason": "unsupported_path",
+            "non_final": True,
+        }
+
+    runner._build_path_adjudicator_lite_surface = _forced_path_surface  # type: ignore[assignment]
+    out = runner.run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["gate_diagnostics"]
+    path_gate = _gate(surface, "path_adjudication_lite")
+
+    assert path_gate["gate_status"] == "block"
+    assert surface["overall_status"] == "block"
+    assert surface["overall_reason"] == "blocking_gate_detected"
+    assert surface["overall_status"] != "pass"
+    assert surface["overall_status"] != "manual_review"
+    assert surface["overall_status"] != "downgrade"
+    assert surface["requires_human_review"] is True
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert out["execution"]["final"]["action"] == "WATCH"

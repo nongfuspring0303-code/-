@@ -176,15 +176,18 @@ def _runner(tmp_path: Path, *, enable_path_lite: bool = True, enable_semantic_ve
 
 def test_path_adjudicator_lite_surface_shadow_only_and_non_authoritative(tmp_path: Path) -> None:
     out = _runner(tmp_path).run({"headline": "QCOM jumps"})
-    surface = out["analysis"]["path_adjudicator_lite"]
+    surface = out["analysis"]["path_adjudication_lite"]
+    assert out["analysis"]["path_adjudicator_lite"] == surface
 
     assert surface["status"] == "shadow_only"
     assert surface["compatibility_surface"] == "path_adjudicator_lite"
     assert surface["output_authority"] == "shadow_only"
     assert surface["allows_final_selection"] is False
     assert surface["allows_execution"] is False
+    assert surface["final_recommendation_allowed"] is False
     assert surface["production_authority"] is False
     assert surface["release_status"] == "observe_only"
+    assert surface["requires_downstream_adjudication"] is True
     assert surface["override_allowed"] is False
     assert surface["shadow_override_suggested"] is True
     assert surface["override_scope"] == "shadow_only"
@@ -209,7 +212,7 @@ def test_path_adjudicator_lite_surface_shadow_only_and_non_authoritative(tmp_pat
 
 def test_path_adjudicator_lite_decision_log_and_path_buckets(tmp_path: Path) -> None:
     out = _runner(tmp_path).run({"headline": "QCOM jumps"})
-    surface = out["analysis"]["path_adjudicator_lite"]
+    surface = out["analysis"]["path_adjudication_lite"]
     assert isinstance(surface["accepted_paths"], list)
     assert isinstance(surface["rejected_paths"], list)
     assert isinstance(surface["downgraded_paths"], list)
@@ -222,7 +225,7 @@ def test_path_adjudicator_lite_decision_log_and_path_buckets(tmp_path: Path) -> 
 
 def test_path_adjudicator_lite_override_is_shadow_only(tmp_path: Path) -> None:
     out = _runner(tmp_path).run({"headline": "QCOM jumps"})
-    surface = out["analysis"]["path_adjudicator_lite"]
+    surface = out["analysis"]["path_adjudication_lite"]
     assert surface["shadow_override_suggested"] in {True, False}
     assert surface["override_allowed"] is False
     assert surface["override_scope"] == "shadow_only"
@@ -245,7 +248,7 @@ def test_path_adjudicator_lite_does_not_consume_final_recommended_stocks(tmp_pat
 
     runner._run_conduction_final_selection = _forced_final_selection  # type: ignore[assignment]
     out = runner.run({"headline": "QCOM jumps"})
-    surface = out["analysis"]["path_adjudicator_lite"]
+    surface = out["analysis"]["path_adjudication_lite"]
     assert surface["final_path"] == "semantic_anchor_path"
     assert surface["decision_reason"] == "semantic_anchor_override"
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == []
@@ -255,6 +258,51 @@ def test_path_adjudicator_lite_does_not_consume_final_recommended_stocks(tmp_pat
 def test_path_adjudicator_lite_flag_off_omits_surface(tmp_path: Path) -> None:
     out = _runner(tmp_path, enable_path_lite=False).run({"headline": "QCOM jumps"})
 
+    assert "path_adjudication_lite" not in out["analysis"]
     assert "path_adjudicator_lite" not in out["analysis"]
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
     assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_path_adjudication_lite_conflict_case_can_manual_review(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    runner.semantic = _FakeSemantic()
+    runner.semantic.analyze = lambda h, s: {
+        "event_type": "sector",
+        "sentiment": "neutral",
+        "confidence": 82,
+        "verdict": "abstain",
+        "recommended_chain": "sem_chain",
+        "recommended_stocks": ["QCOM"],
+        "a0_event_strength": 80,
+        "expectation_gap": 60,
+        "transmission_candidates": ["semiconductor"],
+    }
+    out = runner.run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["path_adjudication_lite"]
+    assert surface["final_path"] == "abstain_manual_review_path"
+    assert surface["decision_reason"] == "semantic_abstain_requires_manual_review"
+    assert surface["routing_authority_decision"]["status"] == "shadow_only"
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]
+
+
+def test_path_adjudication_lite_conflict_case_can_observe_only_shadow_path(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    runner.semantic = _FakeSemantic()
+    runner.semantic.analyze = lambda h, s: {
+        "event_type": "other",
+        "sentiment": "mixed",
+        "confidence": 30,
+        "verdict": "watch",
+        "recommended_chain": "sem_chain",
+        "recommended_stocks": [],
+        "a0_event_strength": 80,
+        "expectation_gap": 60,
+        "transmission_candidates": [],
+    }
+    out = runner.run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["path_adjudication_lite"]
+    assert surface["final_path"] == "observe_only_shadow_path"
+    assert surface["decision_reason"] == "low_confidence_or_conflict"
+    assert surface["non_final"] is True
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD"]

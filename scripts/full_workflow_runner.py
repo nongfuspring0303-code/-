@@ -1820,8 +1820,10 @@ class FullWorkflowRunner:
             "output_authority": "shadow_only",
             "allows_final_selection": False,
             "allows_execution": False,
+            "final_recommendation_allowed": False,
             "production_authority": False,
             "release_status": "observe_only",
+            "requires_downstream_adjudication": True,
             "override_allowed": False,
             "shadow_override_suggested": shadow_override_suggested,
             "override_scope": "shadow_only",
@@ -2853,6 +2855,10 @@ class FullWorkflowRunner:
             **({"unified_candidate_pool": unified_candidate_pool_out} if unified_candidate_pool_out is not None else {}),
             **({"semantic_full_peer_expansion": semantic_full_peer_expansion_out} if semantic_full_peer_expansion_out is not None else {}),
             **({"peer_market_validation": peer_market_validation_out} if peer_market_validation_out is not None else {}),
+            # Canonical PR-6 surfaces per Issue #155:
+            **({"semantic_verdict": semantic_verdict_fix_out} if semantic_verdict_fix_out is not None else {}),
+            **({"path_adjudication_lite": path_adjudicator_lite_out} if path_adjudicator_lite_out is not None else {}),
+            # Backward-compatible aliases kept during transition:
             **({"semantic_verdict_fix": semantic_verdict_fix_out} if semantic_verdict_fix_out is not None else {}),
             **({"path_adjudicator_lite": path_adjudicator_lite_out} if path_adjudicator_lite_out is not None else {}),
             "signal": signal_out,

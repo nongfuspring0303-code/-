@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from test_advisory_governance import _runner
+from test_advisory_governance import _runner, assert_advisory_subsurface_boundary
 
 
 def test_lifecycle_fatigue_stale_event_downgrades_without_mutating_final_output(tmp_path: Path) -> None:
@@ -20,6 +20,14 @@ def test_lifecycle_fatigue_stale_event_downgrades_without_mutating_final_output(
     assert "stale_event" in surface["downgrade_reasons"]
     assert surface["lifecycle_fatigue_governance"]["downgrade"] is True
     assert surface["lifecycle_fatigue_governance"]["downgrade_reason"]
+    assert_advisory_subsurface_boundary(
+        out["analysis"]["lifecycle_fatigue_governance"],
+        "lifecycle_fatigue_governance",
+    )
+    assert_advisory_subsurface_boundary(
+        out["analysis"]["lifecycle_fatigue_governance"],
+        "lifecycle_fatigue_governance",
+    )
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"
 

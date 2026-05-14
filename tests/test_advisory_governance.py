@@ -146,6 +146,22 @@ class _FakeStateStore:
         return None
 
 
+def assert_advisory_subsurface_boundary(surface, expected_name: str) -> None:
+    assert surface["compatibility_surface"] == expected_name
+    assert surface["compatibility_only"] is True
+    assert surface["output_authority"] == "advisory_only"
+    assert surface["production_authority"] is False
+    assert surface["allows_final_selection"] is False
+    assert surface["allows_execution"] is False
+    assert surface["allows_broker_action"] is False
+    assert surface["final_action_allowed"] is False
+    assert surface["final_recommendation_allowed"] is False
+    assert surface["release_status"] == "observe_only"
+    assert surface["requires_downstream_adjudication"] is True
+    assert surface["trace_id"]
+    assert surface["event_id"]
+
+
 def _runner(
     tmp_path: Path,
     *,
@@ -218,3 +234,78 @@ def test_advisory_governance_surface_is_advisory_only_and_non_authoritative(tmp_
 
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"
+
+
+def test_advisory_governance_aggregates_sub_governance(tmp_path: Path) -> None:
+    lifecycle_data = {
+        "lifecycle_state": "Active",
+        "internal_state": "ACTIVE_TRACK",
+        "catalyst_state": "Active",
+        "stale_event": {"is_stale": True},
+    }
+    fatigue_data = {
+        "fatigue_final": 90,
+        "fatigue_score": 90,
+        "fatigue_bucket": "high",
+        "watch_mode": True,
+        "a_minus_1_discount_factor": 0.5,
+    }
+    payload = {
+        "headline": "QCOM jumps",
+        "cross_news_conflicts": [
+            {
+                "symbol": "QCOM",
+                "theme": "semiconductor",
+                "status": "unresolved",
+                "reason": "opposite_direction_news",
+                "direction_a": "positive",
+                "direction_b": "negative",
+                "source_a": "source_a",
+                "source_b": "source_b",
+                "evidence": "same symbol opposite direction",
+            }
+        ],
+        "crowding_signals": [
+            {
+                "symbol": "QCOM",
+                "theme": "semiconductor",
+                "crowded": True,
+                "evidence": "theme_overcrowded",
+                "candidate_count": 12,
+                "threshold": 8,
+            }
+        ],
+    }
+
+    out = _runner(tmp_path, lifecycle_data=lifecycle_data, fatigue_data=fatigue_data).run(payload)
+    surface = out["analysis"]["advisory_governance"]
+
+    assert surface["overall_governance_status"] == surface["overall_status"]
+    assert surface["overall_reason"]
+    assert surface["governance_decisions"] == surface["governance_events"]
+
+    domains = {item["domain"] for item in surface["governance_decisions"]}
+    assert {"lifecycle_fatigue", "cross_news", "crowding"}.issubset(domains)
+
+    for decision in surface["governance_decisions"]:
+        assert decision["domain"]
+        assert decision["gate_name"]
+        assert decision["source_surface"]
+        assert decision["trace_id"]
+        assert decision["event_id"]
+        assert "requires_human_review" in decision
+        if decision["status"] != "pass":
+            assert decision["reason"]
+
+    assert_advisory_subsurface_boundary(
+        out["analysis"]["lifecycle_fatigue_governance"],
+        "lifecycle_fatigue_governance",
+    )
+    assert_advisory_subsurface_boundary(
+        out["analysis"]["cross_news_governance"],
+        "cross_news_governance",
+    )
+    assert_advisory_subsurface_boundary(
+        out["analysis"]["crowding_governance"],
+        "crowding_governance",
+    )

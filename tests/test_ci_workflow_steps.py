@@ -260,7 +260,7 @@ def test_gate_diagnostics_contract_binds_required_test():
 
 
 def test_advisory_governance_contract_binds_required_tests():
-    """Phase 4 PR-8 governance gate must pre-bind all future governance tests."""
+    """Phase 4 PR-8 governance gate must require the canonical governance tests."""
     workflow = _load_workflow()
     steps = _workflow_steps_by_name(workflow)
     step = steps.get("advisory-governance-contract")
@@ -276,6 +276,12 @@ def test_advisory_governance_contract_binds_required_tests():
     assert "tests/test_cross_news_crowding_governance.py" in run_cmd, (
         "advisory-governance-contract must reference tests/test_cross_news_crowding_governance.py"
     )
-    assert 'if [ -f tests/test_advisory_governance.py ] && [ -f tests/test_lifecycle_fatigue_governance.py ] && [ -f tests/test_cross_news_crowding_governance.py ]; then' in run_cmd, (
-        "advisory-governance-contract must remain pre-binding until all future PR-8 tests land"
+    assert "test -f tests/test_advisory_governance.py" in run_cmd, (
+        "advisory-governance-contract must fail fast when tests/test_advisory_governance.py is missing"
+    )
+    assert "test -f tests/test_lifecycle_fatigue_governance.py" in run_cmd, (
+        "advisory-governance-contract must fail fast when tests/test_lifecycle_fatigue_governance.py is missing"
+    )
+    assert "test -f tests/test_cross_news_crowding_governance.py" in run_cmd, (
+        "advisory-governance-contract must fail fast when tests/test_cross_news_crowding_governance.py is missing"
     )

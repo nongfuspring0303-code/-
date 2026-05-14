@@ -141,6 +141,10 @@ class FullWorkflowRunner:
             "enable_entity_resolver": False,
             "enable_unified_candidate_pool": False,
             "enable_multisource_merge": False,
+            "enable_advisory_governance": False,
+            "enable_cross_news_guard": False,
+            "enable_crowding_guard": False,
+            "enable_lifecycle_fatigue_governance": False,
         }
         cfg_path = ROOT / "configs" / "feature_flags_v22.yaml"
         try:
@@ -2070,6 +2074,331 @@ class FullWorkflowRunner:
             "gate_diagnostics": gate_diagnostics,
         }
 
+    def _build_advisory_governance_surface(
+        self,
+        *,
+        lifecycle_out: Dict[str, Any] | None,
+        fatigue_out: Dict[str, Any] | None,
+        payload: Dict[str, Any],
+        trace_id: str,
+        event_id: str,
+        enable_cross_news_guard: bool,
+        enable_crowding_guard: bool,
+        enable_lifecycle_fatigue_governance: bool,
+    ) -> Dict[str, Any]:
+        """Build advisory-only governance surface for Stage8A Impl-8."""
+        def _boundary(surface_name: str) -> Dict[str, Any]:
+            return {
+                "compatibility_surface": surface_name,
+                "compatibility_only": True,
+                "trace_id": trace_id,
+                "event_id": event_id,
+                "output_authority": "advisory_only",
+                "production_authority": False,
+                "allows_final_selection": False,
+                "allows_execution": False,
+                "allows_broker_action": False,
+                "final_action_allowed": False,
+                "final_recommendation_allowed": False,
+                "release_status": "observe_only",
+                "requires_downstream_adjudication": True,
+            }
+
+        def _decision(
+            *,
+            domain: str,
+            status: str,
+            reason: str,
+            source_surface: str,
+            requires_human_review: bool = False,
+        ) -> Dict[str, Any]:
+            return {
+                "domain": domain,
+                "gate_name": source_surface,
+                "status": status,
+                "gate_status": status,
+                "reason": reason,
+                "source_surface": source_surface,
+                "trace_id": trace_id,
+                "event_id": event_id,
+                "requires_human_review": requires_human_review,
+            }
+
+        governance_events: List[Dict[str, Any]] = []
+        downgrade_reasons: List[str] = []
+        active_domains: List[str] = []
+
+        lifecycle_surface: Dict[str, Any] = {
+            **_boundary("lifecycle_fatigue_governance"),
+            "status": "not_evaluated",
+            "downgrade": False,
+            "downgrade_reason": None,
+        }
+        cross_news_surface: Dict[str, Any] = {
+            **_boundary("cross_news_governance"),
+            "status": "not_evaluated",
+            "conflict_status": "not_evaluated",
+            "conflict_reason": None,
+            "requires_human_review": False,
+            "conflict_count": 0,
+            "conflict_evidence": [],
+        }
+        crowding_surface: Dict[str, Any] = {
+            **_boundary("crowding_governance"),
+            "status": "not_evaluated",
+            "crowding_status": "not_evaluated",
+            "crowding_discount": 0.0,
+            "downgrade": False,
+            "downgrade_reason": None,
+            "crowded_count": 0,
+            "crowding_evidence": [],
+        }
+
+        if enable_lifecycle_fatigue_governance:
+            lifecycle_data = lifecycle_out or {}
+            fatigue_data = fatigue_out or {}
+
+            lifecycle_state = str(lifecycle_data.get("lifecycle_state", "") or "").lower()
+            internal_state = str(lifecycle_data.get("internal_state", "") or "").lower()
+            catalyst_state = str(lifecycle_data.get("catalyst_state", "") or "").lower()
+            stale_event = lifecycle_data.get("stale_event", {}) or {}
+            is_stale = bool(stale_event.get("is_stale", False)) if isinstance(stale_event, dict) else False
+
+            fatigue_bucket = str(fatigue_data.get("fatigue_bucket", "") or "").lower()
+            watch_mode = bool(fatigue_data.get("watch_mode", False))
+
+            reasons: List[str] = []
+            if is_stale:
+                reasons.append("stale_event")
+            if "exhaust" in lifecycle_state or "exhaust" in internal_state or "exhaust" in catalyst_state:
+                reasons.append("exhausted_lifecycle")
+            if fatigue_bucket in {"high", "extreme"} or watch_mode:
+                reasons.append("over_fatigued")
+
+            if reasons:
+                reason_text = ",".join(reasons)
+                active_domains.append("lifecycle_fatigue")
+                downgrade_reasons.extend(reasons)
+                lifecycle_surface = {
+                    **_boundary("lifecycle_fatigue_governance"),
+                    "status": "downgrade",
+                    "downgrade": True,
+                    "downgrade_reason": reason_text,
+                    "lifecycle_state": lifecycle_data.get("lifecycle_state"),
+                    "internal_state": lifecycle_data.get("internal_state"),
+                    "catalyst_state": lifecycle_data.get("catalyst_state"),
+                    "fatigue_bucket": fatigue_data.get("fatigue_bucket"),
+                    "watch_mode": watch_mode,
+                }
+                governance_events.append(
+                    _decision(
+                        domain="lifecycle_fatigue",
+                        status="downgrade",
+                        reason=reason_text,
+                        source_surface="lifecycle_fatigue_governance",
+                        requires_human_review=False,
+                    )
+                )
+            else:
+                lifecycle_surface = {
+                    **_boundary("lifecycle_fatigue_governance"),
+                    "status": "pass",
+                    "downgrade": False,
+                    "downgrade_reason": None,
+                    "lifecycle_state": lifecycle_data.get("lifecycle_state"),
+                    "internal_state": lifecycle_data.get("internal_state"),
+                    "catalyst_state": lifecycle_data.get("catalyst_state"),
+                    "fatigue_bucket": fatigue_data.get("fatigue_bucket"),
+                    "watch_mode": watch_mode,
+                }
+                governance_events.append(
+                    _decision(
+                        domain="lifecycle_fatigue",
+                        status="pass",
+                        reason="lifecycle_fatigue_clear",
+                        source_surface="lifecycle_fatigue_governance",
+                        requires_human_review=False,
+                    )
+                )
+
+        if enable_cross_news_guard:
+            conflicts = payload.get("cross_news_conflicts", []) or []
+            unresolved = []
+            if isinstance(conflicts, list):
+                unresolved = [
+                    item
+                    for item in conflicts
+                    if isinstance(item, dict)
+                    and str(item.get("status", "")).lower() in {"unresolved", "conflict"}
+                ]
+
+            conflict_evidence = [
+                {
+                    "symbol": item.get("symbol"),
+                    "theme": item.get("theme"),
+                    "status": item.get("status"),
+                    "reason": item.get("reason"),
+                    "direction_a": item.get("direction_a"),
+                    "direction_b": item.get("direction_b"),
+                    "source_a": item.get("source_a"),
+                    "source_b": item.get("source_b"),
+                    "evidence": item.get("evidence"),
+                }
+                for item in unresolved
+            ]
+
+            if unresolved:
+                reason = "unresolved_cross_news_conflict"
+                active_domains.append("cross_news")
+                downgrade_reasons.append(reason)
+                cross_news_surface = {
+                    **_boundary("cross_news_governance"),
+                    "status": "manual_review",
+                    "conflict_status": "conflict_detected",
+                    "conflict_reason": reason,
+                    "requires_human_review": True,
+                    "conflict_count": len(unresolved),
+                    "conflict_evidence": conflict_evidence,
+                }
+                governance_events.append(
+                    _decision(
+                        domain="cross_news",
+                        status="manual_review",
+                        reason=reason,
+                        source_surface="cross_news_governance",
+                        requires_human_review=True,
+                    )
+                )
+            else:
+                cross_news_surface = {
+                    **_boundary("cross_news_governance"),
+                    "status": "pass",
+                    "conflict_status": "clear",
+                    "conflict_reason": None,
+                    "requires_human_review": False,
+                    "conflict_count": 0,
+                    "conflict_evidence": [],
+                }
+                governance_events.append(
+                    _decision(
+                        domain="cross_news",
+                        status="pass",
+                        reason="cross_news_clear",
+                        source_surface="cross_news_governance",
+                        requires_human_review=False,
+                    )
+                )
+
+        if enable_crowding_guard:
+            crowding_signals = payload.get("crowding_signals", []) or []
+            crowded = []
+            if isinstance(crowding_signals, list):
+                crowded = [
+                    item
+                    for item in crowding_signals
+                    if isinstance(item, dict) and bool(item.get("crowded", False))
+                ]
+
+            crowding_evidence = [
+                {
+                    "symbol": item.get("symbol"),
+                    "theme": item.get("theme"),
+                    "crowded": bool(item.get("crowded", False)),
+                    "evidence": item.get("evidence"),
+                    "candidate_count": item.get("candidate_count"),
+                    "threshold": item.get("threshold"),
+                }
+                for item in crowded
+            ]
+
+            if crowded:
+                reason = "crowded_theme_or_peer"
+                active_domains.append("crowding")
+                downgrade_reasons.append(reason)
+                crowding_surface = {
+                    **_boundary("crowding_governance"),
+                    "status": "downgrade",
+                    "crowding_status": "crowded",
+                    "crowding_discount": 0.25,
+                    "downgrade": True,
+                    "downgrade_reason": reason,
+                    "crowded_count": len(crowded),
+                    "crowding_evidence": crowding_evidence,
+                }
+                governance_events.append(
+                    _decision(
+                        domain="crowding",
+                        status="downgrade",
+                        reason=reason,
+                        source_surface="crowding_governance",
+                        requires_human_review=False,
+                    )
+                )
+            else:
+                crowding_surface = {
+                    **_boundary("crowding_governance"),
+                    "status": "pass",
+                    "crowding_status": "clear",
+                    "crowding_discount": 0.0,
+                    "downgrade": False,
+                    "downgrade_reason": None,
+                    "crowded_count": 0,
+                    "crowding_evidence": [],
+                }
+                governance_events.append(
+                    _decision(
+                        domain="crowding",
+                        status="pass",
+                        reason="crowding_clear",
+                        source_surface="crowding_governance",
+                        requires_human_review=False,
+                    )
+                )
+
+        if not governance_events:
+            overall_status = "manual_review"
+            overall_reason = "no_advisory_governance_sources_available"
+        elif any(event["status"] == "block" for event in governance_events):
+            overall_status = "block"
+            overall_reason = "block_governance_detected"
+        elif any(event["status"] == "manual_review" for event in governance_events):
+            overall_status = "manual_review"
+            overall_reason = "manual_review_governance_detected"
+        elif any(event["status"] == "downgrade" for event in governance_events):
+            overall_status = "downgrade"
+            overall_reason = "downgrade_governance_detected"
+        else:
+            overall_status = "pass"
+            overall_reason = "all_governance_clear"
+
+        return {
+            "status": "advisory_only",
+            "compatibility_surface": "advisory_governance",
+            "compatibility_only": True,
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "output_authority": "advisory_only",
+            "production_authority": False,
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "allows_broker_action": False,
+            "final_action_allowed": False,
+            "final_recommendation_allowed": False,
+            "release_status": "observe_only",
+            "requires_downstream_adjudication": True,
+            "requires_human_review": overall_status in {"manual_review", "block"},
+            "overall_status": overall_status,
+            "overall_governance_status": overall_status,
+            "overall_reason": overall_reason,
+            "active_governance_domains": active_domains,
+            "downgrade_reasons": downgrade_reasons,
+            "governance_events": governance_events,
+            "governance_decisions": governance_events,
+            "lifecycle_fatigue_governance": lifecycle_surface,
+            "cross_news_governance": cross_news_surface,
+            "crowding_governance": crowding_surface,
+        }
+
     def _build_semantic_full_peer_expansion_surface(
         self,
         *,
@@ -2506,6 +2835,12 @@ class FullWorkflowRunner:
         enable_semantic_verdict_fix = bool(loaded_flags.get("enable_semantic_verdict_fix", False))
         enable_output_adapter_v5 = bool(loaded_flags.get("enable_output_adapter_v5", False))
         enable_gate_diagnostics = bool(loaded_flags.get("enable_gate_diagnostics", False))
+        enable_advisory_governance = bool(loaded_flags.get("enable_advisory_governance", False))
+        enable_cross_news_guard = bool(loaded_flags.get("enable_cross_news_guard", False))
+        enable_crowding_guard = bool(loaded_flags.get("enable_crowding_guard", False))
+        enable_lifecycle_fatigue_governance = bool(
+            loaded_flags.get("enable_lifecycle_fatigue_governance", False)
+        )
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -2976,6 +3311,20 @@ class FullWorkflowRunner:
             if enable_gate_diagnostics
             else None
         )
+        advisory_governance_out = (
+            self._build_advisory_governance_surface(
+                lifecycle_out=lifecycle_out.data if hasattr(lifecycle_out, "data") else lifecycle_out,
+                fatigue_out=fatigue_out.data if hasattr(fatigue_out, "data") else fatigue_out,
+                payload=payload,
+                trace_id=trace_id,
+                event_id=event_id,
+                enable_cross_news_guard=enable_cross_news_guard,
+                enable_crowding_guard=enable_crowding_guard,
+                enable_lifecycle_fatigue_governance=enable_lifecycle_fatigue_governance,
+            )
+            if enable_advisory_governance
+            else None
+        )
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -3053,6 +3402,10 @@ class FullWorkflowRunner:
             **({"output_adapter": output_adapter_out} if output_adapter_out is not None else {}),
             **({"output_adapter_v5": output_adapter_out} if output_adapter_out is not None else {}),
             **({"gate_diagnostics": gate_diagnostics_out} if gate_diagnostics_out is not None else {}),
+            **({"advisory_governance": advisory_governance_out} if advisory_governance_out is not None else {}),
+            **({"lifecycle_fatigue_governance": advisory_governance_out["lifecycle_fatigue_governance"]} if advisory_governance_out is not None else {}),
+            **({"cross_news_governance": advisory_governance_out["cross_news_governance"]} if advisory_governance_out is not None else {}),
+            **({"crowding_governance": advisory_governance_out["crowding_governance"]} if advisory_governance_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -3068,6 +3421,10 @@ class FullWorkflowRunner:
                 "enable_path_adjudicator_lite": enable_path_adjudicator_lite,
                 "enable_output_adapter_v5": enable_output_adapter_v5,
                 "enable_gate_diagnostics": enable_gate_diagnostics,
+                "enable_advisory_governance": enable_advisory_governance,
+                "enable_cross_news_guard": enable_cross_news_guard,
+                "enable_crowding_guard": enable_crowding_guard,
+                "enable_lifecycle_fatigue_governance": enable_lifecycle_fatigue_governance,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

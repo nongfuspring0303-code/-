@@ -1902,6 +1902,174 @@ class FullWorkflowRunner:
             "decision_reason": "impl1_shadow_passthrough",
         }
 
+    @staticmethod
+    def _compute_output_adapter_mutation(
+        legacy_symbols: List[str],
+        adapted_symbols: List[str],
+    ) -> Dict[str, Any]:
+        """Compute immutable-boundary mutation metrics for OutputAdapter."""
+        legacy = [str(x).strip().upper() for x in legacy_symbols if str(x).strip()]
+        adapted = [str(x).strip().upper() for x in adapted_symbols if str(x).strip()]
+        same_sequence = legacy == adapted
+        same_set = set(legacy) == set(adapted)
+        max_len = max(len(legacy), len(adapted), 1)
+        edit_distance = abs(len(legacy) - len(adapted))
+        positional_mismatches = sum(1 for a, b in zip(legacy, adapted) if a != b)
+        mismatch_count = edit_distance + positional_mismatches
+        mutation_rate = mismatch_count / max_len
+        return {
+            "legacy_symbols": legacy,
+            "adapted_symbols": adapted,
+            "same_sequence": same_sequence,
+            "same_set": same_set,
+            "mismatch_count": mismatch_count,
+            "mutation_rate": float(mutation_rate),
+            "mutation_detected": (not same_sequence) or (not same_set),
+        }
+
+    def _build_output_adapter_surface(
+        self,
+        *,
+        conduction_final_selection_out: Dict[str, Any],
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any]:
+        """Build shadow-only OutputAdapter v5 compatibility surface for Stage8A Impl-7."""
+        legacy_final = list(conduction_final_selection_out.get("final_recommended_stocks", []) or [])
+        adapted_output = {
+            "recommended_stocks": list(legacy_final),
+            "output_schema": "output_adapter.v5.shadow",
+            "source_surface": "conduction_final_selection.final_recommended_stocks",
+        }
+        metrics = self._compute_output_adapter_mutation(
+            legacy_symbols=legacy_final,
+            adapted_symbols=adapted_output["recommended_stocks"],
+        )
+        mutation_detected = bool(metrics["mutation_detected"])
+        mutation_rate = float(metrics["mutation_rate"])
+        adapter_mode = "compatibility_passthrough"
+        downgrade_reason = None
+        if mutation_detected or mutation_rate > 0.0:
+            adapter_mode = "downgraded_fail_closed"
+            downgrade_reason = "adapter_mutation_detected"
+        return {
+            "status": "shadow_only",
+            "compatibility_surface": "output_adapter_v5",
+            "compatibility_only": True,
+            "adapter_version": "v5",
+            "alias_surfaces": ["output_adapter"],
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "source_surface": "conduction_final_selection.final_recommended_stocks",
+            "source_immutable": True,
+            "adapter_mutates_tickers": False,
+            "preserves_order": bool(metrics["same_sequence"]),
+            "preserves_symbol_set": bool(metrics["same_set"]),
+            "adapter_mode": adapter_mode,
+            "legacy_final_recommended_stocks": list(legacy_final),
+            "adapted_output": adapted_output,
+            "mutation_detected": mutation_detected,
+            "mutation_rate": mutation_rate,
+            "output_adapter_mutation_rate": mutation_rate,
+            "downgrade_reason": downgrade_reason,
+            "output_authority": "shadow_only",
+            "production_authority": False,
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "allows_broker_action": False,
+            "final_action_allowed": False,
+            "final_recommendation_allowed": False,
+            "requires_downstream_adjudication": True,
+            "release_status": "observe_only",
+        }
+
+    @staticmethod
+    def _build_gate_diagnostics_surface(
+        *,
+        path_adjudication_lite_out: Dict[str, Any] | None,
+        output_adapter_out: Dict[str, Any] | None,
+        trace_id: str,
+        event_id: str,
+    ) -> Dict[str, Any]:
+        """Build advisory-only gate diagnostics for Stage8A Impl-7."""
+        gate_diagnostics: List[Dict[str, Any]] = []
+
+        if path_adjudication_lite_out is not None:
+            final_path = str(path_adjudication_lite_out.get("final_path", "unknown") or "unknown")
+            decision_reason = str(path_adjudication_lite_out.get("decision_reason", "unknown") or "unknown")
+            if final_path == "abstain_manual_review_path":
+                gate_status = "manual_review"
+            elif final_path == "observe_only_shadow_path":
+                gate_status = "downgrade"
+            elif final_path in {"semantic_anchor_path", "template_macro_path"}:
+                gate_status = "pass"
+            else:
+                gate_status = "block"
+            gate_diagnostics.append(
+                {
+                    "gate_name": "path_adjudication_lite",
+                    "gate_status": gate_status,
+                    "reason": decision_reason,
+                    "source_surface": "path_adjudication_lite",
+                    "trace_id": trace_id,
+                    "event_id": event_id,
+                }
+            )
+
+        if output_adapter_out is not None:
+            mutation_detected = bool(output_adapter_out.get("mutation_detected", False))
+            adapter_mode = str(output_adapter_out.get("adapter_mode", "unknown") or "unknown")
+            downgrade_reason = str(output_adapter_out.get("downgrade_reason", "") or "")
+            gate_status = "downgrade" if mutation_detected or adapter_mode == "downgraded_fail_closed" else "pass"
+            gate_diagnostics.append(
+                {
+                    "gate_name": "output_adapter_v5",
+                    "gate_status": gate_status,
+                    "reason": downgrade_reason or adapter_mode,
+                    "source_surface": "output_adapter_v5",
+                    "trace_id": trace_id,
+                    "event_id": event_id,
+                }
+            )
+
+        if not gate_diagnostics:
+            overall_status = "manual_review"
+            overall_reason = "no_gate_diagnostic_sources_available"
+        elif any(item["gate_status"] == "block" for item in gate_diagnostics):
+            overall_status = "block"
+            overall_reason = "blocking_gate_detected"
+        elif any(item["gate_status"] == "manual_review" for item in gate_diagnostics):
+            overall_status = "manual_review"
+            overall_reason = "manual_review_gate_detected"
+        elif any(item["gate_status"] == "downgrade" for item in gate_diagnostics):
+            overall_status = "downgrade"
+            overall_reason = "downgrade_gate_detected"
+        else:
+            overall_status = "pass"
+            overall_reason = "all_gates_passed"
+
+        return {
+            "status": "advisory_only",
+            "compatibility_surface": "gate_diagnostics",
+            "compatibility_only": True,
+            "trace_id": trace_id,
+            "event_id": event_id,
+            "output_authority": "advisory_only",
+            "allows_final_selection": False,
+            "allows_execution": False,
+            "allows_broker_action": False,
+            "final_action_allowed": False,
+            "production_authority": False,
+            "release_status": "observe_only",
+            "requires_human_review": overall_status in {"manual_review", "block"},
+            "requires_downstream_adjudication": True,
+            "overall_status": overall_status,
+            "overall_reason": overall_reason,
+            "gate_count": len(gate_diagnostics),
+            "source_surfaces": [item["source_surface"] for item in gate_diagnostics],
+            "gate_diagnostics": gate_diagnostics,
+        }
+
     def _build_semantic_full_peer_expansion_surface(
         self,
         *,
@@ -2336,6 +2504,8 @@ class FullWorkflowRunner:
         enable_market_validation_gate = bool(loaded_flags.get("enable_market_validation_gate", False))
         enable_path_adjudicator_lite = bool(loaded_flags.get("enable_path_adjudicator_lite", False))
         enable_semantic_verdict_fix = bool(loaded_flags.get("enable_semantic_verdict_fix", False))
+        enable_output_adapter_v5 = bool(loaded_flags.get("enable_output_adapter_v5", False))
+        enable_gate_diagnostics = bool(loaded_flags.get("enable_gate_diagnostics", False))
         # Impl-1 default must be enabled even if config defaults are still conservative.
         # Flags remain independently switchable via request payload for rollback drills.
         if "enable_semantic_prepass" in payload:
@@ -2787,6 +2957,25 @@ class FullWorkflowRunner:
                 **conduction_final_selection_out,
                 "final_recommended_stocks": candidate_envelope_symbols,
             }
+        output_adapter_out = (
+            self._build_output_adapter_surface(
+                conduction_final_selection_out=conduction_final_selection_out,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_output_adapter_v5
+            else None
+        )
+        gate_diagnostics_out = (
+            self._build_gate_diagnostics_surface(
+                path_adjudication_lite_out=path_adjudicator_lite_out,
+                output_adapter_out=output_adapter_out,
+                trace_id=trace_id,
+                event_id=event_id,
+            )
+            if enable_gate_diagnostics
+            else None
+        )
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -2861,6 +3050,9 @@ class FullWorkflowRunner:
             # Backward-compatible aliases kept during transition:
             **({"semantic_verdict_fix": semantic_verdict_fix_out} if semantic_verdict_fix_out is not None else {}),
             **({"path_adjudicator_lite": path_adjudicator_lite_out} if path_adjudicator_lite_out is not None else {}),
+            **({"output_adapter": output_adapter_out} if output_adapter_out is not None else {}),
+            **({"output_adapter_v5": output_adapter_out} if output_adapter_out is not None else {}),
+            **({"gate_diagnostics": gate_diagnostics_out} if gate_diagnostics_out is not None else {}),
             "signal": signal_out,
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
@@ -2874,6 +3066,8 @@ class FullWorkflowRunner:
                 "enable_market_validation_gate": enable_market_validation_gate,
                 "enable_semantic_verdict_fix": enable_semantic_verdict_fix,
                 "enable_path_adjudicator_lite": enable_path_adjudicator_lite,
+                "enable_output_adapter_v5": enable_output_adapter_v5,
+                "enable_gate_diagnostics": enable_gate_diagnostics,
                 "replace_legacy_requested": requested_replace_legacy,
                 "comparison_status": "observe_only" if enable_v5_shadow_output and not enable_replace_legacy_output else "disabled",
                 "legacy_recommended_stocks": [

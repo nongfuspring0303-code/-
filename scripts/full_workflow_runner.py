@@ -2355,7 +2355,10 @@ class FullWorkflowRunner:
                     )
                 )
 
-        if any(event["status"] == "block" for event in governance_events):
+        if not governance_events:
+            overall_status = "manual_review"
+            overall_reason = "no_advisory_governance_sources_available"
+        elif any(event["status"] == "block" for event in governance_events):
             overall_status = "block"
             overall_reason = "block_governance_detected"
         elif any(event["status"] == "manual_review" for event in governance_events):

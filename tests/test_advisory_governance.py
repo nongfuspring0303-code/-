@@ -309,3 +309,24 @@ def test_advisory_governance_aggregates_sub_governance(tmp_path: Path) -> None:
         out["analysis"]["crowding_governance"],
         "crowding_governance",
     )
+
+
+def test_advisory_governance_no_sources_does_not_pass(tmp_path: Path) -> None:
+    out = _runner(
+        tmp_path,
+        enable_cross_news_guard=False,
+        enable_crowding_guard=False,
+        enable_lifecycle_fatigue_governance=False,
+    ).run({"headline": "QCOM jumps"})
+    surface = out["analysis"]["advisory_governance"]
+
+    assert surface["governance_events"] == []
+    assert surface["governance_decisions"] == []
+    assert surface["overall_status"] != "pass"
+    assert surface["overall_governance_status"] != "pass"
+    assert surface["overall_status"] == "manual_review"
+    assert surface["overall_reason"] == "no_advisory_governance_sources_available"
+    assert surface["requires_human_review"] is True
+
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert out["execution"]["final"]["action"] == "WATCH"

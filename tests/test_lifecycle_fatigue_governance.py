@@ -24,10 +24,6 @@ def test_lifecycle_fatigue_stale_event_downgrades_without_mutating_final_output(
         out["analysis"]["lifecycle_fatigue_governance"],
         "lifecycle_fatigue_governance",
     )
-    assert_advisory_subsurface_boundary(
-        out["analysis"]["lifecycle_fatigue_governance"],
-        "lifecycle_fatigue_governance",
-    )
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert out["execution"]["final"]["action"] == "WATCH"
 

@@ -24,7 +24,7 @@ jobs:
 
       - name: Run core pytest
         run: |
-          python -m pytest tests/test_ai_semantic_analyzer.py tests/test_ai_event_intel.py tests/test_ai_event_intel_sina.py tests/test_config_center.py -q
+          python -m pytest tests/test_ai_semantic_analyzer.py tests/test_ai_event_intel.py tests/test_ai_event_intel_sina.py tests/test_config_center.py tests/test_theme_e2e_acceptance.py -q
 
       - name: pipeline-order-contract
         run: |

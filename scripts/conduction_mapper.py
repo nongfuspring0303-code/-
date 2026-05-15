@@ -110,6 +110,27 @@ class ConductionMapper(EDTModule):
         self._GEO_ENERGY_ALLOWED_HINTS = tuple()
         logger.warning("tier1 guardrails missing/invalid; entering safe fallback mode: %s", reason)
 
+    @staticmethod
+    def _clean_text_value(value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        if text.lower() in {"none", "null", "unknown", "undefined", "n/a"}:
+            return ""
+        return text
+
+    @staticmethod
+    def _normalize_confidence_value(value: Any, default: float = 0.0) -> float:
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            score = float(default)
+        if score < 0:
+            return 0.0
+        if score <= 1.0:
+            return score
+        return min(1.0, score / 100.0)
+
     def _apply_guardrails_config(self) -> None:
         """Override class-level defaults with values from tier1_mapping_rules.yaml recommendation_guardrails."""
         gr = self._tier1_guardrails
@@ -204,7 +225,7 @@ class ConductionMapper(EDTModule):
         for item in payload.get("mappings", []) or []:
             if not isinstance(item, dict):
                 continue
-            sector = str(item.get("sector", "")).strip()
+            sector = self._clean_text_value(item.get("sector", ""))
             if sector:
                 whitelist.add(sector)
 
@@ -214,7 +235,7 @@ class ConductionMapper(EDTModule):
                 if not isinstance(values, list):
                     continue
                 for sector in values:
-                    sector_name = str(sector or "").strip()
+                    sector_name = self._clean_text_value(sector)
                     if sector_name:
                         whitelist.add(sector_name)
 
@@ -225,13 +246,13 @@ class ConductionMapper(EDTModule):
                 if not isinstance(sectors, dict):
                     continue
                 for sector in sectors.keys():
-                    sector_name = str(sector or "").strip()
+                    sector_name = self._clean_text_value(sector)
                     if sector_name:
                         whitelist.add(sector_name)
         ticker_pool = tier1_rules.get("ticker_pool", {}) if isinstance(tier1_rules, dict) else {}
         if isinstance(ticker_pool, dict):
             for sector in ticker_pool.keys():
-                sector_name = str(sector or "").strip()
+                sector_name = self._clean_text_value(sector)
                 if sector_name:
                     whitelist.add(sector_name)
 
@@ -252,7 +273,7 @@ class ConductionMapper(EDTModule):
                 continue
             if isinstance(mapped_values, list):
                 for candidate in mapped_values:
-                    candidate_name = str(candidate or "").strip()
+                    candidate_name = self._clean_text_value(candidate)
                     if candidate_name:
                         return candidate_name
         return raw
@@ -260,10 +281,10 @@ class ConductionMapper(EDTModule):
     @staticmethod
     def _resolve_sector_snapshot_name(item: Dict[str, Any]) -> str:
         # Prefer the canonical sector field from live snapshots; fall back to the localized label.
-        sector = str(item.get("sector", "") or "").strip()
+        sector = ConductionMapper._clean_text_value(item.get("sector", ""))
         if sector:
             return sector
-        return str(item.get("industry", "") or "").strip()
+        return ConductionMapper._clean_text_value(item.get("industry", ""))
 
     def _load_chain_config(self) -> Dict[str, Any]:
         payload = self.config_center.get_registered("conduction_chain", {})
@@ -311,7 +332,20 @@ class ConductionMapper(EDTModule):
         semantic_output: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         chain_cfg = self._load_chain_config()
-        templates = {item.get("id"): item for item in chain_cfg.get("chain_templates", []) if isinstance(item, dict)}
+        templates: Dict[str, Dict[str, Any]] = {}
+        duplicate_ids: set[str] = set()
+        for item in chain_cfg.get("chain_templates", []) or []:
+            if not isinstance(item, dict):
+                continue
+            template_id = self._clean_text_value(item.get("id"))
+            if not template_id:
+                continue
+            if template_id in templates:
+                duplicate_ids.add(template_id)
+                continue
+            templates[template_id] = item
+        if duplicate_ids:
+            logger.warning("duplicate chain template ids detected: %s", sorted(duplicate_ids))
         mapping_rules = chain_cfg.get("event_to_chain_mapping", []) or []
         text = self._normalize_text(headline, summary)
 
@@ -420,22 +454,28 @@ class ConductionMapper(EDTModule):
         if not isinstance(entities, list):
             return []
 
-        # Keep entity extraction conservative: only consume explicit ticker/symbol types.
         out: List[str] = []
         seen = set()
         for item in entities:
             if not isinstance(item, dict):
                 continue
             entity_type = str(item.get("type", "")).strip().lower()
-            if entity_type not in {"ticker", "symbol", "stock"}:
+            candidate_values: List[Any] = []
+            if entity_type in {"ticker", "symbol", "stock"}:
+                candidate_values.append(item.get("value"))
+            for key in ("symbol", "ticker", "stock", "resolved_symbol", "canonical_symbol"):
+                candidate_values.append(item.get(key))
+
+            resolved_symbol = ""
+            for candidate in candidate_values:
+                symbol = ConductionMapper._clean_text_value(candidate).upper()
+                if ConductionMapper._is_valid_symbol(symbol):
+                    resolved_symbol = symbol
+                    break
+            if not resolved_symbol or resolved_symbol in seen:
                 continue
-            raw_value = str(item.get("value", "")).strip().upper()
-            if not ConductionMapper._is_valid_symbol(raw_value):
-                continue
-            if raw_value in seen:
-                continue
-            seen.add(raw_value)
-            out.append(raw_value)
+            seen.add(resolved_symbol)
+            out.append(resolved_symbol)
         return out
 
     @staticmethod
@@ -483,7 +523,7 @@ class ConductionMapper(EDTModule):
         else:
             direction = "watch"
 
-        sector_name = str((sector_impacts or [{}])[0].get("sector", "未知板块"))
+        sector_name = self._clean_text_value((sector_impacts or [{}])[0].get("sector", "")) or "未知板块"
         transmission = semantic_output.get("transmission_candidates", [])
         if not isinstance(transmission, list):
             transmission = []
@@ -630,8 +670,7 @@ class ConductionMapper(EDTModule):
             return []
 
         direct = set(self._normalize_recommended_stocks(semantic_output)) | set(self._normalize_entity_stocks(semantic_output))
-        event_strength = self._safe_float((semantic_output or {}).get("confidence"), 0.0) / 100.0
-        event_strength = max(0.0, min(1.0, event_strength))
+        event_strength = self._normalize_confidence_value((semantic_output or {}).get("confidence"), 0.0)
         direct_bonus = self._safe_float(rec_rules.get("direct_mention_bonus"), 0.25)
         inferred_penalty = self._safe_float(rec_rules.get("inferred_penalty"), 0.08)
         floor = self._safe_float(rec_rules.get("min_confidence_floor"), 0.45)
@@ -700,9 +739,24 @@ class ConductionMapper(EDTModule):
         candidates: List[Dict[str, Any]],
     ) -> Dict[str, List[Dict[str, Any]]]:
         text = self._normalize_text(headline)
-        out = {"candidates": list(candidates), "recommended": [], "watchlist": [], "rejected": []}
+        out = {"candidates": list(candidates), "recommended": [], "watchlist": [], "rejected": [], "drop_diagnostics": []}
         non_us_hint = any(h in text for h in self._NON_US_MARKET_HINTS)
         geo_energy_allowed = any(h in text for h in self._GEO_ENERGY_ALLOWED_HINTS)
+        def _record_drop(candidate: Dict[str, Any], drop_reason: str, status: str) -> Dict[str, Any]:
+            c = dict(candidate)
+            c["drop_reason"] = drop_reason
+            c["rejection_reason"] = drop_reason
+            c["drop_diagnostics"] = {"status": status, "semantic_event_type": semantic_event_type}
+            out["drop_diagnostics"].append(
+                {
+                    "symbol": c.get("symbol"),
+                    "sector": c.get("sector"),
+                    "drop_reason": drop_reason,
+                    "status": status,
+                    "confidence": self._safe_float(c.get("confidence"), 0.0),
+                }
+            )
+            return c
         for cand in candidates:
             symbol = str(cand.get("symbol", "")).strip().upper()
             confidence = self._safe_float(cand.get("confidence"), 0.0)
@@ -710,8 +764,7 @@ class ConductionMapper(EDTModule):
             penalties = []
             # Semantic mismatch guard: Asia-tech headlines should not prioritize US energy tickers.
             if any(h in text for h in self._ASIA_TECH_HINTS) and symbol in self._ENERGY_TICKERS:
-                c = dict(cand)
-                c["rejection_reason"] = "semantic_mismatch_asia_tech_vs_energy"
+                c = _record_drop(cand, "semantic_mismatch_asia_tech_vs_energy", "rejected")
                 out["rejected"].append(c)
                 continue
             if non_us_hint and symbol in self._ENERGY_TICKERS and not geo_energy_allowed:
@@ -721,14 +774,36 @@ class ConductionMapper(EDTModule):
             if semantic_event_type in self._NO_RECOMMEND_TIER3_EVENT_TYPES and not bool(cand.get("whether_direct_ticker_mentioned", False)):
                 c = dict(cand)
                 c["confidence"] = round(max(0.0, confidence), 2)
+                c["drop_reason"] = "tier3_no_recommend"
                 c["rejection_reason"] = "tier3_no_recommend"
+                c["drop_diagnostics"] = {"status": "rejected", "semantic_event_type": semantic_event_type}
+                out["drop_diagnostics"].append(
+                    {
+                        "symbol": c.get("symbol"),
+                        "sector": c.get("sector"),
+                        "drop_reason": "tier3_no_recommend",
+                        "status": "rejected",
+                        "confidence": c["confidence"],
+                    }
+                )
                 out["rejected"].append(c)
                 continue
             # Tier2: watchlist-first unless directly mentioned.
             if semantic_event_type in self._WATCHLIST_DEFAULT_EVENT_TYPES and not bool(cand.get("whether_direct_ticker_mentioned", False)):
                 c = dict(cand)
                 c["confidence"] = round(max(0.0, confidence), 2)
+                c["drop_reason"] = "tier2_watchlist_default"
                 c["rejection_reason"] = "tier2_watchlist_default"
+                c["drop_diagnostics"] = {"status": "watchlist", "semantic_event_type": semantic_event_type}
+                out["drop_diagnostics"].append(
+                    {
+                        "symbol": c.get("symbol"),
+                        "sector": c.get("sector"),
+                        "drop_reason": "tier2_watchlist_default",
+                        "status": "watchlist",
+                        "confidence": c["confidence"],
+                    }
+                )
                 out["watchlist"].append(c)
                 continue
             # Strong negative rule: low-signal event types default to watchlist unless direct mention.
@@ -740,7 +815,18 @@ class ConductionMapper(EDTModule):
                 c["confidence"] = round(max(0.0, confidence), 2)
                 if penalties:
                     c["penalties"] = penalties
+                c["drop_reason"] = "other_event_watch_only"
                 c["rejection_reason"] = "other_event_watch_only"
+                c["drop_diagnostics"] = {"status": "watchlist", "semantic_event_type": semantic_event_type}
+                out["drop_diagnostics"].append(
+                    {
+                        "symbol": c.get("symbol"),
+                        "sector": c.get("sector"),
+                        "drop_reason": "other_event_watch_only",
+                        "status": "watchlist",
+                        "confidence": c["confidence"],
+                    }
+                )
                 out["watchlist"].append(c)
                 continue
             confidence = max(0.0, min(1.0, confidence))
@@ -753,7 +839,18 @@ class ConductionMapper(EDTModule):
             elif confidence >= self._WATCHLIST_MIN_CONFIDENCE:
                 out["watchlist"].append(c_view)
             else:
+                c_view["drop_reason"] = "low_confidence"
                 c_view["rejection_reason"] = "low_confidence"
+                c_view["drop_diagnostics"] = {"status": "rejected", "semantic_event_type": semantic_event_type}
+                out["drop_diagnostics"].append(
+                    {
+                        "symbol": c_view.get("symbol"),
+                        "sector": c_view.get("sector"),
+                        "drop_reason": "low_confidence",
+                        "status": "rejected",
+                        "confidence": c_view["confidence"],
+                    }
+                )
                 out["rejected"].append(c_view)
         return out
 
@@ -763,7 +860,7 @@ class ConductionMapper(EDTModule):
         for impact in sector_impacts:
             if not isinstance(impact, dict):
                 continue
-            sector = str(impact.get("sector", "")).strip()
+            sector = ConductionMapper._clean_text_value(impact.get("sector", ""))
             if not sector:
                 continue
             score = 0.0
@@ -819,15 +916,17 @@ class ConductionMapper(EDTModule):
     def _build_template_mapping(self, template: Dict[str, Any], sector_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         levels = template.get("levels", []) or []
         conduction_path = [str(level.get("name", "")) for level in levels if level.get("name")]
+        template_id = self._clean_text_value(template.get("id", "")) or "unknown"
+        template_name = self._clean_text_value(template.get("name", "")) or "模板链路"
 
         macro_factors = []
         for item in self._level_items(levels, "macro"):
             macro_factors.append(
                 {
-                    "factor": item.get("factor"),
-                    "direction": item.get("direction"),
-                    "strength": item.get("strength"),
-                    "reason": f"模板 {template.get('id', 'unknown')} 命中",
+                    "factor": self._clean_text_value(item.get("factor")),
+                    "direction": self._clean_text_value(item.get("direction")),
+                    "strength": self._clean_text_value(item.get("strength")),
+                    "reason": f"模板 {template_id} 命中",
                 }
             )
 
@@ -835,10 +934,10 @@ class ConductionMapper(EDTModule):
         for item in self._level_items(levels, "sector"):
             sector_impacts.append(
                 {
-                    "sector": item.get("name"),
-                    "direction": item.get("direction"),
+                    "sector": self._clean_text_value(item.get("name")),
+                    "direction": self._clean_text_value(item.get("direction")),
                     "driver_type": "template",
-                    "reason": f"模板 {template.get('id', 'unknown')} 命中",
+                    "reason": f"模板 {template_id} 命中",
                     "impact_score": item.get("impact_score", 0.0),
                 }
             )
@@ -849,7 +948,7 @@ class ConductionMapper(EDTModule):
             if sector_name not in self._sector_whitelist:
                 continue
             for candidate in sector_data:
-                candidate_sector = str(candidate.get("sector") or candidate.get("industry") or "")
+                candidate_sector = self._clean_text_value(candidate.get("sector", "")) or self._clean_text_value(candidate.get("industry", ""))
                 if not candidate_sector:
                     continue
                 candidate_symbol = str(candidate.get("symbol", "")).strip().upper()
@@ -863,16 +962,16 @@ class ConductionMapper(EDTModule):
                             "direction": item.get("direction", "benefit"),
                             "event_beta": 1.0,
                             "liquidity_tier": "high",
-                            "reason": f"模板 {template.get('id', 'unknown')} 关联",
+                            "reason": f"模板 {template_id} 关联",
                             "source": "config",
                         }
                     )
 
         defaults = self.config_center.get_registered("gate_policy", {}).get("conduction_mapper", {})
         confidence = float(defaults.get("template_base_confidence", 80))
-        if template.get("id") == "rate_cut_chain":
+        if template_id == "rate_cut_chain":
             confidence = float(defaults.get("template_rate_cut_confidence", 88))
-        elif template.get("id") == "inflation_shock_chain":
+        elif template_id == "inflation_shock_chain":
             confidence = float(defaults.get("template_inflation_confidence", 82))
 
         return {
@@ -880,9 +979,9 @@ class ConductionMapper(EDTModule):
             "asset_impacts": [],
             "sector_impacts": sector_impacts,
             "stock_candidates": stock_candidates,
-            "conduction_path": conduction_path or [template.get("name", "模板链路")],
+            "conduction_path": conduction_path or [template_name],
             "confidence": confidence,
-            "mapping_source": f"template:{template.get('id', 'unknown')}",
+            "mapping_source": f"template:{template_id}",
         }
 
     def _apply_sector_mapping(self, sector_impacts: List[Dict[str, Any]], sector_data: List[Dict[str, Any]]) -> None:
@@ -891,20 +990,24 @@ class ConductionMapper(EDTModule):
         mapping = self._load_sector_mapping()
         if not mapping:
             return
-        available = {str(item.get("sector", "")).strip(): item for item in sector_data if str(item.get("sector", "")).strip()}
+        available = {
+            self._clean_text_value(item.get("sector", "")): item
+            for item in sector_data
+            if self._clean_text_value(item.get("sector", ""))
+        }
         for impact in sector_impacts:
-            tag = str(impact.get("sector", "")).strip()
+            tag = self._clean_text_value(impact.get("sector", ""))
             candidates = mapping.get(tag, [])
             chosen = ""
             if isinstance(candidates, list):
                 for name in candidates:
-                    candidate_name = str(name or "").strip()
+                    candidate_name = self._clean_text_value(name)
                     if candidate_name in available:
                         chosen = candidate_name
                         break
                 if not chosen:
                     for name in candidates:
-                        candidate_name = str(name or "").strip()
+                        candidate_name = self._clean_text_value(name)
                         if candidate_name:
                             chosen = candidate_name
                             break
@@ -1288,10 +1391,17 @@ class ConductionMapper(EDTModule):
         raw = input_data.raw_data
 
         category = raw["category"]
-        headline = raw.get("headline", "")
-        summary = raw.get("summary", "")
+        headline = self._clean_text_value(raw.get("headline", ""))
+        summary = self._clean_text_value(raw.get("summary", ""))
         policy_intervention = raw.get("policy_intervention", "NONE")
         sector_data = raw.get("sector_data", []) or []
+
+        if not headline and not summary:
+            return ModuleOutput(
+                status=ModuleStatus.FAILED,
+                data={},
+                errors=[{"code": "INSUFFICIENT_EVENT_CONTEXT", "message": "Headline or summary is required"}],
+            )
 
         classification = self.shock_classifier.classify(
             category=category,
@@ -1306,13 +1416,6 @@ class ConductionMapper(EDTModule):
             novelty_score=raw.get("novelty_score"),
             fatigue_final=raw.get("fatigue_final"),
         )
-
-        if not headline and not summary:
-            return ModuleOutput(
-                status=ModuleStatus.FAILED,
-                data={},
-                errors=[{"code": "INSUFFICIENT_EVENT_CONTEXT", "message": "Headline or summary is required"}],
-            )
 
         semantic_out = self.semantic.analyze(headline, summary)
         ai_recommended_stocks = self._normalize_recommended_stocks(semantic_out)
@@ -1388,6 +1491,7 @@ class ConductionMapper(EDTModule):
             semantic_candidates=semantic_stock_candidates + recommendation_buckets.get("recommended", []) + recommendation_buckets.get("watchlist", []),
         )
 
+        original_sector_impacts = [dict(impact) for impact in mapping.get("sector_impacts", [])]
         mapping["sector_impacts"] = [
             impact
             for impact in mapping.get("sector_impacts", [])
@@ -1400,6 +1504,7 @@ class ConductionMapper(EDTModule):
         # Tier1: override sector_impacts from computed sector_weight_view so that
         # sector_candidates in trace_scorecard reflects the Tier1-weighted sectors.
         # Direction inherits from original template impact if available; default watch.
+        tier1_override_audit = None
         if semantic_event_type in self._TIER1_EVENT_TYPES and sector_weight_view.get("sector_weights"):
             orig_directions = {}
             for imp in mapping.get("sector_impacts", []):
@@ -1407,9 +1512,17 @@ class ConductionMapper(EDTModule):
                 if s:
                     orig_directions[s] = imp.get("direction", "watch")
             tier1_impacts = []
+            provenance: List[Dict[str, Any]] = []
             for sector_name, weight in sector_weight_view["sector_weights"].items():
                 ns = self._normalize_sector_name(sector_name)
                 direction = orig_directions.get(ns, "watch")
+                provenance.append(
+                    {
+                        "sector": ns,
+                        "direction": direction,
+                        "impact_score": weight,
+                    }
+                )
                 tier1_impacts.append({
                     "sector": sector_name,
                     "direction": direction,
@@ -1418,6 +1531,14 @@ class ConductionMapper(EDTModule):
                     "reason": f"Tier1 weight {weight:.2f}",
                 })
             mapping["sector_impacts"] = tier1_impacts
+            tier1_override_audit = {
+                "override_reason": "tier1_weighted_sector_override",
+                "original_count": len(original_sector_impacts),
+                "overridden_count": len(original_sector_impacts),
+                "original_provenance": original_sector_impacts,
+                "retained_count": len(tier1_impacts),
+                "weighted_provenance": provenance,
+            }
 
         mapping["stock_candidates"] = [
             cand
@@ -1513,7 +1634,7 @@ class ConductionMapper(EDTModule):
             if not impact_layers:
                 impact_layers = ["macro"]
         validation_confidence = min(1.0, max(0.0, len([x for x in market_validation_evidence if x.get("status") == "confirmed"]) / 3.0))
-        causal_confidence = max(0.0, min(1.0, float(mapping.get("confidence", 0.0)) / 100.0))
+        causal_confidence = self._normalize_confidence_value(mapping.get("confidence", 0.0), 0.0)
         causal_contract = {
             "expectation_gap": expectation_gap_contract,
             "macro_factor": macro_factor,
@@ -1585,6 +1706,8 @@ class ConductionMapper(EDTModule):
                     "module": self.name,
                     "rule_version": "conduction_v1",
                     "decision_trace": mapping["conduction_path"],
+                    "tier1_sector_override": tier1_override_audit,
+                    "candidate_drop_diagnostics": recommendation_buckets.get("drop_diagnostics", []),
                 },
             },
         )

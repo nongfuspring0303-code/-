@@ -3377,6 +3377,14 @@ class FullWorkflowRunner:
             runtime_safety_issues.append("missing_fatigue_score")
         if fatigue_both_missing:
             runtime_safety_issues.append("missing_fatigue_score_and_fatigue_final")
+        execution_authority_blocked = bool(
+            {
+                "missing_validation_a1",
+                "missing_fatigue_score",
+                "missing_fatigue_score_and_fatigue_final",
+            }
+            & set(runtime_safety_issues)
+        )
         fatigue_final = _to_float(fatigue_out.get("fatigue_final"), 0.0)
         fatigue_discount_factor = _to_float(fatigue_out.get("a_minus_1_discount_factor"), 1.0)
         fatigue_watch_mode = bool(fatigue_out.get("watch_mode", False))
@@ -3516,6 +3524,7 @@ class FullWorkflowRunner:
                 "issues": runtime_safety_issues,
                 "no_silent_fallback": not bool(runtime_safety_issues),
                 "requires_manual_review": bool(runtime_safety_issues),
+                "execution_authority_blocked": execution_authority_blocked,
             },
         }
 
@@ -3804,7 +3813,22 @@ class FullWorkflowRunner:
             "legacy_contract_version": legacy_contract_version,
             "dual_write": True,
         }
-        execution_out = self.execution.run(execution_in)
+        if execution_authority_blocked:
+            execution_in["tradeable"] = False
+            execution_out = {
+                "final": {
+                    "action": "BLOCK",
+                    "reason": "runtime_safety_fail_closed",
+                },
+                "runtime_safety_gate": {
+                    "status": "blocked",
+                    "reason": "critical_input_missing",
+                    "issues": list(runtime_safety_issues),
+                    "authority_path_closed": True,
+                },
+            }
+        else:
+            execution_out = self.execution.run(execution_in)
         final = execution_out.get("final", {}) if isinstance(execution_out, dict) else {}
         final_action = str(final.get("action", "UNKNOWN")).upper()
         final_reason = str(final.get("reason", ""))

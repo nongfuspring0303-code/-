@@ -297,9 +297,15 @@ def test_conduction_out_does_not_alias_candidate_generation_output(tmp_path: Pat
 def test_fatigue_score_falls_back_to_fatigue_final_for_execution_suggestion(tmp_path: Path) -> None:
     runner, _, fatigue, execution_suggestion, _, _ = _runner(tmp_path)
     fatigue.drop_fatigue_score = True
-    runner.run({"headline": "QCOM jumps"})
-    assert execution_suggestion.last_payload is not None
-    assert execution_suggestion.last_payload["fatigue_score"] == 10
+    out = runner.run({"headline": "QCOM jumps"})
+    assert execution_suggestion.last_payload is None
+    analysis = out["analysis"]
+    assert analysis.get("execution_suggestion_status") == "failed"
+    errors = analysis.get("execution_suggestion_errors") or []
+    assert errors and errors[0].get("code") == "MISSING_FATIGUE_SCORE"
+    runtime_safety = analysis.get("runtime_safety_contract") or {}
+    assert runtime_safety.get("status") == "degraded"
+    assert "missing_fatigue_score" in (runtime_safety.get("issues") or [])
 
 
 def test_fatigue_score_missing_both_keys_uses_safe_default(tmp_path: Path) -> None:
@@ -311,7 +317,7 @@ def test_fatigue_score_missing_both_keys_uses_safe_default(tmp_path: Path) -> No
     analysis = out["analysis"]
     assert analysis.get("execution_suggestion_status") == "failed"
     errors = analysis.get("execution_suggestion_errors") or []
-    assert errors and errors[0].get("code") == "MISSING_FATIGUE_INPUT"
+    assert errors and errors[0].get("code") == "MISSING_FATIGUE_SCORE"
     runtime_safety = analysis.get("runtime_safety_contract") or {}
     assert runtime_safety.get("status") == "degraded"
     assert "missing_fatigue_score_and_fatigue_final" in (runtime_safety.get("issues") or [])
@@ -330,10 +336,16 @@ def test_source_rank_for_lifecycle_and_execution_uses_intel_source_rank_object(t
 def test_missing_validation_a1_does_not_crash_signal_or_execution_payload(tmp_path: Path) -> None:
     runner, _, _, _, execution, _ = _runner(tmp_path, missing_a1=True)
     out = runner.run({"headline": "QCOM jumps"})
-    assert out["analysis"]["signal"]["score"] == 78
+    analysis = out["analysis"]
+    assert analysis.get("signal_status") == "failed"
+    signal_errors = analysis.get("signal_errors") or []
+    assert signal_errors and signal_errors[0].get("code") == "MISSING_VALIDATION_A1"
+    assert analysis.get("execution_suggestion_status") == "failed"
+    exec_errors = analysis.get("execution_suggestion_errors") or []
+    assert exec_errors and exec_errors[0].get("code") == "MISSING_VALIDATION_A1"
     assert execution.last_payload is not None
-    assert execution.last_payload["A1"] == 0.0
-    runtime_safety = out["analysis"].get("runtime_safety_contract") or {}
+    assert execution.last_payload["A1"] is None
+    runtime_safety = analysis.get("runtime_safety_contract") or {}
     assert runtime_safety.get("status") == "degraded"
     assert "missing_validation_a1" in (runtime_safety.get("issues") or [])
 

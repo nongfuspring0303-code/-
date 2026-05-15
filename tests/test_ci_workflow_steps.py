@@ -55,7 +55,7 @@ def _required_ci_step_names():
     return {
         "pr-audit-1-runtime-safety-contract",
         "pipeline-order-contract",
-        "Run PR-Audit-3 conduction mapper correctness tests",
+        "pr-audit-3-conduction-mapper-correctness-contract",
         "candidate-envelope-contract",
         "resolver-merge-contract",
         "semantic-full-peer-contract",
@@ -114,15 +114,15 @@ def test_pr_audit_1_runtime_safety_contract_binds_required_test():
 def test_pr_audit_3_conduction_mapper_correctness_contract_binds_required_test():
     workflow = _load_workflow()
     steps = _workflow_steps_by_name(workflow)
-    step = steps.get("Run PR-Audit-3 conduction mapper correctness tests")
+    step = steps.get("pr-audit-3-conduction-mapper-correctness-contract")
 
-    assert step, "Run PR-Audit-3 conduction mapper correctness tests step missing from workflow"
+    assert step, "pr-audit-3-conduction-mapper-correctness-contract step missing from workflow"
     run_cmd = str(step.get("run", ""))
-    assert 'if [ -f tests/test_pr_audit_3_conduction_mapper_correctness.py ]; then' in run_cmd, (
-        "PR-Audit-3 conduction mapper correctness step must fail fast if the test file is missing"
+    assert "test -f tests/test_pr_audit_3_conduction_mapper_correctness.py" in run_cmd, (
+        "PR-Audit-3 conduction mapper correctness contract must fail fast if the test file is missing"
     )
     assert "python -m pytest tests/test_pr_audit_3_conduction_mapper_correctness.py -q" in run_cmd, (
-        "PR-Audit-3 conduction mapper correctness step must run tests/test_pr_audit_3_conduction_mapper_correctness.py"
+        "PR-Audit-3 conduction mapper correctness contract must run tests/test_pr_audit_3_conduction_mapper_correctness.py"
     )
 
 

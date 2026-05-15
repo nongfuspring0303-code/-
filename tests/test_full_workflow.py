@@ -165,10 +165,11 @@ def test_full_workflow_missing_score_does_not_silent_fallback():
     assert analysis.get("execution_suggestion_errors")
 
 
-def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():
+def test_full_workflow_missing_fatigue_score_uses_fatigue_final_fallback():
     runner = FullWorkflowRunner()
 
     original_run = runner.fatigue.run
+    captured = {}
 
     def _run_without_fatigue_score(payload):
         out = original_run(payload)
@@ -176,12 +177,26 @@ def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():
         data.pop("fatigue_score", None)
         return SimpleNamespace(data=data)
 
+    original_execution_suggestion_run = runner.execution_suggestion_builder.run
+
+    def _capture_execution_suggestion(payload):
+        captured.update(dict(payload))
+        return original_execution_suggestion_run(payload)
+
     runner.fatigue.run = _run_without_fatigue_score
+    runner.execution_suggestion_builder.run = _capture_execution_suggestion
     out = runner.run(_base_payload_for_execution_suggestion())
     analysis = out["analysis"]
     assert "execution_suggestion" not in analysis
     assert analysis.get("execution_suggestion_status") == "failed"
-    assert analysis.get("execution_suggestion_errors")
+    errors = analysis.get("execution_suggestion_errors") or []
+    assert errors and errors[0].get("code") == "MISSING_FATIGUE_SCORE"
+    assert captured == {}
+
+
+def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():
+    # Backward-compatible alias for existing CI step names.
+    test_full_workflow_missing_fatigue_score_uses_fatigue_final_fallback()
 
 
 def test_full_workflow_builder_failed_is_not_swallowed():
@@ -301,4 +316,3 @@ def test_full_workflow_path_quality_eval_success_path():
     
     # Must not leak into execution
     assert "path_quality_eval" not in out["execution"]
-

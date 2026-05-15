@@ -58,6 +58,14 @@ jobs:
         run: |
           python -m pytest tests/test_tier1_mapping_rules_contract.py tests/test_ai_mapping_regression_policy_contract.py tests/test_tier1_guardrails_config_runtime.py -q
 
+      - name: Run PR-Audit-3 conduction mapper correctness tests
+        run: |
+          if [ -f tests/test_pr_audit_3_conduction_mapper_correctness.py ]; then
+            python -m pytest tests/test_pr_audit_3_conduction_mapper_correctness.py -q
+          else
+            echo "[SKIP] PR-Audit-3 conduction mapper correctness tests not yet added"
+          fi
+
       - name: Run PR111 lifecycle-fatigue contract tests
         run: |
           python -m pytest tests/test_pr111_lifecycle_fatigue_contract.py -q

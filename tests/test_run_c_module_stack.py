@@ -49,3 +49,23 @@ def test_load_runtime_config_raises_on_non_mapping_root(tmp_path):
         assert False, "expected ValueError"
     except ValueError:
         assert True
+
+
+def test_load_runtime_config_raises_on_missing_runtime_section(tmp_path):
+    config_file = tmp_path / "missing_runtime.yaml"
+    config_file.write_text("modules: {}\n", encoding="utf-8")
+    try:
+        load_runtime_config(config_file)
+        assert False, "expected ValueError"
+    except ValueError:
+        assert True
+
+
+def test_load_runtime_config_raises_on_empty_runtime_section(tmp_path):
+    config_file = tmp_path / "empty_runtime.yaml"
+    config_file.write_text("runtime: {}\n", encoding="utf-8")
+    try:
+        load_runtime_config(config_file)
+        assert False, "expected ValueError"
+    except ValueError:
+        assert True

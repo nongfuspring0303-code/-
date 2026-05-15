@@ -53,7 +53,16 @@ def load_runtime_config(config_path: Path) -> dict:
         raise ValueError(f"Invalid runtime config: {config_path} ({exc})") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"Invalid runtime config root type: expected mapping, got {type(payload).__name__}")
-    return payload.get("runtime", {}) or {}
+    runtime_cfg = payload.get("runtime")
+    if runtime_cfg is None:
+        raise ValueError(f"Invalid runtime config: missing required runtime section in {config_path}")
+    if not isinstance(runtime_cfg, dict):
+        raise ValueError(
+            f"Invalid runtime config runtime type: expected mapping, got {type(runtime_cfg).__name__}"
+        )
+    if not runtime_cfg:
+        raise ValueError(f"Invalid runtime config: runtime section is empty in {config_path}")
+    return runtime_cfg
 
 
 def resolve_mock_producer_enabled(

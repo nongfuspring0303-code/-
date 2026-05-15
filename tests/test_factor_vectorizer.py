@@ -21,3 +21,11 @@ def test_factor_vectorizer_severity_monotonicity():
     low = vectorizer.vectorize("tariff_shock", severity="E1", lifecycle_state="Active")
     high = vectorizer.vectorize("tariff_shock", severity="E4", lifecycle_state="Active")
     assert abs(high["inflation"]) > abs(low["inflation"])
+
+
+def test_factor_vectorizer_supports_risk_off_template():
+    vectorizer = FactorVectorizer()
+    result = vectorizer.vectorize("risk_off", severity="E2", lifecycle_state="Active")
+    assert len(result) == 9
+    assert result["risk_appetite"] < 0
+    assert result["volatility"] > 0

@@ -105,6 +105,16 @@ templates:
     volatility: 60
     input_cost: 0
     credit_stress: 35
+  risk_off:
+    risk_appetite: -60
+    rates: 8
+    inflation: 10
+    growth: -35
+    usd: 20
+    liquidity: -25
+    volatility: 55
+    input_cost: 10
+    credit_stress: 35
 
 defaults:
   risk_appetite: 0

@@ -89,7 +89,13 @@ def validate_mock_mode(mode: str) -> str:
 
 def resolve_history_file(runtime_cfg: dict, history_file: str | None = None) -> str | None:
     if not history_file:
-        stack_cfg = runtime_cfg.get("c_module_stack", {}) if isinstance(runtime_cfg, dict) else {}
+        stack_cfg = runtime_cfg.get("c_module_stack") if isinstance(runtime_cfg, dict) else {}
+        if stack_cfg is None:
+            stack_cfg = {}
+        if not isinstance(stack_cfg, dict):
+            raise ValueError(
+                f"Invalid runtime config c_module_stack type: expected mapping, got {type(stack_cfg).__name__}"
+            )
         history_file = stack_cfg.get("history_file")
     if not history_file:
         return None

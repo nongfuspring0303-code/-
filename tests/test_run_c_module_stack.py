@@ -6,6 +6,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from run_c_module_stack import (
     load_runtime_config,
+    resolve_history_file,
     resolve_history_file_path,
     validate_mock_mode,
 )
@@ -66,6 +67,18 @@ def test_load_runtime_config_raises_on_empty_runtime_section(tmp_path):
     config_file.write_text("runtime: {}\n", encoding="utf-8")
     try:
         load_runtime_config(config_file)
+        assert False, "expected ValueError"
+    except ValueError:
+        assert True
+
+
+def test_resolve_history_file_handles_null_c_module_stack():
+    assert resolve_history_file({"c_module_stack": None}) is None
+
+
+def test_resolve_history_file_rejects_non_mapping_c_module_stack():
+    try:
+        resolve_history_file({"c_module_stack": "bad"})
         assert False, "expected ValueError"
     except ValueError:
         assert True

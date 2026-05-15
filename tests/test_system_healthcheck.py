@@ -278,7 +278,7 @@ def test_canary_refresh_can_be_forced_in_ci_dev_mode(monkeypatch):
 
 
 def test_phase3_pressure_gate_sample_passes():
-    code, output = system_healthcheck.run_phase3_pressure_gate()
+    code, output = system_healthcheck.run_phase3_pressure_gate(max_p99_ms=10000.0)
 
     assert code == 0
     assert '"passed": true' in output

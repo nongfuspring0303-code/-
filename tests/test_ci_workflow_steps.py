@@ -261,6 +261,9 @@ def test_resolver_merge_contract_binds_required_tests():
     assert "[SKIP] candidate merge tests not yet added" in run_cmd, (
         "resolver-merge-contract should emit an independent candidate-merge skip message"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "resolver-merge-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_semantic_full_peer_contract_binds_required_tests():
@@ -280,6 +283,9 @@ def test_semantic_full_peer_contract_binds_required_tests():
     assert 'if [ -f tests/test_semantic_full_peer_expansion.py ] && [ -f tests/test_peer_candidate_prompt_contract.py ]; then' in run_cmd, (
         "semantic-full-peer-contract must require both future PR-4 tests before running"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "semantic-full-peer-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_market_validation_contract_binds_required_test():
@@ -295,6 +301,9 @@ def test_market_validation_contract_binds_required_test():
     )
     assert 'if [ -f tests/test_market_validation.py ]; then' in run_cmd, (
         "market-validation-contract must remain skip-if-missing until PR-5 lands"
+    )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "market-validation-contract skip messaging must explicitly declare support pre-binding only"
     )
 
 
@@ -328,6 +337,9 @@ def test_path_adjudicator_lite_contract_binds_required_test():
     assert 'if [ -f tests/test_path_adjudicator_lite.py ]; then' in run_cmd, (
         "path-adjudicator-lite-contract must remain skip-if-missing during support-only setup"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "path-adjudicator-lite-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_semantic_verdict_contract_binds_required_test():
@@ -343,6 +355,9 @@ def test_semantic_verdict_contract_binds_required_test():
     )
     assert 'if [ -f tests/test_semantic_verdict_fix.py ]; then' in run_cmd, (
         "semantic-verdict-contract must remain skip-if-missing during support-only setup"
+    )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "semantic-verdict-contract skip messaging must explicitly declare support pre-binding only"
     )
 
 
@@ -360,6 +375,9 @@ def test_output_adapter_contract_binds_required_test():
     assert 'if [ -f tests/test_output_adapter_v5.py ]; then' in run_cmd, (
         "output-adapter-contract must remain skip-if-missing during support-only setup"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "output-adapter-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_gate_diagnostics_contract_binds_required_test():
@@ -375,6 +393,9 @@ def test_gate_diagnostics_contract_binds_required_test():
     )
     assert 'if [ -f tests/test_gate_diagnostics.py ]; then' in run_cmd, (
         "gate-diagnostics-contract must remain skip-if-missing during support-only setup"
+    )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "gate-diagnostics-contract skip messaging must explicitly declare support pre-binding only"
     )
 
 

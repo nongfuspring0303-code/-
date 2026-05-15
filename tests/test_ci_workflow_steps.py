@@ -56,6 +56,7 @@ def _required_ci_step_names():
         "pr-audit-2-support-scripts-stability-contract",
         "pipeline-order-contract",
         "pr-audit-5b-test-credibility-contract",
+        "pr-audit-6-config-single-source-contract",
         "pr-audit-3-conduction-mapper-correctness-contract",
         "candidate-envelope-contract",
         "resolver-merge-contract",
@@ -180,6 +181,36 @@ def test_pr_audit_5b_test_credibility_contract_binds_required_tests():
     )
     assert "if [ -f" not in run_cmd, (
         "pr-audit-5b-test-credibility-contract must not use skip-if-missing wrappers"
+    )
+
+
+def test_pr_audit_6_config_single_source_contract_binds_required_tests():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("pr-audit-6-config-single-source-contract")
+
+    assert step, "pr-audit-6-config-single-source-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "test -f tests/test_config_loading.py" in run_cmd, (
+        "pr-audit-6-config-single-source-contract must fail fast when tests/test_config_loading.py is missing"
+    )
+    assert "test -f tests/test_factor_vectorizer.py" in run_cmd, (
+        "pr-audit-6-config-single-source-contract must fail fast when tests/test_factor_vectorizer.py is missing"
+    )
+    assert "test -f tests/test_tier1_mapping_rules_contract.py" in run_cmd, (
+        "pr-audit-6-config-single-source-contract must fail fast when tests/test_tier1_mapping_rules_contract.py is missing"
+    )
+    assert "test -f tests/test_opportunity_score.py" in run_cmd, (
+        "pr-audit-6-config-single-source-contract must fail fast when tests/test_opportunity_score.py is missing"
+    )
+    assert "python -m pytest tests/test_config_loading.py tests/test_factor_vectorizer.py tests/test_tier1_mapping_rules_contract.py tests/test_opportunity_score.py -q" in run_cmd, (
+        "pr-audit-6-config-single-source-contract must run all PR-Audit-6 config-consistency tests"
+    )
+    assert "echo \"[SKIP]" not in run_cmd and "echo '[SKIP]" not in run_cmd, (
+        "pr-audit-6-config-single-source-contract must not be skip-only"
+    )
+    assert "if [ -f" not in run_cmd, (
+        "pr-audit-6-config-single-source-contract must not use skip-if-missing wrappers"
     )
 
 

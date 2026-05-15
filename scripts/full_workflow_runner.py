@@ -3372,43 +3372,69 @@ class FullWorkflowRunner:
         runtime_safety_issues: list[str] = []
         if validation_a1_missing:
             runtime_safety_issues.append("missing_validation_a1")
+        fatigue_score_missing = fatigue_score_raw is None
+        if fatigue_score_missing:
+            runtime_safety_issues.append("missing_fatigue_score")
         if fatigue_both_missing:
             runtime_safety_issues.append("missing_fatigue_score_and_fatigue_final")
+        execution_authority_blocked = bool(
+            {
+                "missing_validation_a1",
+                "missing_fatigue_score",
+                "missing_fatigue_score_and_fatigue_final",
+            }
+            & set(runtime_safety_issues)
+        )
         fatigue_final = _to_float(fatigue_out.get("fatigue_final"), 0.0)
         fatigue_discount_factor = _to_float(fatigue_out.get("a_minus_1_discount_factor"), 1.0)
         fatigue_watch_mode = bool(fatigue_out.get("watch_mode", False))
 
-        signal_out = self.scorer.run(
-            {
-                "event_id": event_object["event_id"],
-                "severity": event_object.get("severity"),
-                "A0": payload.get("A0", severity_a0),
-                "A-1": payload.get("A-1", 65),
-                "A1": validation_a1,
-                "A1.5": payload.get("A1.5", 58),
-                "A0.5": payload.get("A0.5", 0),
-                "fatigue_final": fatigue_final,
-                "a_minus_1_discount_factor": fatigue_discount_factor,
-                "correlation": payload.get("validation_correlation", 0.55),
-                "is_crowded": payload.get("is_crowded", False),
-                "narrative_mode": payload.get("narrative_mode", "Fact-Driven"),
-                "policy_intervention": payload.get("policy_intervention", "NONE"),
-                "base_direction": payload.get("direction", "long"),
-                "watch_mode": fatigue_watch_mode,
-                "weights_version": "score_v1",
-            }
-        ).data
-        self._log_pipeline_stage(
-            trace_id=trace_id,
-            event_id=event_id,
-            request_id=request_id,
-            batch_id=batch_id,
-            event_hash=event_hash,
-            stage_seq=12,
-            stage="signal",
-            status="success",
-            details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},
-        )
+        signal_out: Dict[str, Any]
+        if validation_a1_missing:
+            signal_out = {}
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=12,
+                stage="signal",
+                status="failed",
+                details={"errors": [{"code": "MISSING_VALIDATION_A1", "message": "A1 is missing; signal is fail-closed"}]},
+            )
+        else:
+            signal_out = self.scorer.run(
+                {
+                    "event_id": event_object["event_id"],
+                    "severity": event_object.get("severity"),
+                    "A0": payload.get("A0", severity_a0),
+                    "A-1": payload.get("A-1", 65),
+                    "A1": validation_a1,
+                    "A1.5": payload.get("A1.5", 58),
+                    "A0.5": payload.get("A0.5", 0),
+                    "fatigue_final": fatigue_final,
+                    "a_minus_1_discount_factor": fatigue_discount_factor,
+                    "correlation": payload.get("validation_correlation", 0.55),
+                    "is_crowded": payload.get("is_crowded", False),
+                    "narrative_mode": payload.get("narrative_mode", "Fact-Driven"),
+                    "policy_intervention": payload.get("policy_intervention", "NONE"),
+                    "base_direction": payload.get("direction", "long"),
+                    "watch_mode": fatigue_watch_mode,
+                    "weights_version": "score_v1",
+                }
+            ).data
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=12,
+                stage="signal",
+                status="success",
+                details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},
+            )
 
         analysis_out = {
             "lifecycle": lifecycle_out,
@@ -3445,6 +3471,14 @@ class FullWorkflowRunner:
             **({"cross_news_governance": advisory_governance_out["cross_news_governance"]} if advisory_governance_out is not None else {}),
             **({"crowding_governance": advisory_governance_out["crowding_governance"]} if advisory_governance_out is not None else {}),
             "signal": signal_out,
+            **(
+                {
+                    "signal_status": "failed",
+                    "signal_errors": [{"code": "MISSING_VALIDATION_A1", "message": "A1 is missing; signal is fail-closed"}],
+                }
+                if validation_a1_missing
+                else {}
+            ),
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
                 "enable_replace_legacy_output": enable_replace_legacy_output,
@@ -3490,6 +3524,7 @@ class FullWorkflowRunner:
                 "issues": runtime_safety_issues,
                 "no_silent_fallback": not bool(runtime_safety_issues),
                 "requires_manual_review": bool(runtime_safety_issues),
+                "execution_authority_blocked": execution_authority_blocked,
             },
         }
 
@@ -3548,12 +3583,18 @@ class FullWorkflowRunner:
             "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
             "stale_event": lifecycle_out.get("stale_event", {}),
         }
-        if fatigue_both_missing:
+        if validation_a1_missing or fatigue_score_missing:
+            failure_code = "MISSING_VALIDATION_A1" if validation_a1_missing else "MISSING_FATIGUE_SCORE"
+            failure_message = (
+                "A1 is missing; execution_suggestion is fail-closed"
+                if validation_a1_missing
+                else "fatigue_score is missing; execution_suggestion is fail-closed"
+            )
             analysis_out["execution_suggestion_status"] = "failed"
             analysis_out["execution_suggestion_errors"] = [
                 {
-                    "code": "MISSING_FATIGUE_INPUT",
-                    "message": "fatigue_score and fatigue_final are both missing; execution_suggestion is fail-closed",
+                    "code": failure_code,
+                    "message": failure_message,
                 }
             ]
             self._log_pipeline_stage(
@@ -3696,7 +3737,7 @@ class FullWorkflowRunner:
             "event_hash": event_hash,
             "A0": payload.get("A0", severity_a0),
             "A-1": payload.get("A-1", 65),
-            "A1": analysis_out.get("market_validation", {}).get("A1", validation_a1),
+            "A1": None if validation_a1_missing else analysis_out.get("market_validation", {}).get("A1", validation_a1),
             "A1.5": payload.get("A1.5", 58),
             "A0.5": payload.get("A0.5", 0),
             "severity": intel_out.get("event_object", {}).get("severity"),
@@ -3772,7 +3813,22 @@ class FullWorkflowRunner:
             "legacy_contract_version": legacy_contract_version,
             "dual_write": True,
         }
-        execution_out = self.execution.run(execution_in)
+        if execution_authority_blocked:
+            execution_in["tradeable"] = False
+            execution_out = {
+                "final": {
+                    "action": "BLOCK",
+                    "reason": "runtime_safety_fail_closed",
+                },
+                "runtime_safety_gate": {
+                    "status": "blocked",
+                    "reason": "critical_input_missing",
+                    "issues": list(runtime_safety_issues),
+                    "authority_path_closed": True,
+                },
+            }
+        else:
+            execution_out = self.execution.run(execution_in)
         final = execution_out.get("final", {}) if isinstance(execution_out, dict) else {}
         final_action = str(final.get("action", "UNKNOWN")).upper()
         final_reason = str(final.get("reason", ""))

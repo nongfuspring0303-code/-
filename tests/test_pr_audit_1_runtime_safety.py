@@ -162,7 +162,22 @@ class _FakeSignal:
 
 
 class _FakeOpportunity:
+    def __init__(self):
+        self.force_has_opportunity = False
+
     def build_opportunity_update(self, payload):
+        if self.force_has_opportunity:
+            return {
+                "opportunities": [
+                    {
+                        "symbol": "QCOM",
+                        "decision_price": 100.0,
+                        "decision_price_source": "mock",
+                        "needs_price_refresh": False,
+                        "final_action": "WATCH",
+                    }
+                ]
+            }
         return {"opportunities": []}
 
 
@@ -183,8 +198,10 @@ class _FakePathQuality:
 class _MutatingExecution:
     def __init__(self):
         self.last_payload = None
+        self.called = False
 
     def run(self, payload):
+        self.called = True
         self.last_payload = dict(payload)
         sector_impacts = payload.get("sector_impacts")
         if isinstance(sector_impacts, list):
@@ -208,7 +225,7 @@ class _FakeStateStore:
 
 def _runner(
     tmp_path: Path, *, missing_a1: bool = False
-) -> tuple[FullWorkflowRunner, _FakeLifecycle, _FakeFatigue, _CapturingExecutionSuggestion, _MutatingExecution, _FakeStateStore]:
+) -> tuple[FullWorkflowRunner, _FakeLifecycle, _FakeFatigue, _CapturingExecutionSuggestion, _MutatingExecution, _FakeStateStore, _FakeOpportunity]:
     lifecycle = _FakeLifecycle()
     fatigue = _FakeFatigue()
     execution_suggestion = _CapturingExecutionSuggestion()
@@ -224,16 +241,17 @@ def _runner(
     r.semantic = _FakeSemantic()
     r.path_adjudicator = _FakePathAdj()
     r.scorer = _FakeSignal()
-    r.opportunity = _FakeOpportunity()
+    opportunity = _FakeOpportunity()
+    r.opportunity = opportunity
     r.execution_suggestion_builder = execution_suggestion
     r.path_quality_evaluator = _FakePathQuality()
     r.execution = execution
     r.state_store = state_store
-    return r, lifecycle, fatigue, execution_suggestion, execution, state_store
+    return r, lifecycle, fatigue, execution_suggestion, execution, state_store, opportunity
 
 
 def test_symbols_requested_none_uses_derived_symbols(tmp_path: Path) -> None:
-    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner, _, _, _, _, _, _ = _runner(tmp_path)
     runner.run(
         {
             "headline": "QCOM jumps",
@@ -249,7 +267,7 @@ def test_symbols_requested_none_uses_derived_symbols(tmp_path: Path) -> None:
 
 
 def test_symbols_requested_list_with_none_does_not_emit_NONE(tmp_path: Path) -> None:
-    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner, _, _, _, _, _, _ = _runner(tmp_path)
     runner.run(
         {
             "headline": "QCOM jumps",
@@ -265,7 +283,7 @@ def test_symbols_requested_list_with_none_does_not_emit_NONE(tmp_path: Path) -> 
 
 
 def test_symbols_requested_empty_list_is_preserved(tmp_path: Path) -> None:
-    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner, _, _, _, _, _, _ = _runner(tmp_path)
     runner.run({"headline": "QCOM jumps", "symbols_requested": [], "symbols_returned": []})
     rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
     assert rec["symbols_requested"] == []
@@ -273,7 +291,7 @@ def test_symbols_requested_empty_list_is_preserved(tmp_path: Path) -> None:
 
 
 def test_symbols_requested_explicit_list_is_preserved(tmp_path: Path) -> None:
-    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner, _, _, _, _, _, _ = _runner(tmp_path)
     runner.run({"headline": "QCOM jumps", "symbols_requested": ["AAPL"], "symbols_returned": ["AAPL"]})
     rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
     assert rec["symbols_requested"] == ["AAPL"]
@@ -281,29 +299,35 @@ def test_symbols_requested_explicit_list_is_preserved(tmp_path: Path) -> None:
 
 
 def test_symbols_requested_missing_key_uses_derived_symbols(tmp_path: Path) -> None:
-    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner, _, _, _, _, _, _ = _runner(tmp_path)
     runner.run({"headline": "QCOM jumps", "price_changes": {"qcom": 0.05, "amd": 0.03, "nvda": 0.04}})
     rec = json.loads(Path(runner.market_data_provenance_log_path).read_text(encoding="utf-8").strip().splitlines()[-1])
     assert rec["symbols_requested"] == ["AMD", "NVDA", "QCOM"]
 
 
 def test_conduction_out_does_not_alias_candidate_generation_output(tmp_path: Path) -> None:
-    runner, _, _, _, _, _ = _runner(tmp_path)
+    runner, _, _, _, _, _, _ = _runner(tmp_path)
     out = runner.run({"headline": "QCOM jumps"})
     cand_sectors = [x.get("sector") for x in out["analysis"]["conduction_candidate_generation"]["sector_impacts"]]
     assert "MUTATED" not in cand_sectors
 
 
 def test_fatigue_score_falls_back_to_fatigue_final_for_execution_suggestion(tmp_path: Path) -> None:
-    runner, _, fatigue, execution_suggestion, _, _ = _runner(tmp_path)
+    runner, _, fatigue, execution_suggestion, _, _, _ = _runner(tmp_path)
     fatigue.drop_fatigue_score = True
-    runner.run({"headline": "QCOM jumps"})
-    assert execution_suggestion.last_payload is not None
-    assert execution_suggestion.last_payload["fatigue_score"] == 10
+    out = runner.run({"headline": "QCOM jumps"})
+    assert execution_suggestion.last_payload is None
+    analysis = out["analysis"]
+    assert analysis.get("execution_suggestion_status") == "failed"
+    errors = analysis.get("execution_suggestion_errors") or []
+    assert errors and errors[0].get("code") == "MISSING_FATIGUE_SCORE"
+    runtime_safety = analysis.get("runtime_safety_contract") or {}
+    assert runtime_safety.get("status") == "degraded"
+    assert "missing_fatigue_score" in (runtime_safety.get("issues") or [])
 
 
 def test_fatigue_score_missing_both_keys_uses_safe_default(tmp_path: Path) -> None:
-    runner, _, fatigue, execution_suggestion, _, _ = _runner(tmp_path)
+    runner, _, fatigue, execution_suggestion, _, _, _ = _runner(tmp_path)
     fatigue.drop_fatigue_score = True
     fatigue.drop_fatigue_final = True
     out = runner.run({"headline": "QCOM jumps"})
@@ -311,14 +335,14 @@ def test_fatigue_score_missing_both_keys_uses_safe_default(tmp_path: Path) -> No
     analysis = out["analysis"]
     assert analysis.get("execution_suggestion_status") == "failed"
     errors = analysis.get("execution_suggestion_errors") or []
-    assert errors and errors[0].get("code") == "MISSING_FATIGUE_INPUT"
+    assert errors and errors[0].get("code") == "MISSING_FATIGUE_SCORE"
     runtime_safety = analysis.get("runtime_safety_contract") or {}
     assert runtime_safety.get("status") == "degraded"
     assert "missing_fatigue_score_and_fatigue_final" in (runtime_safety.get("issues") or [])
 
 
 def test_source_rank_for_lifecycle_and_execution_uses_intel_source_rank_object(tmp_path: Path) -> None:
-    runner, lifecycle, _, _, execution, _ = _runner(tmp_path)
+    runner, lifecycle, _, _, execution, _, _ = _runner(tmp_path)
     runner.run({"headline": "QCOM jumps"})
     assert lifecycle.last_payload is not None
     assert lifecycle.last_payload["source_rank"] == "A"
@@ -328,18 +352,27 @@ def test_source_rank_for_lifecycle_and_execution_uses_intel_source_rank_object(t
 
 
 def test_missing_validation_a1_does_not_crash_signal_or_execution_payload(tmp_path: Path) -> None:
-    runner, _, _, _, execution, _ = _runner(tmp_path, missing_a1=True)
+    runner, _, _, _, execution, _, _ = _runner(tmp_path, missing_a1=True)
     out = runner.run({"headline": "QCOM jumps"})
-    assert out["analysis"]["signal"]["score"] == 78
-    assert execution.last_payload is not None
-    assert execution.last_payload["A1"] == 0.0
-    runtime_safety = out["analysis"].get("runtime_safety_contract") or {}
+    analysis = out["analysis"]
+    assert analysis.get("signal_status") == "failed"
+    signal_errors = analysis.get("signal_errors") or []
+    assert signal_errors and signal_errors[0].get("code") == "MISSING_VALIDATION_A1"
+    assert analysis.get("execution_suggestion_status") == "failed"
+    exec_errors = analysis.get("execution_suggestion_errors") or []
+    assert exec_errors and exec_errors[0].get("code") == "MISSING_VALIDATION_A1"
+    assert execution.called is False
+    assert execution.last_payload is None
+    assert out["execution"]["final"]["action"] == "BLOCK"
+    assert out["execution"]["final"]["reason"] == "runtime_safety_fail_closed"
+    runtime_safety = analysis.get("runtime_safety_contract") or {}
     assert runtime_safety.get("status") == "degraded"
     assert "missing_validation_a1" in (runtime_safety.get("issues") or [])
+    assert runtime_safety.get("execution_authority_blocked") is True
 
 
 def test_run_does_not_crash_on_missing_lifecycle_keys(tmp_path: Path) -> None:
-    runner, lifecycle, _, _, execution, state_store = _runner(tmp_path)
+    runner, lifecycle, _, _, execution, state_store, _ = _runner(tmp_path)
     lifecycle.drop_keys = True
     out = runner.run({"headline": "QCOM jumps", "drop_event_category": True})
     assert out["execution"]["final"]["action"] == "WATCH"
@@ -352,7 +385,7 @@ def test_run_does_not_crash_on_missing_lifecycle_keys(tmp_path: Path) -> None:
 
 
 def test_missing_source_rank_does_not_raise_key_error(tmp_path: Path) -> None:
-    runner, lifecycle, _, _, execution, _ = _runner(tmp_path)
+    runner, lifecycle, _, _, execution, _, _ = _runner(tmp_path)
     out = runner.run({"headline": "QCOM jumps", "drop_source_rank": True})
     assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
     assert lifecycle.last_payload is not None
@@ -361,3 +394,25 @@ def test_missing_source_rank_does_not_raise_key_error(tmp_path: Path) -> None:
     source_rank = execution.last_payload.get("source_rank")
     assert isinstance(source_rank, dict)
     assert source_rank.get("rank") == "unknown"
+
+
+def test_missing_a1_with_has_opportunity_blocks_execution_authority(tmp_path: Path) -> None:
+    runner, _, _, _, execution, _, opportunity = _runner(tmp_path, missing_a1=True)
+    opportunity.force_has_opportunity = True
+    out = runner.run({"headline": "QCOM jumps"})
+    assert out["execution"]["final"]["action"] == "BLOCK"
+    assert execution.called is False
+    runtime_safety = out["analysis"].get("runtime_safety_contract") or {}
+    assert runtime_safety.get("execution_authority_blocked") is True
+
+
+def test_missing_fatigue_score_with_has_opportunity_blocks_execution_authority(tmp_path: Path) -> None:
+    runner, _, fatigue, _, execution, _, opportunity = _runner(tmp_path)
+    fatigue.drop_fatigue_score = True
+    opportunity.force_has_opportunity = True
+    out = runner.run({"headline": "QCOM jumps"})
+    assert out["analysis"].get("execution_suggestion_status") == "failed"
+    assert out["execution"]["final"]["action"] == "BLOCK"
+    assert execution.called is False
+    runtime_safety = out["analysis"].get("runtime_safety_contract") or {}
+    assert runtime_safety.get("execution_authority_blocked") is True

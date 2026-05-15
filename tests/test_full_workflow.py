@@ -187,10 +187,11 @@ def test_full_workflow_missing_fatigue_score_uses_fatigue_final_fallback():
     runner.execution_suggestion_builder.run = _capture_execution_suggestion
     out = runner.run(_base_payload_for_execution_suggestion())
     analysis = out["analysis"]
-    assert "execution_suggestion" in analysis
-    assert analysis.get("execution_suggestion_status") is None
-    assert analysis.get("execution_suggestion_errors") is None
-    assert captured.get("fatigue_score") is not None
+    assert "execution_suggestion" not in analysis
+    assert analysis.get("execution_suggestion_status") == "failed"
+    errors = analysis.get("execution_suggestion_errors") or []
+    assert errors and errors[0].get("code") == "MISSING_FATIGUE_SCORE"
+    assert captured == {}
 
 
 def test_full_workflow_missing_fatigue_score_does_not_silent_fallback():

@@ -1,123 +1,81 @@
+import json
 from pathlib import Path
 
-import yaml
+from theme_gate_policy import apply_theme_gate_constraints, validate_theme_contract
+from verify_theme_replay import verify_replay_consistency
 
 ROOT = Path(__file__).resolve().parent.parent
-SAMPLES_PATH = ROOT / "tests" / "acceptance" / "theme_e2e_samples.yaml"
+FIXTURE_DIR = ROOT / "tests" / "fixtures" / "theme_acceptance"
 
 
-def _load_samples() -> list[dict]:
-    doc = yaml.safe_load(SAMPLES_PATH.read_text(encoding="utf-8")) or {}
-    return doc.get("samples", [])
+def _load_replay_case(name: str) -> list[dict]:
+    path = FIXTURE_DIR / f"{name}.jsonl"
+    records: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            records.append(json.loads(line))
+    return records
 
 
-def _simulated_outputs() -> dict[str, dict]:
+def _summarize_replay(records: list[dict]) -> dict[str, object]:
+    report = verify_replay_consistency(records)
+    consistency_break_reason = ""
+    if not report["replay_consistency"]:
+        if report["inconsistent_keys"]:
+            consistency_break_reason = "inconsistent_keys:" + ",".join(report["inconsistent_keys"])
+        elif report["contract_errors"]:
+            consistency_break_reason = "contract_errors:" + ",".join(report["contract_errors"])
+        else:
+            consistency_break_reason = "unknown_replay_break"
     return {
-        "E2E-01": {
-            "route_to_theme_engine": True,
-            "primary_theme": "Quantum Computing",
-            "basket_confirmation": "valid",
-            "current_state": "CONTINUATION",
-            "trade_grade": "B",
-            "contract_name": "theme_catalyst_engine",
-            "contract_version": "v1.0",
-            "producer_module": "theme_engine",
-        },
-        "E2E-02": {
-            "fallback_reason": "THEME_MAPPING_FAILED",
-            "safe_to_consume": False,
-            "trade_grade": "D",
-        },
-        "E2E-03": {
-            "error_code": "BASKET_EMPTY",
-            "trade_grade": "C",
-            "candidate_audit_pool": [],
-        },
-        "E2E-04": {
-            "conflict_flag": True,
-            "final_decision_source": "mainchain_capped_theme",
-            "trade_grade": "C",
-        },
-        "E2E-05": {
-            "final_decision_source": "theme_only_degraded",
-            "fallback_reason": "MAINCHAIN_MISSING",
-            "safe_to_consume": False,
-            "theme_capped_by_macro": True,
-        },
-        "E2E-06": {
-            "replay_consistency": True,
-            "idempotency_key_stable": True,
-            "consistency_break_reason": "",
-        },
+        "report": report,
+        "consistency_break_reason": consistency_break_reason,
     }
 
 
-def _assert_expected(assertion: str, out: dict) -> None:
-    if assertion == "primary_theme_non_empty":
-        assert bool(out.get("primary_theme"))
-        return
-    if assertion == "basket_confirmation_valid":
-        assert out.get("basket_confirmation") == "valid"
-        return
-    if assertion == "current_state_computable":
-        assert out.get("current_state") in {"FIRST_IMPULSE", "CONTINUATION", "EXHAUSTION", "DEAD"}
-        return
-    if assertion == "trade_grade_non_empty":
-        assert out.get("trade_grade") in {"A", "B", "C", "D"}
-        return
-    if assertion == "downstream_contract_fields_complete":
-        for key in ("contract_name", "contract_version", "producer_module"):
-            assert bool(out.get(key))
-        return
-    if assertion == "candidate_audit_pool_empty":
-        assert out.get("candidate_audit_pool") == []
-        return
-    if assertion == "trade_grade_capped_to=C_or_below":
-        assert out.get("trade_grade") in {"C", "D"}
-        return
-    if assertion == "idempotency_key_stable":
-        assert out.get("idempotency_key_stable") is True
-        return
-    if assertion == "if_inconsistent_then_consistency_break_reason_present":
-        if out.get("replay_consistency") is False:
-            assert bool(out.get("consistency_break_reason"))
-        return
+def test_theme_acceptance_positive_replay_passes_real_path():
+    records = _load_replay_case("positive_replay")
+    summary = _summarize_replay(records)
 
-    if assertion.startswith("trade_grade_not_in="):
-        denied = assertion.split("=", 1)[1].strip("[]")
-        denied_set = {item.strip() for item in denied.split(",") if item.strip()}
-        assert out.get("trade_grade") not in denied_set
-        return
+    assert summary["report"]["replay_consistency"] is True
+    assert summary["report"]["total_records"] == 2
+    assert summary["report"]["unique_keys"] == 1
+    assert summary["report"]["inconsistent_keys"] == []
+    assert summary["report"]["contract_errors"] == []
+    assert summary["consistency_break_reason"] == ""
 
-    if "=" in assertion:
-        key, raw = assertion.split("=", 1)
-        key = key.strip()
-        raw = raw.strip()
-        if raw == "true":
-            expected = True
-        elif raw == "false":
-            expected = False
-        else:
-            expected = raw
-        assert out.get(key) == expected
-        return
-
-    raise AssertionError(f"Unsupported assertion token: {assertion}")
+    resolved_output = apply_theme_gate_constraints(records[0]["output_snapshot"])
+    assert resolved_output["contract_name"] == "theme_catalyst_engine"
+    assert resolved_output["contract_version"] == "v1.0"
+    assert resolved_output["producer_module"] == "theme_engine"
+    assert resolved_output["route_to_theme_engine"] is True
+    assert resolved_output["primary_theme"] == "Quantum Computing"
+    assert resolved_output["basket_confirmation"] == "valid"
+    assert resolved_output["trade_grade"] == "B"
+    assert validate_theme_contract(resolved_output) == []
 
 
-def test_theme_e2e_samples_are_executable_and_all_pass():
-    samples = _load_samples()
-    outputs = _simulated_outputs()
+def test_theme_acceptance_inconsistent_replay_requires_break_reason():
+    records = _load_replay_case("inconsistent_replay")
+    summary = _summarize_replay(records)
 
-    ids = {item["case_id"] for item in samples}
-    assert ids == {"E2E-01", "E2E-02", "E2E-03", "E2E-04", "E2E-05", "E2E-06"}
-    for sample in samples:
-        case_id = sample["case_id"]
-        assert case_id in outputs
-        assert sample.get("sample_id")
-        assert sample.get("pass_threshold")
-        assert sample.get("on_fail_action")
+    assert summary["report"]["replay_consistency"] is False
+    assert summary["report"]["total_records"] == 2
+    assert summary["report"]["unique_keys"] == 1
+    assert summary["report"]["inconsistent_keys"] == ["evt-theme-inconsistent|v1|T0"]
+    assert summary["consistency_break_reason"]
+    assert summary["consistency_break_reason"].startswith("inconsistent_keys:")
 
-        out = outputs[case_id]
-        for assertion in sample.get("expected_assertions", []):
-            _assert_expected(assertion, out)
+    first_output = apply_theme_gate_constraints(records[0]["output_snapshot"])
+    second_output = apply_theme_gate_constraints(records[1]["output_snapshot"])
+    assert first_output["trade_grade"] == "B"
+    assert second_output["trade_grade"] == "C"
+    assert validate_theme_contract(first_output) == []
+    assert validate_theme_contract(second_output) == []
+
+
+def test_theme_acceptance_does_not_use_simulated_outputs():
+    assert "_simulated_outputs" not in globals()
+    assert (FIXTURE_DIR / "positive_replay.jsonl").is_file()
+    assert (FIXTURE_DIR / "inconsistent_replay.jsonl").is_file()

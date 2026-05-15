@@ -20,6 +20,7 @@ If these conflict with old planning notes, follow the current-state and merged-c
 - `scripts/local_daily_project_monitor.sh` is local operations tooling only.
 - Monitor outputs are not release authority and not trading authority.
 - Do not route monitor outputs directly into runtime decision surfaces.
+- Project-health, gap-monitor, and ops-dashboard surfaces are observability/diagnostics only, not production gates, release authority, trading authority, or execution authority.
 
 ## Runtime Artifact Hygiene
 

@@ -15,6 +15,25 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
 
 
+def _decision_row(trace_id: str, latency_seconds: int) -> dict:
+    base = "2026-04-24T01:00:00Z"
+    return {
+        "trace_id": trace_id,
+        "final_action": "WATCH",
+        "final_reason": "ok",
+        "ingest_ts": base,
+        "decision_ts": f"2026-04-24T01:00:{latency_seconds:02d}Z",
+    }
+
+
+def _replay_row() -> dict:
+    return {"replay_primary_key_complete": True, "orphan_replay_count": 0, "orphan_execution_count": 0}
+
+
+def _scorecard_row() -> dict:
+    return {"placeholder_count": 0, "non_whitelist_sector_count": 0, "semantic_event_type": "other"}
+
+
 def test_compute_stage5_acceptance_metrics_on_clean_window(tmp_path):
     logs_dir = tmp_path / "logs"
     baseline_path = tmp_path / "baseline.json"
@@ -31,45 +50,12 @@ def test_compute_stage5_acceptance_metrics_on_clean_window(tmp_path):
         encoding="utf-8",
     )
 
-    _write_jsonl(
-        logs_dir / "decision_gate.jsonl",
-        [
-            {
-                "trace_id": "T1",
-                "final_action": "WATCH",
-                "final_reason": "ok",
-                "ingest_ts": "2026-04-24T01:00:00Z",
-                "decision_ts": "2026-04-24T01:00:01Z",
-            },
-            {
-                "trace_id": "T2",
-                "final_action": "EXECUTE",
-                "final_reason": "good",
-                "ingest_ts": "2026-04-24T01:00:00Z",
-                "decision_ts": "2026-04-24T01:00:02Z",
-            },
-        ],
-    )
-    _write_jsonl(
-        logs_dir / "replay_join_validation.jsonl",
-        [
-            {"replay_primary_key_complete": True, "orphan_replay_count": 0, "orphan_execution_count": 0},
-            {"replay_primary_key_complete": True, "orphan_replay_count": 0, "orphan_execution_count": 0},
-        ],
-    )
-    _write_jsonl(
-        logs_dir / "trace_scorecard.jsonl",
-        [
-            {"placeholder_count": 0, "non_whitelist_sector_count": 0, "semantic_event_type": "other"},
-            {"placeholder_count": 0, "non_whitelist_sector_count": 0, "semantic_event_type": "other"},
-        ],
-    )
+    _write_jsonl(logs_dir / "decision_gate.jsonl", [_decision_row(f"T{i}", i + 1) for i in range(20)])
+    _write_jsonl(logs_dir / "replay_join_validation.jsonl", [_replay_row() for _ in range(20)])
+    _write_jsonl(logs_dir / "trace_scorecard.jsonl", [_scorecard_row() for _ in range(20)])
     _write_jsonl(
         logs_dir / "raw_news_ingest.jsonl",
-        [
-            {"trace_id": "T1"},
-            {"trace_id": "T2"},
-        ],
+        [{"trace_id": f"T{i}", "logged_at": "2026-04-24T01:00:00Z"} for i in range(20)],
     )
 
     report = compute_metrics(logs_dir=logs_dir, baseline_path=baseline_path)
@@ -79,6 +65,8 @@ def test_compute_stage5_acceptance_metrics_on_clean_window(tmp_path):
     assert metrics["replay_primary_key_completeness"] == 1.0
     assert metrics["trace_join_success_rate"] == 1.0
     assert metrics["orphan_replay"] == 0
+    assert metrics["p95_decision_latency"] == 19.0
+    assert metrics["same_trace_ai_duplicate_call_rate"] == 0.0
     assert report["baseline_compare"]["same_trace_ai_duplicate_call_rate_comparison"] == "improved_or_equal"
 
 
@@ -192,41 +180,21 @@ def test_compute_stage5_acceptance_metrics_groups_duplicate_rate_by_trace_id_not
         encoding="utf-8",
     )
 
-    # Required non-empty windows to avoid insufficient-sample gate.
-    _write_jsonl(
-        logs_dir / "decision_gate.jsonl",
-        [
-            {
-                "trace_id": "T1",
-                "final_action": "WATCH",
-                "final_reason": "ok",
-                "ingest_ts": "2026-04-24T01:00:00Z",
-                "decision_ts": "2026-04-24T01:00:01Z",
-            }
-        ],
-    )
-    _write_jsonl(
-        logs_dir / "replay_join_validation.jsonl",
-        [{"replay_primary_key_complete": True, "orphan_replay_count": 0, "orphan_execution_count": 0}],
-    )
-    _write_jsonl(
-        logs_dir / "trace_scorecard.jsonl",
-        [{"placeholder_count": 0, "non_whitelist_sector_count": 0, "semantic_event_type": "other"}],
-    )
+    _write_jsonl(logs_dir / "decision_gate.jsonl", [_decision_row(f"T{i}", i + 1) for i in range(20)])
+    _write_jsonl(logs_dir / "replay_join_validation.jsonl", [_replay_row() for _ in range(20)])
+    _write_jsonl(logs_dir / "trace_scorecard.jsonl", [_scorecard_row() for _ in range(20)])
     _write_jsonl(
         logs_dir / "raw_news_ingest.jsonl",
         [
-            {"trace_id": "T1", "event_hash": "h1"},
-            {"trace_id": "T1", "event_hash": "h2"},
-            {"trace_id": "T2", "event_hash": "h3"},
+            {"trace_id": f"T{i // 2}", "event_hash": f"h{i}"} for i in range(20)
         ],
     )
 
     report = compute_metrics(logs_dir=logs_dir, baseline_path=baseline_path)
     assert report["insufficient_sample"] is False
-    assert report["sample_sizes"]["raw_ingest_rows"] == 3
-    assert report["metrics"]["same_trace_ai_duplicate_call_rate"] == 0.5
-    assert report["metrics"]["same_trace_ai_duplicate_call_rate"] != 0
+    assert report["sample_sizes"]["raw_ingest_rows"] == 20
+    assert report["metrics"]["same_trace_ai_duplicate_call_rate"] == 1.0
+    assert report["metrics"]["p95_decision_latency"] == 19.0
 
 
 def test_compute_stage5_acceptance_metrics_empty_window_is_insufficient_with_nonzero_exit(tmp_path):

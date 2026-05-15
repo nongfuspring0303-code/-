@@ -32,6 +32,14 @@ jobs:
           test -f tests/test_semantic_prepass_contract.py
           python -m pytest tests/test_pipeline_order.py tests/test_semantic_prepass_contract.py -q
 
+      - name: pr-audit-5b-test-credibility-contract
+        run: |
+          test -f tests/test_dedupe_performance.py
+          test -f tests/test_shadow_comparator.py
+          test -f tests/test_stage5_acceptance_metrics.py
+          test -f tests/test_pipeline_order.py
+          python -m pytest tests/test_dedupe_performance.py tests/test_shadow_comparator.py tests/test_stage5_acceptance_metrics.py tests/test_pipeline_order.py -q
+
       - name: Run PR123 semantic parser hardening tests
         run: |
           python -m pytest tests/test_ai_semantic_json_parser.py tests/test_ai_semantic_analyzer.py -q

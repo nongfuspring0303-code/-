@@ -27,11 +27,13 @@ class _FakeIntel:
         }
         if payload.get("drop_event_category"):
             event_object["category"] = None
-        return {
+        out = {
             "event_object": event_object,
-            "source_rank": {"rank": "A", "needs_escalation": False, "confidence": 0.9},
             "severity": {"A0": 78},
         }
+        if not payload.get("drop_source_rank"):
+            out["source_rank"] = {"rank": "A", "needs_escalation": False, "confidence": 0.9}
+        return out
 
 
 class _FakeLifecycle:
@@ -304,9 +306,15 @@ def test_fatigue_score_missing_both_keys_uses_safe_default(tmp_path: Path) -> No
     runner, _, fatigue, execution_suggestion, _, _ = _runner(tmp_path)
     fatigue.drop_fatigue_score = True
     fatigue.drop_fatigue_final = True
-    runner.run({"headline": "QCOM jumps"})
-    assert execution_suggestion.last_payload is not None
-    assert execution_suggestion.last_payload["fatigue_score"] == 0
+    out = runner.run({"headline": "QCOM jumps"})
+    assert execution_suggestion.last_payload is None
+    analysis = out["analysis"]
+    assert analysis.get("execution_suggestion_status") == "failed"
+    errors = analysis.get("execution_suggestion_errors") or []
+    assert errors and errors[0].get("code") == "MISSING_FATIGUE_INPUT"
+    runtime_safety = analysis.get("runtime_safety_contract") or {}
+    assert runtime_safety.get("status") == "degraded"
+    assert "missing_fatigue_score_and_fatigue_final" in (runtime_safety.get("issues") or [])
 
 
 def test_source_rank_for_lifecycle_and_execution_uses_intel_source_rank_object(tmp_path: Path) -> None:
@@ -325,6 +333,9 @@ def test_missing_validation_a1_does_not_crash_signal_or_execution_payload(tmp_pa
     assert out["analysis"]["signal"]["score"] == 78
     assert execution.last_payload is not None
     assert execution.last_payload["A1"] == 0.0
+    runtime_safety = out["analysis"].get("runtime_safety_contract") or {}
+    assert runtime_safety.get("status") == "degraded"
+    assert "missing_validation_a1" in (runtime_safety.get("issues") or [])
 
 
 def test_run_does_not_crash_on_missing_lifecycle_keys(tmp_path: Path) -> None:
@@ -338,3 +349,15 @@ def test_run_does_not_crash_on_missing_lifecycle_keys(tmp_path: Path) -> None:
     assert state_store.last_state["lifecycle_state"] is not None
     assert state_store.last_state["catalyst_state"] is not None
     assert state_store.last_state["metadata"]["category"] is not None
+
+
+def test_missing_source_rank_does_not_raise_key_error(tmp_path: Path) -> None:
+    runner, lifecycle, _, _, execution, _ = _runner(tmp_path)
+    out = runner.run({"headline": "QCOM jumps", "drop_source_rank": True})
+    assert out["analysis"]["conduction_final_selection"]["final_recommended_stocks"] == ["QCOM", "AMD", "NVDA"]
+    assert lifecycle.last_payload is not None
+    assert lifecycle.last_payload["source_rank"] == "unknown"
+    assert execution.last_payload is not None
+    source_rank = execution.last_payload.get("source_rank")
+    assert isinstance(source_rank, dict)
+    assert source_rank.get("rank") == "unknown"

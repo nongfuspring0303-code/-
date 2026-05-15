@@ -70,6 +70,11 @@ jobs:
         run: |
           python -m pytest tests/test_full_workflow.py::test_full_workflow_missing_score_does_not_silent_fallback tests/test_full_workflow.py::test_full_workflow_missing_fatigue_score_does_not_silent_fallback tests/test_full_workflow.py::test_full_workflow_builder_failed_is_not_swallowed -q
 
+      - name: pr-audit-1-runtime-safety-contract
+        run: |
+          test -f tests/test_pr_audit_1_runtime_safety.py
+          python -m pytest tests/test_pr_audit_1_runtime_safety.py -q
+
       - name: Run PR110 causal contract tests
         run: |
           python -m pytest tests/test_causal_contract_schema.py tests/test_causal_contract_fields.py tests/test_causal_contract_consumer_boundary.py tests/test_causal_contract_config_runtime.py -q

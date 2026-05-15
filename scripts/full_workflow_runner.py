@@ -2875,7 +2875,12 @@ class FullWorkflowRunner:
         intel_out = self.intel.run(payload)
 
         event_object = intel_out["event_object"]
-        source_rank = intel_out["source_rank"]
+        raw_source_rank = intel_out.get("source_rank") if isinstance(intel_out, dict) else None
+        source_rank = (
+            raw_source_rank
+            if isinstance(raw_source_rank, dict)
+            else {"rank": "unknown", "needs_escalation": False, "confidence": 0.0}
+        )
         event_id = event_object["event_id"]
         request_id = payload.get("request_id")
         batch_id = payload.get("batch_id")
@@ -3357,7 +3362,18 @@ class FullWorkflowRunner:
         severity = intel_out.get("severity")
         severity_map = severity if isinstance(severity, dict) else {}
         severity_a0 = _to_float(severity_map.get("A0"), 0.0)
-        validation_a1 = _to_float(validation_out.get("A1"), 0.0)
+        validation_a1_raw = validation_out.get("A1")
+        validation_a1_missing = validation_a1_raw is None
+        validation_a1 = _to_float(validation_a1_raw, 0.0)
+        fatigue_score_raw = fatigue_out.get("fatigue_score")
+        fatigue_final_raw = fatigue_out.get("fatigue_final")
+        fatigue_both_missing = fatigue_score_raw is None and fatigue_final_raw is None
+
+        runtime_safety_issues: list[str] = []
+        if validation_a1_missing:
+            runtime_safety_issues.append("missing_validation_a1")
+        if fatigue_both_missing:
+            runtime_safety_issues.append("missing_fatigue_score_and_fatigue_final")
         fatigue_final = _to_float(fatigue_out.get("fatigue_final"), 0.0)
         fatigue_discount_factor = _to_float(fatigue_out.get("a_minus_1_discount_factor"), 1.0)
         fatigue_watch_mode = bool(fatigue_out.get("watch_mode", False))
@@ -3469,6 +3485,12 @@ class FullWorkflowRunner:
                 "fatigue_bucket": fatigue_out.get("fatigue_bucket"),
                 "stale_event": lifecycle_out.get("stale_event"),
             },
+            "runtime_safety_contract": {
+                "status": "pass" if not runtime_safety_issues else "degraded",
+                "issues": runtime_safety_issues,
+                "no_silent_fallback": not bool(runtime_safety_issues),
+                "requires_manual_review": bool(runtime_safety_issues),
+            },
         }
 
         sectors = []
@@ -3520,18 +3542,20 @@ class FullWorkflowRunner:
 
         execution_suggestion_in = {
             "score": signal_out.get("score"),
-            "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final", 0)),
+            "fatigue_score": fatigue_score_raw if fatigue_score_raw is not None else (fatigue_final_raw if fatigue_final_raw is not None else 0),
             "has_opportunity": has_opportunity,
             "market_validated": validation_out.get("a1_market_validation") == "pass",
             "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
             "stale_event": lifecycle_out.get("stale_event", {}),
         }
-        execution_suggestion_out = self.execution_suggestion_builder.run(execution_suggestion_in)
-        if execution_suggestion_out.status == ModuleStatus.SUCCESS:
-            analysis_out["execution_suggestion"] = execution_suggestion_out.data
-        else:
+        if fatigue_both_missing:
             analysis_out["execution_suggestion_status"] = "failed"
-            analysis_out["execution_suggestion_errors"] = execution_suggestion_out.errors
+            analysis_out["execution_suggestion_errors"] = [
+                {
+                    "code": "MISSING_FATIGUE_INPUT",
+                    "message": "fatigue_score and fatigue_final are both missing; execution_suggestion is fail-closed",
+                }
+            ]
             self._log_pipeline_stage(
                 trace_id=trace_id,
                 event_id=event_id,
@@ -3541,8 +3565,26 @@ class FullWorkflowRunner:
                 stage_seq=10,
                 stage="execution_suggestion",
                 status="failed",
-                details={"errors": execution_suggestion_out.errors},
+                details={"errors": analysis_out["execution_suggestion_errors"]},
             )
+        else:
+            execution_suggestion_out = self.execution_suggestion_builder.run(execution_suggestion_in)
+            if execution_suggestion_out.status == ModuleStatus.SUCCESS:
+                analysis_out["execution_suggestion"] = execution_suggestion_out.data
+            else:
+                analysis_out["execution_suggestion_status"] = "failed"
+                analysis_out["execution_suggestion_errors"] = execution_suggestion_out.errors
+                self._log_pipeline_stage(
+                    trace_id=trace_id,
+                    event_id=event_id,
+                    request_id=request_id,
+                    batch_id=batch_id,
+                    event_hash=event_hash,
+                    stage_seq=10,
+                    stage="execution_suggestion",
+                    status="failed",
+                    details={"errors": execution_suggestion_out.errors},
+                )
 
         raw_score = signal_out.get("score")
         normalized_score = float(raw_score) / 100.0 if raw_score is not None else None

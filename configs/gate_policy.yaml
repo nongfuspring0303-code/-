@@ -85,7 +85,3 @@ output_limits:
   sector_primary_max: 1
   sector_secondary_max: 1
   sector_avoid_max: 2
-
-compatibility:
-  allow_legacy_event_to_sector_mapping_alias_for_one_cycle: true
-  legacy_mapping_alias_name: "event_to_sector_mapping.yaml"

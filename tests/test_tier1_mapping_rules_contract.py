@@ -18,6 +18,9 @@ def test_tier1_mapping_rules_contract():
     assert isinstance(tier1_types, list) and tier1_types, "tier1_event_types must be a non-empty list"
     assert len(tier1_types) == 10, f"expected 10 tier1 types, got {len(tier1_types)}"
 
+    guardrail_types = (data.get("recommendation_guardrails") or {}).get("tier1_event_types", [])
+    assert tier1_types == guardrail_types, "tier1_event_types must be single-sourced across top-level and guardrails"
+
     base = data.get("base_sector_weights", {})
     assert isinstance(base, dict) and base, "base_sector_weights must be a non-empty dict"
     for t in tier1_types:

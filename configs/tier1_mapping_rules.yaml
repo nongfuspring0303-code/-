@@ -3,7 +3,7 @@ version: "0.1.0"
 updated_at: "2026-05-04T00:00:00Z"
 description: "Tier1 event mapping rules: sector weights, subtype boosts, ticker pools"
 
-tier1_event_types:
+tier1_event_types: &tier1_event_types
   - geo_political
   - energy
   - commodity
@@ -205,17 +205,7 @@ recommendation_rules:
 # Hardcoded guardrails migrated from conduction_mapper.py constants.
 # Code reads from this config; missing key falls back to code default.
 recommendation_guardrails:
-  tier1_event_types:
-    - geo_political
-    - energy
-    - commodity
-    - monetary
-    - tariff
-    - tech
-    - earnings
-    - regulatory
-    - industrial
-    - merger
+  tier1_event_types: *tier1_event_types
   no_recommend_tier3_event_types:
     - other
     - natural_disaster

@@ -105,12 +105,17 @@ The following names must be used exactly as declared in the contract matrix:
 - `resolver-merge-contract`
 - `semantic-full-peer-contract`
 - `market-validation-contract`
-- `routing-authority-contract`
+- `path-adjudicator-lite-contract`
+- `semantic-verdict-contract`
 - `output-adapter-contract`
-- `advanced-gates-contract`
+- `gate-diagnostics-contract`
+- `advisory-governance-contract`
 - `threshold-config-contract`
-- `compatibility-exit-contract`
 - `ci-workflow-step-contract`
+
+The retired compatibility gate remains removed until a real runtime surface and test exist:
+
+- `compatibility-exit-contract` (retired / removed)
 
 ## 10. Shadow-Only / Advisory-Only Boundary
 

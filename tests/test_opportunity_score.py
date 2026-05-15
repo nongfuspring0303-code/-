@@ -341,6 +341,14 @@ def test_fallback_pool_supports_sector_alias_dictionary():
     assert any(opp["symbol"] == "XOM" for opp in out["opportunities"])
 
 
+def test_premium_stock_pool_supports_extended_sector_aliases():
+    pool = PremiumStockPool()
+    assert {stock.symbol for stock in pool.pick_by_sector("新能源")} >= {"TSLA"}
+    assert {stock.symbol for stock in pool.pick_by_sector("原材料")} >= {"FCX", "SCCO"}
+    assert {stock.symbol for stock in pool.pick_by_sector("通信服务")} >= {"NFLX"}
+    assert {stock.symbol for stock in pool.pick_by_sector("房地产")} >= {"AMT"}
+
+
 def test_opportunity_output_contains_gate_and_score_fields():
     scorer = OpportunityScorer()
     payload = {

@@ -2,10 +2,13 @@ schema_version: v1.0
 updated_at: "2026-04-09T00:00:00Z"
 
 aliases:
-  能源: [Energy, Oil & Gas, Oil and Gas]
-  科技: [Technology, Tech]
+  能源: [Energy, Oil & Gas, Oil and Gas, New Energy, Clean Energy, 新能源]
+  科技: [Technology, Tech, Semiconductors, Semiconductor, 半导体]
   金融: [Financials, Finance, Financial Services]
   医疗: [Healthcare, Health Care]
   工业: [Industrials]
+  材料: [Materials, Basic Materials, Commodity Materials, Raw Materials, 原材料]
+  通信服务: [Communication Services, Communications Services, Telecom, Media]
+  房地产: [Real Estate, REITs, Property]
   公用事业: [Utilities]
   消费: [Consumer, Consumer Cyclical, Consumer Staples]

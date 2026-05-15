@@ -80,6 +80,13 @@ jobs:
           test -f tests/test_pr_audit_1_runtime_safety.py
           python -m pytest tests/test_pr_audit_1_runtime_safety.py -q
 
+      - name: pr-audit-2-support-scripts-stability-contract
+        run: |
+          test -f tests/test_run_c_module_stack.py
+          test -f tests/test_system_healthcheck.py
+          test -f tests/test_verify_execution_no_pytest.py
+          python -m pytest tests/test_run_c_module_stack.py tests/test_system_healthcheck.py tests/test_verify_execution_no_pytest.py -q
+
       - name: Run PR110 causal contract tests
         run: |
           python -m pytest tests/test_causal_contract_schema.py tests/test_causal_contract_fields.py tests/test_causal_contract_consumer_boundary.py tests/test_causal_contract_config_runtime.py -q

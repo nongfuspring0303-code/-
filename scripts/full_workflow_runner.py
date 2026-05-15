@@ -188,10 +188,18 @@ class FullWorkflowRunner:
                 raw_items = list(value)
             else:
                 raw_items = [value]
-            return sorted({str(sym).strip().upper() for sym in raw_items if str(sym).strip()})
+            return sorted({str(sym).strip().upper() for sym in raw_items if sym is not None and str(sym).strip()})
 
-        payload_symbols_requested = _normalize_symbols(payload.get("symbols_requested")) if "symbols_requested" in payload else None
-        payload_symbols_returned = _normalize_symbols(payload.get("symbols_returned")) if "symbols_returned" in payload else None
+        payload_symbols_requested = (
+            _normalize_symbols(payload.get("symbols_requested"))
+            if payload.get("symbols_requested") is not None
+            else None
+        )
+        payload_symbols_returned = (
+            _normalize_symbols(payload.get("symbols_returned"))
+            if payload.get("symbols_returned") is not None
+            else None
+        )
         symbols_requested = payload_symbols_requested if payload_symbols_requested is not None else (derived_symbols_requested or [])
         symbols_returned = payload_symbols_returned if payload_symbols_returned is not None else (derived_symbols_returned or [])
         provider_meta = provider_meta or {}
@@ -1874,11 +1882,11 @@ class FullWorkflowRunner:
         return self.conduction.run(
             {
                 "event_id": event_object["event_id"],
-                "category": event_object["category"],
-                "severity": event_object["severity"],
-                "headline": event_object["headline"],
-                "summary": payload.get("summary", event_object["headline"]),
-                "lifecycle_state": lifecycle_out["lifecycle_state"],
+                "category": event_object.get("category") or "unknown",
+                "severity": event_object.get("severity", "E3"),
+                "headline": event_object.get("headline", ""),
+                "summary": payload.get("summary", event_object.get("headline", "")),
+                "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
                 "narrative_tags": payload.get("narrative_tags", ["macro_event"]),
                 "policy_intervention": payload.get("policy_intervention", "NONE"),
             }
@@ -2867,7 +2875,12 @@ class FullWorkflowRunner:
         intel_out = self.intel.run(payload)
 
         event_object = intel_out["event_object"]
-        source_rank = intel_out["source_rank"]
+        raw_source_rank = intel_out.get("source_rank") if isinstance(intel_out, dict) else None
+        source_rank = (
+            raw_source_rank
+            if isinstance(raw_source_rank, dict)
+            else {"rank": "unknown", "needs_escalation": False, "confidence": 0.0}
+        )
         event_id = event_object["event_id"]
         request_id = payload.get("request_id")
         batch_id = payload.get("batch_id")
@@ -2912,12 +2925,12 @@ class FullWorkflowRunner:
         lifecycle_out = self.lifecycle.run(
             {
                 "event_id": event_object["event_id"],
-                "category": event_object["category"],
-                "severity": event_object["severity"],
-                "source_rank": event_object["source_rank"],
-                "headline": event_object["headline"],
-                "detected_at": event_object["detected_at"],
-                "is_official_confirmed": payload.get("is_official_confirmed", source_rank["rank"] in ("A", "B")),
+                "category": event_object.get("category") or "unknown",
+                "severity": event_object.get("severity", "E3"),
+                "source_rank": source_rank.get("rank"),
+                "headline": event_object.get("headline", ""),
+                "detected_at": event_object.get("detected_at"),
+                "is_official_confirmed": payload.get("is_official_confirmed", source_rank.get("rank") in ("A", "B")),
                 "market_validated": payload.get("market_validated", True),
                 "has_material_update": payload.get("has_material_update", True),
                 "elapsed_hours": payload.get("elapsed_hours", 2),
@@ -2941,8 +2954,8 @@ class FullWorkflowRunner:
         fatigue_out = self.fatigue.run(
             {
                 "event_id": event_object["event_id"],
-                "category": event_object["category"],
-                "lifecycle_state": lifecycle_out["lifecycle_state"],
+                "category": event_object.get("category") or "unknown",
+                "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
                 "narrative_tags": payload.get("narrative_tags", ["macro_event"]),
                 "category_active_count": payload.get("category_active_count", 3),
                 "tag_active_counts": payload.get("tag_active_counts", {"macro_event": 2}),
@@ -3065,7 +3078,7 @@ class FullWorkflowRunner:
             if enable_unified_candidate_pool
             else None
         )
-        conduction_out = conduction_candidate_generation_out
+        conduction_out = deepcopy(conduction_candidate_generation_out)
         self._log_pipeline_stage(
             trace_id=trace_id,
             event_id=event_id,
@@ -3340,37 +3353,88 @@ class FullWorkflowRunner:
             },
         )
 
-        signal_out = self.scorer.run(
+        def _to_float(value: Any, default: float) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return float(default)
+
+        severity = intel_out.get("severity")
+        severity_map = severity if isinstance(severity, dict) else {}
+        severity_a0 = _to_float(severity_map.get("A0"), 0.0)
+        validation_a1_raw = validation_out.get("A1")
+        validation_a1_missing = validation_a1_raw is None
+        validation_a1 = _to_float(validation_a1_raw, 0.0)
+        fatigue_score_raw = fatigue_out.get("fatigue_score")
+        fatigue_final_raw = fatigue_out.get("fatigue_final")
+        fatigue_both_missing = fatigue_score_raw is None and fatigue_final_raw is None
+
+        runtime_safety_issues: list[str] = []
+        if validation_a1_missing:
+            runtime_safety_issues.append("missing_validation_a1")
+        fatigue_score_missing = fatigue_score_raw is None
+        if fatigue_score_missing:
+            runtime_safety_issues.append("missing_fatigue_score")
+        if fatigue_both_missing:
+            runtime_safety_issues.append("missing_fatigue_score_and_fatigue_final")
+        execution_authority_blocked = bool(
             {
-                "event_id": event_object["event_id"],
-                "severity": event_object["severity"],
-                "A0": payload.get("A0", intel_out["severity"]["A0"]),
-                "A-1": payload.get("A-1", 65),
-                "A1": validation_out["A1"],
-                "A1.5": payload.get("A1.5", 58),
-                "A0.5": payload.get("A0.5", 0),
-                "fatigue_final": fatigue_out["fatigue_final"],
-                "a_minus_1_discount_factor": fatigue_out["a_minus_1_discount_factor"],
-                "correlation": payload.get("validation_correlation", 0.55),
-                "is_crowded": payload.get("is_crowded", False),
-                "narrative_mode": payload.get("narrative_mode", "Fact-Driven"),
-                "policy_intervention": payload.get("policy_intervention", "NONE"),
-                "base_direction": payload.get("direction", "long"),
-                "watch_mode": fatigue_out["watch_mode"],
-                "weights_version": "score_v1",
+                "missing_validation_a1",
+                "missing_fatigue_score",
+                "missing_fatigue_score_and_fatigue_final",
             }
-        ).data
-        self._log_pipeline_stage(
-            trace_id=trace_id,
-            event_id=event_id,
-            request_id=request_id,
-            batch_id=batch_id,
-            event_hash=event_hash,
-            stage_seq=12,
-            stage="signal",
-            status="success",
-            details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},
+            & set(runtime_safety_issues)
         )
+        fatigue_final = _to_float(fatigue_out.get("fatigue_final"), 0.0)
+        fatigue_discount_factor = _to_float(fatigue_out.get("a_minus_1_discount_factor"), 1.0)
+        fatigue_watch_mode = bool(fatigue_out.get("watch_mode", False))
+
+        signal_out: Dict[str, Any]
+        if validation_a1_missing:
+            signal_out = {}
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=12,
+                stage="signal",
+                status="failed",
+                details={"errors": [{"code": "MISSING_VALIDATION_A1", "message": "A1 is missing; signal is fail-closed"}]},
+            )
+        else:
+            signal_out = self.scorer.run(
+                {
+                    "event_id": event_object["event_id"],
+                    "severity": event_object.get("severity"),
+                    "A0": payload.get("A0", severity_a0),
+                    "A-1": payload.get("A-1", 65),
+                    "A1": validation_a1,
+                    "A1.5": payload.get("A1.5", 58),
+                    "A0.5": payload.get("A0.5", 0),
+                    "fatigue_final": fatigue_final,
+                    "a_minus_1_discount_factor": fatigue_discount_factor,
+                    "correlation": payload.get("validation_correlation", 0.55),
+                    "is_crowded": payload.get("is_crowded", False),
+                    "narrative_mode": payload.get("narrative_mode", "Fact-Driven"),
+                    "policy_intervention": payload.get("policy_intervention", "NONE"),
+                    "base_direction": payload.get("direction", "long"),
+                    "watch_mode": fatigue_watch_mode,
+                    "weights_version": "score_v1",
+                }
+            ).data
+            self._log_pipeline_stage(
+                trace_id=trace_id,
+                event_id=event_id,
+                request_id=request_id,
+                batch_id=batch_id,
+                event_hash=event_hash,
+                stage_seq=12,
+                stage="signal",
+                status="success",
+                details={"score": signal_out.get("score"), "score_decision": signal_out.get("score_decision")},
+            )
 
         analysis_out = {
             "lifecycle": lifecycle_out,
@@ -3407,6 +3471,14 @@ class FullWorkflowRunner:
             **({"cross_news_governance": advisory_governance_out["cross_news_governance"]} if advisory_governance_out is not None else {}),
             **({"crowding_governance": advisory_governance_out["crowding_governance"]} if advisory_governance_out is not None else {}),
             "signal": signal_out,
+            **(
+                {
+                    "signal_status": "failed",
+                    "signal_errors": [{"code": "MISSING_VALIDATION_A1", "message": "A1 is missing; signal is fail-closed"}],
+                }
+                if validation_a1_missing
+                else {}
+            ),
             "v5_shadow": {
                 "enable_v5_shadow_output": enable_v5_shadow_output,
                 "enable_replace_legacy_output": enable_replace_legacy_output,
@@ -3443,9 +3515,16 @@ class FullWorkflowRunner:
                 "lifecycle_state": lifecycle_out.get("lifecycle_state"),
                 "time_scale": lifecycle_out.get("time_scale"),
                 "decay_profile": lifecycle_out.get("decay_profile"),
-                "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final")),
+                "fatigue_score": fatigue_out.get("fatigue_score", fatigue_out.get("fatigue_final", 0)),
                 "fatigue_bucket": fatigue_out.get("fatigue_bucket"),
                 "stale_event": lifecycle_out.get("stale_event"),
+            },
+            "runtime_safety_contract": {
+                "status": "pass" if not runtime_safety_issues else "degraded",
+                "issues": runtime_safety_issues,
+                "no_silent_fallback": not bool(runtime_safety_issues),
+                "requires_manual_review": bool(runtime_safety_issues),
+                "execution_authority_blocked": execution_authority_blocked,
             },
         }
 
@@ -3498,18 +3577,26 @@ class FullWorkflowRunner:
 
         execution_suggestion_in = {
             "score": signal_out.get("score"),
-            "fatigue_score": fatigue_out.get("fatigue_score"),
+            "fatigue_score": fatigue_score_raw if fatigue_score_raw is not None else (fatigue_final_raw if fatigue_final_raw is not None else 0),
             "has_opportunity": has_opportunity,
             "market_validated": validation_out.get("a1_market_validation") == "pass",
             "lifecycle_state": lifecycle_out.get("lifecycle_state", "Detected"),
             "stale_event": lifecycle_out.get("stale_event", {}),
         }
-        execution_suggestion_out = self.execution_suggestion_builder.run(execution_suggestion_in)
-        if execution_suggestion_out.status == ModuleStatus.SUCCESS:
-            analysis_out["execution_suggestion"] = execution_suggestion_out.data
-        else:
+        if validation_a1_missing or fatigue_score_missing:
+            failure_code = "MISSING_VALIDATION_A1" if validation_a1_missing else "MISSING_FATIGUE_SCORE"
+            failure_message = (
+                "A1 is missing; execution_suggestion is fail-closed"
+                if validation_a1_missing
+                else "fatigue_score is missing; execution_suggestion is fail-closed"
+            )
             analysis_out["execution_suggestion_status"] = "failed"
-            analysis_out["execution_suggestion_errors"] = execution_suggestion_out.errors
+            analysis_out["execution_suggestion_errors"] = [
+                {
+                    "code": failure_code,
+                    "message": failure_message,
+                }
+            ]
             self._log_pipeline_stage(
                 trace_id=trace_id,
                 event_id=event_id,
@@ -3519,8 +3606,26 @@ class FullWorkflowRunner:
                 stage_seq=10,
                 stage="execution_suggestion",
                 status="failed",
-                details={"errors": execution_suggestion_out.errors},
+                details={"errors": analysis_out["execution_suggestion_errors"]},
             )
+        else:
+            execution_suggestion_out = self.execution_suggestion_builder.run(execution_suggestion_in)
+            if execution_suggestion_out.status == ModuleStatus.SUCCESS:
+                analysis_out["execution_suggestion"] = execution_suggestion_out.data
+            else:
+                analysis_out["execution_suggestion_status"] = "failed"
+                analysis_out["execution_suggestion_errors"] = execution_suggestion_out.errors
+                self._log_pipeline_stage(
+                    trace_id=trace_id,
+                    event_id=event_id,
+                    request_id=request_id,
+                    batch_id=batch_id,
+                    event_hash=event_hash,
+                    stage_seq=10,
+                    stage="execution_suggestion",
+                    status="failed",
+                    details={"errors": execution_suggestion_out.errors},
+                )
 
         raw_score = signal_out.get("score")
         normalized_score = float(raw_score) / 100.0 if raw_score is not None else None
@@ -3630,18 +3735,18 @@ class FullWorkflowRunner:
             "request_id": request_id,
             "batch_id": batch_id,
             "event_hash": event_hash,
-            "A0": payload.get("A0", intel_out["severity"]["A0"]),
+            "A0": payload.get("A0", severity_a0),
             "A-1": payload.get("A-1", 65),
-            "A1": analysis_out["market_validation"]["A1"],
+            "A1": None if validation_a1_missing else analysis_out.get("market_validation", {}).get("A1", validation_a1),
             "A1.5": payload.get("A1.5", 58),
             "A0.5": payload.get("A0.5", 0),
-            "severity": intel_out["event_object"]["severity"],
-            "fatigue_index": analysis_out["fatigue"]["fatigue_final"],
-            "event_state": analysis_out["lifecycle"]["lifecycle_state"],
+            "severity": intel_out.get("event_object", {}).get("severity"),
+            "fatigue_index": analysis_out.get("fatigue", {}).get("fatigue_final", fatigue_final),
+            "event_state": analysis_out.get("lifecycle", {}).get("lifecycle_state"),
             "a1_market_validation": validation_out.get("a1_market_validation"),
             "event_type": event_contract.get("event_type", "unknown"),
             "event_time": event_contract.get("event_time", ""),
-            "event_name": event_object.get("headline", event_object["event_id"]),
+            "event_name": event_object.get("headline") or event_object.get("event_id"),
             "evidence_grade": event_contract.get("evidence_grade", "C"),
             "primary_path": path_out.get("primary_path", {}).get("path_text", "undetermined"),
             "secondary_paths": [p.get("path_text", "") for p in path_out.get("secondary_paths", [])],
@@ -3666,7 +3771,7 @@ class FullWorkflowRunner:
             "entry_price": payload.get("entry_price", 100.0),
             "risk_per_share": payload.get("risk_per_share", 2.0),
             "direction": payload.get("direction", "long"),
-            "source_rank": event_object["source_rank"],
+            "source_rank": dict(source_rank),
             "needs_escalation": source_rank.get("needs_escalation", False),
             "policy_intervention": payload.get("policy_intervention", "NONE"),
             "require_human_confirm": payload.get("require_human_confirm", False),
@@ -3708,7 +3813,22 @@ class FullWorkflowRunner:
             "legacy_contract_version": legacy_contract_version,
             "dual_write": True,
         }
-        execution_out = self.execution.run(execution_in)
+        if execution_authority_blocked:
+            execution_in["tradeable"] = False
+            execution_out = {
+                "final": {
+                    "action": "BLOCK",
+                    "reason": "runtime_safety_fail_closed",
+                },
+                "runtime_safety_gate": {
+                    "status": "blocked",
+                    "reason": "critical_input_missing",
+                    "issues": list(runtime_safety_issues),
+                    "authority_path_closed": True,
+                },
+            }
+        else:
+            execution_out = self.execution.run(execution_in)
         final = execution_out.get("final", {}) if isinstance(execution_out, dict) else {}
         final_action = str(final.get("action", "UNKNOWN")).upper()
         final_reason = str(final.get("reason", ""))
@@ -3782,15 +3902,18 @@ class FullWorkflowRunner:
         )
         self._append_jsonl(self.trace_scorecard_log_path, trace_scorecard)
 
-        self.state_store.upsert_state(event_id, {
-            "internal_state": lifecycle_out["internal_state"],
-            "lifecycle_state": lifecycle_out["lifecycle_state"],
-            "catalyst_state": lifecycle_out["catalyst_state"],
-            "retry_count": retry_count + 1,
-            "metadata": {
-                "category": event_object["category"],
+        self.state_store.upsert_state(
+            event_id,
+            {
+                "internal_state": lifecycle_out.get("internal_state") or "unknown",
+                "lifecycle_state": lifecycle_out.get("lifecycle_state") or "Detected",
+                "catalyst_state": lifecycle_out.get("catalyst_state") or "unknown",
+                "retry_count": retry_count + 1,
+                "metadata": {
+                    "category": event_object.get("category") or "unknown",
+                },
             },
-        })
+        )
         self._refresh_stage5_daily_outputs()
 
         return {"intel": intel_out, "analysis": analysis_out, "execution": execution_out}

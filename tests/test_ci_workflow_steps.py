@@ -53,6 +53,7 @@ def _workflow_step_name_list(workflow):
 def _required_ci_step_names():
     """All CI step names declared in the Stage 8-A contract matrix."""
     return {
+        "pr-audit-1-runtime-safety-contract",
         "pipeline-order-contract",
         "candidate-envelope-contract",
         "resolver-merge-contract",
@@ -92,6 +93,21 @@ def test_ci_step_names_exact_match():
         assert name in actual_names, (
             f"CI step '{name}' not found in workflow. Available steps: {sorted(actual_names)}"
         )
+
+
+def test_pr_audit_1_runtime_safety_contract_binds_required_test():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("pr-audit-1-runtime-safety-contract")
+
+    assert step, "pr-audit-1-runtime-safety-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "test -f tests/test_pr_audit_1_runtime_safety.py" in run_cmd, (
+        "pr-audit-1-runtime-safety-contract must fail fast if tests/test_pr_audit_1_runtime_safety.py is missing"
+    )
+    assert "python -m pytest tests/test_pr_audit_1_runtime_safety.py -q" in run_cmd, (
+        "pr-audit-1-runtime-safety-contract must run tests/test_pr_audit_1_runtime_safety.py"
+    )
 
 
 def test_candidate_envelope_contract_binds_both_required_tests():

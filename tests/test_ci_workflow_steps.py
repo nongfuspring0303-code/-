@@ -55,6 +55,7 @@ def _required_ci_step_names():
         "pr-audit-1-runtime-safety-contract",
         "pr-audit-2-support-scripts-stability-contract",
         "pipeline-order-contract",
+        "pr-audit-5b-test-credibility-contract",
         "pr-audit-3-conduction-mapper-correctness-contract",
         "candidate-envelope-contract",
         "resolver-merge-contract",
@@ -111,6 +112,14 @@ def test_pipeline_order_contract_step_is_unique():
     )
 
 
+def test_pr_audit_5b_test_credibility_contract_step_is_unique():
+    workflow = _load_workflow()
+    names = _workflow_step_name_list(workflow)
+    assert names.count("pr-audit-5b-test-credibility-contract") == 1, (
+        "pr-audit-5b-test-credibility-contract must exist exactly once in ci.yml"
+    )
+
+
 def test_pipeline_order_contract_binds_required_tests():
     workflow = _load_workflow()
     steps = _workflow_steps_by_name(workflow)
@@ -141,6 +150,36 @@ def test_pipeline_order_contract_is_not_skip_only():
     )
     assert "if [ -f" not in run_cmd, (
         "pipeline-order-contract must not use skip-if-missing wrappers"
+    )
+
+
+def test_pr_audit_5b_test_credibility_contract_binds_required_tests():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("pr-audit-5b-test-credibility-contract")
+
+    assert step, "pr-audit-5b-test-credibility-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "test -f tests/test_dedupe_performance.py" in run_cmd, (
+        "pr-audit-5b-test-credibility-contract must fail fast when tests/test_dedupe_performance.py is missing"
+    )
+    assert "test -f tests/test_shadow_comparator.py" in run_cmd, (
+        "pr-audit-5b-test-credibility-contract must fail fast when tests/test_shadow_comparator.py is missing"
+    )
+    assert "test -f tests/test_stage5_acceptance_metrics.py" in run_cmd, (
+        "pr-audit-5b-test-credibility-contract must fail fast when tests/test_stage5_acceptance_metrics.py is missing"
+    )
+    assert "test -f tests/test_pipeline_order.py" in run_cmd, (
+        "pr-audit-5b-test-credibility-contract must fail fast when tests/test_pipeline_order.py is missing"
+    )
+    assert "python -m pytest tests/test_dedupe_performance.py tests/test_shadow_comparator.py tests/test_stage5_acceptance_metrics.py tests/test_pipeline_order.py -q" in run_cmd, (
+        "pr-audit-5b-test-credibility-contract must run all PR-Audit-5B credibility tests"
+    )
+    assert "echo \"[SKIP]" not in run_cmd and "echo '[SKIP]" not in run_cmd, (
+        "pr-audit-5b-test-credibility-contract must not be skip-only"
+    )
+    assert "if [ -f" not in run_cmd, (
+        "pr-audit-5b-test-credibility-contract must not use skip-if-missing wrappers"
     )
 
 

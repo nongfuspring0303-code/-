@@ -46,33 +46,6 @@ class ConductionMapper(EDTModule):
     _ENERGY_TICKERS: set[str] = set()
     _NON_US_BLOCK_PROXY_TICKERS: set[str] = set()
     _US_TECH_FIN_PROXY_TICKERS: set[str] = set()
-    _ENTITY_ALIAS_MAP: Dict[str, str] = {
-        "google": "GOOGL",
-        "alphabet": "GOOGL",
-        "alphabet inc": "GOOGL",
-        "apple": "AAPL",
-        "apple inc": "AAPL",
-        "microsoft": "MSFT",
-        "microsoft corp": "MSFT",
-        "nvidia": "NVDA",
-        "amazon": "AMZN",
-        "meta": "META",
-        "facebook": "META",
-        "tesla": "TSLA",
-        "jpmorgan": "JPM",
-        "goldman sachs": "GS",
-        "bank of america": "BAC",
-        "morgan stanley": "MS",
-        "taiwan semiconductor": "TSM",
-        "tsmc": "TSM",
-        "asml": "ASML",
-        "intel": "INTC",
-        "amd": "AMD",
-        "qualcomm": "QCOM",
-        "general motors": "GM",
-        "ford": "F",
-        "cisco": "CSCO",
-    }
     _HEALTHCARE_HINTS = (
         "healthcare",
         "hospital",
@@ -145,13 +118,6 @@ class ConductionMapper(EDTModule):
         if text.lower() in {"none", "null", "unknown", "undefined", "n/a"}:
             return ""
         return text
-
-    @classmethod
-    def _normalize_alias_key(cls, value: Any) -> str:
-        text = cls._clean_text_value(value).lower()
-        if not text:
-            return ""
-        return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
     @staticmethod
     def _normalize_confidence_value(value: Any, default: float = 0.0) -> float:
@@ -494,17 +460,19 @@ class ConductionMapper(EDTModule):
             if not isinstance(item, dict):
                 continue
             entity_type = str(item.get("type", "")).strip().lower()
-            raw_value = ConductionMapper._clean_text_value(item.get("value", ""))
-            raw_symbol = raw_value.upper()
+            candidate_values: List[Any] = []
+            if entity_type in {"ticker", "symbol", "stock"}:
+                candidate_values.append(item.get("value"))
+            for key in ("symbol", "ticker", "stock", "resolved_symbol", "canonical_symbol"):
+                candidate_values.append(item.get(key))
+
             resolved_symbol = ""
-            if entity_type in {"ticker", "symbol", "stock"} and ConductionMapper._is_valid_symbol(raw_symbol):
-                resolved_symbol = raw_symbol
-            else:
-                alias_key = ConductionMapper._normalize_alias_key(raw_value)
-                resolved_symbol = ConductionMapper._ENTITY_ALIAS_MAP.get(alias_key, "")
-            if not resolved_symbol or not ConductionMapper._is_valid_symbol(resolved_symbol):
-                continue
-            if resolved_symbol in seen:
+            for candidate in candidate_values:
+                symbol = ConductionMapper._clean_text_value(candidate).upper()
+                if ConductionMapper._is_valid_symbol(symbol):
+                    resolved_symbol = symbol
+                    break
+            if not resolved_symbol or resolved_symbol in seen:
                 continue
             seen.add(resolved_symbol)
             out.append(resolved_symbol)
@@ -1565,8 +1533,9 @@ class ConductionMapper(EDTModule):
             mapping["sector_impacts"] = tier1_impacts
             tier1_override_audit = {
                 "override_reason": "tier1_weighted_sector_override",
-                "dropped_count": len(original_sector_impacts),
-                "provenance": original_sector_impacts,
+                "original_count": len(original_sector_impacts),
+                "overridden_count": len(original_sector_impacts),
+                "original_provenance": original_sector_impacts,
                 "retained_count": len(tier1_impacts),
                 "weighted_provenance": provenance,
             }

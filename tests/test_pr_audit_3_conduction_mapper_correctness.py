@@ -81,8 +81,9 @@ def test_tier1_override_records_audit_and_provenance(monkeypatch):
     audit = out.data.get("audit", {})
     override = audit.get("tier1_sector_override", {})
     assert override.get("override_reason") == "tier1_weighted_sector_override"
-    assert override.get("dropped_count", 0) >= 1
-    assert override.get("provenance")
+    assert override.get("original_count", 0) >= 1
+    assert override.get("overridden_count", 0) >= 1
+    assert override.get("original_provenance")
     assert override.get("retained_count", 0) == len(out.data.get("sector_impacts", []))
     assert all(impact.get("driver_type") == "tier1_weight" for impact in out.data.get("sector_impacts", []))
     assert "final_recommended_stocks" not in out.data
@@ -118,7 +119,7 @@ def test_confidence_normalization_accepts_fraction_and_percent_inputs():
     assert fraction_candidates[0]["confidence"] == percent_candidates[0]["confidence"]
 
 
-def test_company_alias_entity_resolves_into_semantic_candidates(monkeypatch):
+def test_company_entity_with_explicit_resolved_symbol_resolves_into_semantic_candidates(monkeypatch):
     mapper = ConductionMapper()
     monkeypatch.setattr(
         mapper.semantic,
@@ -126,7 +127,7 @@ def test_company_alias_entity_resolves_into_semantic_candidates(monkeypatch):
         lambda headline, summary: {
             "recommended_chain": "",
             "recommended_stocks": [],
-            "entities": [{"type": "company", "value": "Google"}],
+            "entities": [{"type": "company", "value": "Google", "resolved_symbol": "GOOGL"}],
             "confidence": 88,
             "event_type": "monetary",
             "sentiment": "positive",
@@ -152,6 +153,45 @@ def test_company_alias_entity_resolves_into_semantic_candidates(monkeypatch):
     assert out.status.value == "success"
     symbols = {str(item.get("symbol", "")).upper() for item in out.data.get("stock_candidates", [])}
     assert "GOOGL" in symbols
+    assert "final_recommended_stocks" not in out.data
+    assert "execution" not in out.data
+    assert "broker" not in out.data
+    assert "final_action" not in out.data
+
+
+def test_company_name_without_resolved_symbol_does_not_use_hardcoded_alias_registry(monkeypatch):
+    mapper = ConductionMapper()
+    monkeypatch.setattr(
+        mapper.semantic,
+        "analyze",
+        lambda headline, summary: {
+            "recommended_chain": "",
+            "recommended_stocks": [],
+            "entities": [{"type": "company", "value": "Google"}],
+            "confidence": 88,
+            "event_type": "monetary",
+            "sentiment": "positive",
+            "transmission_candidates": [],
+        },
+    )
+
+    out = mapper.run(
+        {
+            "event_id": "ME-AUDIT-3-003B",
+            "category": "X",
+            "severity": "E2",
+            "headline": "Fed signals rate cuts ahead",
+            "summary": "Policy easing expected",
+            "lifecycle_state": "Active",
+            "sector_data": [
+                {"symbol": "XLF", "sector": "Financial Services", "industry": "Financial Services", "change_pct": 0.4},
+            ],
+        }
+    )
+
+    assert out.status.value == "success"
+    symbols = {str(item.get("symbol", "")).upper() for item in out.data.get("stock_candidates", [])}
+    assert "GOOGL" not in symbols
     assert "final_recommended_stocks" not in out.data
     assert "execution" not in out.data
     assert "broker" not in out.data

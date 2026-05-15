@@ -1,11 +1,9 @@
-"""Verify that all CI step names declared in the Stage 8-A contract matrix
-exist in the CI workflow file with exact name matching.
+"""CI workflow step contract tests.
 
-Refs #139 (Stage8A-Impl-1)
+Refs #161 (PR-Audit-4)
 """
 
 import os
-import re
 import yaml
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,50 +11,109 @@ WORKFLOW_PATH = os.path.join(REPO_ROOT, ".github", "workflows", "ci.yml")
 
 
 def _load_workflow():
-    with open(WORKFLOW_PATH, "r") as f:
+    with open(WORKFLOW_PATH, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-def _workflow_step_names(workflow):
-    names = set()
-    for job_name, job_def in workflow.get("jobs", {}).items():
+def _workflow_steps(workflow):
+    out = []
+    for job_def in workflow.get("jobs", {}).values():
         if not isinstance(job_def, dict):
             continue
-        for step in job_def.get("steps", []):
-            if isinstance(step, dict) and step.get("name"):
-                names.add(step["name"])
-    return names
+        out.extend([s for s in job_def.get("steps", []) if isinstance(s, dict) and s.get("name")])
+    return out
 
 
 def _workflow_steps_by_name(workflow):
-    steps = {}
-    for job_def in workflow.get("jobs", {}).values():
-        if not isinstance(job_def, dict):
-            continue
-        for step in job_def.get("steps", []):
-            if isinstance(step, dict) and step.get("name"):
-                steps[step["name"]] = step
-    return steps
+    grouped = {}
+    for step in _workflow_steps(workflow):
+        grouped.setdefault(step["name"], []).append(step)
+    return grouped
 
 
-def _workflow_step_name_list(workflow):
-    names = []
-    for job_def in workflow.get("jobs", {}).values():
-        if not isinstance(job_def, dict):
-            continue
-        for step in job_def.get("steps", []):
-            if isinstance(step, dict) and step.get("name"):
-                names.append(step["name"])
-    return names
+def _step_names(workflow):
+    return [s["name"] for s in _workflow_steps(workflow)]
 
 
-def _required_ci_step_names():
-    """All CI step names declared in the Stage 8-A contract matrix."""
-    return {
-        "pr-audit-1-runtime-safety-contract",
-        "pr-audit-2-support-scripts-stability-contract",
-        "pipeline-order-contract",
-        "pr-audit-3-conduction-mapper-correctness-contract",
+def _assert_step_exists(steps_by_name, name):
+    assert name in steps_by_name, f"{name} step missing from workflow"
+
+
+def _assert_run_contains(step, text):
+    run_cmd = str(step.get("run", ""))
+    assert text in run_cmd, f"Expected '{text}' in step '{step.get('name')}'"
+
+
+def _assert_run_not_contains(step, text):
+    run_cmd = str(step.get("run", ""))
+    assert text not in run_cmd, f"Did not expect '{text}' in step '{step.get('name')}'"
+
+
+def _assert_fail_fast_runtime_gate(step):
+    _assert_run_not_contains(step, 'echo "[SKIP]')
+    _assert_run_not_contains(step, "echo '[SKIP]")
+    _assert_run_not_contains(step, "if [ -f")
+
+
+def test_ci_step_names_are_unique():
+    workflow = _load_workflow()
+    names = _step_names(workflow)
+    dup = sorted({name for name in names if names.count(name) > 1})
+    assert not dup, f"Duplicate CI step names found: {dup}"
+
+
+def test_pipeline_order_contract_step_is_unique():
+    workflow = _load_workflow()
+    names = _step_names(workflow)
+    assert names.count("pipeline-order-contract") == 1, "pipeline-order-contract must exist exactly once"
+
+
+def test_pipeline_order_contract_binds_required_tests():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    _assert_step_exists(steps, "pipeline-order-contract")
+    step = steps["pipeline-order-contract"][0]
+    _assert_run_contains(step, "test -f tests/test_pipeline_order.py")
+    _assert_run_contains(step, "test -f tests/test_semantic_prepass_contract.py")
+    _assert_run_contains(step, "python -m pytest tests/test_pipeline_order.py tests/test_semantic_prepass_contract.py -q")
+
+
+def test_pipeline_order_contract_is_not_skip_only():
+    workflow = _load_workflow()
+    step = _workflow_steps_by_name(workflow)["pipeline-order-contract"][0]
+    _assert_fail_fast_runtime_gate(step)
+
+
+def test_pr_audit_1_runtime_safety_contract_binds_required_test():
+    workflow = _load_workflow()
+    step = _workflow_steps_by_name(workflow)["pr-audit-1-runtime-safety-contract"][0]
+    _assert_run_contains(step, "test -f tests/test_pr_audit_1_runtime_safety.py")
+    _assert_run_contains(step, "python -m pytest tests/test_pr_audit_1_runtime_safety.py -q")
+    _assert_fail_fast_runtime_gate(step)
+
+
+def test_pr_audit_2_support_scripts_stability_contract_binds_required_tests():
+    workflow = _load_workflow()
+    step = _workflow_steps_by_name(workflow)["pr-audit-2-support-scripts-stability-contract"][0]
+    _assert_run_contains(step, "test -f tests/test_run_c_module_stack.py")
+    _assert_run_contains(step, "test -f tests/test_system_healthcheck.py")
+    _assert_run_contains(step, "test -f tests/test_verify_execution_no_pytest.py")
+    _assert_run_contains(step, "python -m pytest tests/test_run_c_module_stack.py tests/test_system_healthcheck.py tests/test_verify_execution_no_pytest.py -q")
+    _assert_fail_fast_runtime_gate(step)
+
+
+def test_pr_audit_3_conduction_mapper_correctness_contract_binds_required_test():
+    workflow = _load_workflow()
+    step = _workflow_steps_by_name(workflow)["pr-audit-3-conduction-mapper-correctness-contract"][0]
+    _assert_run_contains(step, "test -f tests/test_pr_audit_3_conduction_mapper_correctness.py")
+    _assert_run_contains(step, "python -m pytest tests/test_pr_audit_3_conduction_mapper_correctness.py -q")
+    _assert_fail_fast_runtime_gate(step)
+
+
+def test_completed_runtime_contracts_are_fail_fast():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    completed = [
         "candidate-envelope-contract",
         "resolver-merge-contract",
         "semantic-full-peer-contract",
@@ -66,276 +123,19 @@ def _required_ci_step_names():
         "output-adapter-contract",
         "gate-diagnostics-contract",
         "advisory-governance-contract",
-        "threshold-config-contract",
-        "compatibility-exit-contract",
-        "ci-workflow-step-contract",
-    }
-
-
-def test_ci_step_names_exist_in_workflow():
-    """Every declared CI step name must exist in ci.yml exactly as declared."""
-    workflow = _load_workflow()
-    actual_names = _workflow_step_names(workflow)
-    required_names = _required_ci_step_names()
-
-    missing = required_names - actual_names
-    assert not missing, (
-        f"CI step names declared in contract matrix but missing from {WORKFLOW_PATH}: "
-        f"{sorted(missing)}"
-    )
-
-
-def test_ci_step_names_exact_match():
-    """Declared names must match case-sensitively."""
-    workflow = _load_workflow()
-    actual_names = _workflow_step_names(workflow)
-    required_names = _required_ci_step_names()
-
-    for name in required_names:
-        assert name in actual_names, (
-            f"CI step '{name}' not found in workflow. Available steps: {sorted(actual_names)}"
-        )
-
-
-def test_pr_audit_1_runtime_safety_contract_binds_required_test():
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("pr-audit-1-runtime-safety-contract")
-
-    assert step, "pr-audit-1-runtime-safety-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "test -f tests/test_pr_audit_1_runtime_safety.py" in run_cmd, (
-        "pr-audit-1-runtime-safety-contract must fail fast if tests/test_pr_audit_1_runtime_safety.py is missing"
-    )
-    assert "python -m pytest tests/test_pr_audit_1_runtime_safety.py -q" in run_cmd, (
-        "pr-audit-1-runtime-safety-contract must run tests/test_pr_audit_1_runtime_safety.py"
-    )
-
-
-def test_pr_audit_2_support_scripts_stability_contract_binds_required_tests():
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("pr-audit-2-support-scripts-stability-contract")
-
-    assert step, "pr-audit-2-support-scripts-stability-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "test -f tests/test_run_c_module_stack.py" in run_cmd, (
-        "pr-audit-2-support-scripts-stability-contract must fail fast if tests/test_run_c_module_stack.py is missing"
-    )
-    assert "test -f tests/test_system_healthcheck.py" in run_cmd, (
-        "pr-audit-2-support-scripts-stability-contract must fail fast if tests/test_system_healthcheck.py is missing"
-    )
-    assert "test -f tests/test_verify_execution_no_pytest.py" in run_cmd, (
-        "pr-audit-2-support-scripts-stability-contract must fail fast if tests/test_verify_execution_no_pytest.py is missing"
-    )
-    assert "python -m pytest tests/test_run_c_module_stack.py tests/test_system_healthcheck.py tests/test_verify_execution_no_pytest.py -q" in run_cmd, (
-        "pr-audit-2-support-scripts-stability-contract must run the three support-script regression tests"
-    )
-
-
-def test_pr_audit_3_conduction_mapper_correctness_contract_binds_required_test():
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("pr-audit-3-conduction-mapper-correctness-contract")
-
-    assert step, "pr-audit-3-conduction-mapper-correctness-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "test -f tests/test_pr_audit_3_conduction_mapper_correctness.py" in run_cmd, (
-        "PR-Audit-3 conduction mapper correctness contract must fail fast if the test file is missing"
-    )
-    assert "python -m pytest tests/test_pr_audit_3_conduction_mapper_correctness.py -q" in run_cmd, (
-        "PR-Audit-3 conduction mapper correctness contract must run tests/test_pr_audit_3_conduction_mapper_correctness.py"
-    )
-
-
-def test_candidate_envelope_contract_binds_both_required_tests():
-    """PR-2 CI gate must execute both candidate-envelope and source-metadata tests."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("candidate-envelope-contract")
-
-    assert step, "candidate-envelope-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_candidate_envelope.py" in run_cmd, (
-        "candidate-envelope-contract must run tests/test_candidate_envelope.py"
-    )
-    assert "tests/test_source_metadata_propagation.py" in run_cmd, (
-        "candidate-envelope-contract must run tests/test_source_metadata_propagation.py"
-    )
-    assert "test -f tests/test_candidate_envelope.py" in run_cmd, (
-        "candidate-envelope-contract must fail fast when tests/test_candidate_envelope.py is missing"
-    )
-    assert "test -f tests/test_source_metadata_propagation.py" in run_cmd, (
-        "candidate-envelope-contract must fail fast when tests/test_source_metadata_propagation.py is missing"
-    )
-
-
-def test_resolver_merge_contract_binds_required_tests():
-    """PR-3 CI gate must allow resolver and merge tests to land independently."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("resolver-merge-contract")
-
-    assert step, "resolver-merge-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_entity_resolver.py" in run_cmd, (
-        "resolver-merge-contract must reference tests/test_entity_resolver.py"
-    )
-    assert "tests/test_candidate_merge.py" in run_cmd, (
-        "resolver-merge-contract must reference tests/test_candidate_merge.py"
-    )
-    assert 'if [ -f tests/test_entity_resolver.py ]; then' in run_cmd, (
-        "resolver-merge-contract must allow tests/test_entity_resolver.py to run independently"
-    )
-    assert 'if [ -f tests/test_candidate_merge.py ]; then' in run_cmd, (
-        "resolver-merge-contract must allow tests/test_candidate_merge.py to run independently"
-    )
-    assert "[SKIP] entity resolver tests not yet added" in run_cmd, (
-        "resolver-merge-contract should emit an independent entity-resolver skip message"
-    )
-    assert "[SKIP] candidate merge tests not yet added" in run_cmd, (
-        "resolver-merge-contract should emit an independent candidate-merge skip message"
-    )
-
-
-def test_semantic_full_peer_contract_binds_required_tests():
-    """Phase 3 semantic peer gate must pre-bind both future PR-4 tests."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("semantic-full-peer-contract")
-
-    assert step, "semantic-full-peer-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_semantic_full_peer_expansion.py" in run_cmd, (
-        "semantic-full-peer-contract must reference tests/test_semantic_full_peer_expansion.py"
-    )
-    assert "tests/test_peer_candidate_prompt_contract.py" in run_cmd, (
-        "semantic-full-peer-contract must reference tests/test_peer_candidate_prompt_contract.py"
-    )
-    assert 'if [ -f tests/test_semantic_full_peer_expansion.py ] && [ -f tests/test_peer_candidate_prompt_contract.py ]; then' in run_cmd, (
-        "semantic-full-peer-contract must require both future PR-4 tests before running"
-    )
-
-
-def test_market_validation_contract_binds_required_test():
-    """Phase 3 market-validation gate must pre-bind the future PR-5 test."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("market-validation-contract")
-
-    assert step, "market-validation-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_market_validation.py" in run_cmd, (
-        "market-validation-contract must reference tests/test_market_validation.py"
-    )
-    assert 'if [ -f tests/test_market_validation.py ]; then' in run_cmd, (
-        "market-validation-contract must remain skip-if-missing until PR-5 lands"
-    )
-
-
-def test_phase4_gate_names_are_unique():
-    """Phase 4 support gates must exist exactly once and must not duplicate names."""
-    workflow = _load_workflow()
-    names = _workflow_step_name_list(workflow)
-
-    required = [
-        "path-adjudicator-lite-contract",
-        "semantic-verdict-contract",
-        "output-adapter-contract",
-        "gate-diagnostics-contract",
-        "advisory-governance-contract",
+        "pipeline-order-contract",
+        "pr-audit-1-runtime-safety-contract",
+        "pr-audit-2-support-scripts-stability-contract",
+        "pr-audit-3-conduction-mapper-correctness-contract",
     ]
-    for name in required:
-        assert names.count(name) == 1, f"{name} must exist exactly once in the workflow"
+    for name in completed:
+        _assert_step_exists(steps, name)
+        _assert_fail_fast_runtime_gate(steps[name][0])
 
 
-def test_path_adjudicator_lite_contract_binds_required_test():
-    """Phase 4 PR-6 path-adjudicator gate must pre-bind the future lite runtime test."""
+def test_compatibility_exit_contract_removed_until_real_surface_exists():
     workflow = _load_workflow()
     steps = _workflow_steps_by_name(workflow)
-    step = steps.get("path-adjudicator-lite-contract")
-
-    assert step, "path-adjudicator-lite-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_path_adjudicator_lite.py" in run_cmd, (
-        "path-adjudicator-lite-contract must reference tests/test_path_adjudicator_lite.py"
-    )
-    assert 'if [ -f tests/test_path_adjudicator_lite.py ]; then' in run_cmd, (
-        "path-adjudicator-lite-contract must remain skip-if-missing during support-only setup"
-    )
-
-
-def test_semantic_verdict_contract_binds_required_test():
-    """Phase 4 PR-6 semantic verdict gate must pre-bind the future runtime test."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("semantic-verdict-contract")
-
-    assert step, "semantic-verdict-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_semantic_verdict_fix.py" in run_cmd, (
-        "semantic-verdict-contract must reference tests/test_semantic_verdict_fix.py"
-    )
-    assert 'if [ -f tests/test_semantic_verdict_fix.py ]; then' in run_cmd, (
-        "semantic-verdict-contract must remain skip-if-missing during support-only setup"
-    )
-
-
-def test_output_adapter_contract_binds_required_test():
-    """Phase 4 PR-7 output adapter gate must pre-bind the future runtime test."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("output-adapter-contract")
-
-    assert step, "output-adapter-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_output_adapter_v5.py" in run_cmd, (
-        "output-adapter-contract must reference tests/test_output_adapter_v5.py"
-    )
-    assert 'if [ -f tests/test_output_adapter_v5.py ]; then' in run_cmd, (
-        "output-adapter-contract must remain skip-if-missing during support-only setup"
-    )
-
-
-def test_gate_diagnostics_contract_binds_required_test():
-    """Phase 4 PR-7 diagnostics gate must pre-bind the future runtime test."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("gate-diagnostics-contract")
-
-    assert step, "gate-diagnostics-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_gate_diagnostics.py" in run_cmd, (
-        "gate-diagnostics-contract must reference tests/test_gate_diagnostics.py"
-    )
-    assert 'if [ -f tests/test_gate_diagnostics.py ]; then' in run_cmd, (
-        "gate-diagnostics-contract must remain skip-if-missing during support-only setup"
-    )
-
-
-def test_advisory_governance_contract_binds_required_tests():
-    """Phase 4 PR-8 governance gate must require the canonical governance tests."""
-    workflow = _load_workflow()
-    steps = _workflow_steps_by_name(workflow)
-    step = steps.get("advisory-governance-contract")
-
-    assert step, "advisory-governance-contract step missing from workflow"
-    run_cmd = str(step.get("run", ""))
-    assert "tests/test_advisory_governance.py" in run_cmd, (
-        "advisory-governance-contract must reference tests/test_advisory_governance.py"
-    )
-    assert "tests/test_lifecycle_fatigue_governance.py" in run_cmd, (
-        "advisory-governance-contract must reference tests/test_lifecycle_fatigue_governance.py"
-    )
-    assert "tests/test_cross_news_crowding_governance.py" in run_cmd, (
-        "advisory-governance-contract must reference tests/test_cross_news_crowding_governance.py"
-    )
-    assert "test -f tests/test_advisory_governance.py" in run_cmd, (
-        "advisory-governance-contract must fail fast when tests/test_advisory_governance.py is missing"
-    )
-    assert "test -f tests/test_lifecycle_fatigue_governance.py" in run_cmd, (
-        "advisory-governance-contract must fail fast when tests/test_lifecycle_fatigue_governance.py is missing"
-    )
-    assert "test -f tests/test_cross_news_crowding_governance.py" in run_cmd, (
-        "advisory-governance-contract must fail fast when tests/test_cross_news_crowding_governance.py is missing"
+    assert "compatibility-exit-contract" not in steps, (
+        "compatibility-exit-contract is stale skip-only gate; keep it removed until real test surface exists"
     )

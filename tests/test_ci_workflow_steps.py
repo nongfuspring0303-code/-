@@ -5,7 +5,6 @@ Refs #139 (Stage8A-Impl-1)
 """
 
 import os
-import re
 import yaml
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,7 +66,6 @@ def _required_ci_step_names():
         "gate-diagnostics-contract",
         "advisory-governance-contract",
         "threshold-config-contract",
-        "compatibility-exit-contract",
         "ci-workflow-step-contract",
     }
 
@@ -97,6 +95,55 @@ def test_ci_step_names_exact_match():
         )
 
 
+def test_ci_step_names_are_unique():
+    """CI step names must be unique to avoid duplicate/ambiguous gates."""
+    workflow = _load_workflow()
+    names = _workflow_step_name_list(workflow)
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    assert not duplicates, f"Duplicate CI step names found: {duplicates}"
+
+
+def test_pipeline_order_contract_step_is_unique():
+    workflow = _load_workflow()
+    names = _workflow_step_name_list(workflow)
+    assert names.count("pipeline-order-contract") == 1, (
+        "pipeline-order-contract must exist exactly once in ci.yml"
+    )
+
+
+def test_pipeline_order_contract_binds_required_tests():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("pipeline-order-contract")
+
+    assert step, "pipeline-order-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "test -f tests/test_pipeline_order.py" in run_cmd, (
+        "pipeline-order-contract must fail fast when tests/test_pipeline_order.py is missing"
+    )
+    assert "test -f tests/test_semantic_prepass_contract.py" in run_cmd, (
+        "pipeline-order-contract must fail fast when tests/test_semantic_prepass_contract.py is missing"
+    )
+    assert "python -m pytest tests/test_pipeline_order.py tests/test_semantic_prepass_contract.py -q" in run_cmd, (
+        "pipeline-order-contract must run both required contract tests"
+    )
+
+
+def test_pipeline_order_contract_is_not_skip_only():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("pipeline-order-contract")
+
+    assert step, "pipeline-order-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "echo \"[SKIP]" not in run_cmd and "echo '[SKIP]" not in run_cmd, (
+        "pipeline-order-contract must not be skip-only"
+    )
+    assert "if [ -f" not in run_cmd, (
+        "pipeline-order-contract must not use skip-if-missing wrappers"
+    )
+
+
 def test_pr_audit_1_runtime_safety_contract_binds_required_test():
     workflow = _load_workflow()
     steps = _workflow_steps_by_name(workflow)
@@ -109,6 +156,12 @@ def test_pr_audit_1_runtime_safety_contract_binds_required_test():
     )
     assert "python -m pytest tests/test_pr_audit_1_runtime_safety.py -q" in run_cmd, (
         "pr-audit-1-runtime-safety-contract must run tests/test_pr_audit_1_runtime_safety.py"
+    )
+    assert "echo \"[SKIP]" not in run_cmd and "echo '[SKIP]" not in run_cmd, (
+        "pr-audit-1-runtime-safety-contract must not be skip-only"
+    )
+    assert "if [ -f" not in run_cmd, (
+        "pr-audit-1-runtime-safety-contract must not use skip-if-missing wrappers"
     )
 
 
@@ -131,6 +184,12 @@ def test_pr_audit_2_support_scripts_stability_contract_binds_required_tests():
     assert "python -m pytest tests/test_run_c_module_stack.py tests/test_system_healthcheck.py tests/test_verify_execution_no_pytest.py -q" in run_cmd, (
         "pr-audit-2-support-scripts-stability-contract must run the three support-script regression tests"
     )
+    assert "echo \"[SKIP]" not in run_cmd and "echo '[SKIP]" not in run_cmd, (
+        "pr-audit-2-support-scripts-stability-contract must not be skip-only"
+    )
+    assert "if [ -f" not in run_cmd, (
+        "pr-audit-2-support-scripts-stability-contract must not use skip-if-missing wrappers"
+    )
 
 
 def test_pr_audit_3_conduction_mapper_correctness_contract_binds_required_test():
@@ -145,6 +204,12 @@ def test_pr_audit_3_conduction_mapper_correctness_contract_binds_required_test()
     )
     assert "python -m pytest tests/test_pr_audit_3_conduction_mapper_correctness.py -q" in run_cmd, (
         "PR-Audit-3 conduction mapper correctness contract must run tests/test_pr_audit_3_conduction_mapper_correctness.py"
+    )
+    assert "echo \"[SKIP]" not in run_cmd and "echo '[SKIP]" not in run_cmd, (
+        "pr-audit-3-conduction-mapper-correctness-contract must not be skip-only"
+    )
+    assert "if [ -f" not in run_cmd, (
+        "pr-audit-3-conduction-mapper-correctness-contract must not use skip-if-missing wrappers"
     )
 
 
@@ -196,6 +261,9 @@ def test_resolver_merge_contract_binds_required_tests():
     assert "[SKIP] candidate merge tests not yet added" in run_cmd, (
         "resolver-merge-contract should emit an independent candidate-merge skip message"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "resolver-merge-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_semantic_full_peer_contract_binds_required_tests():
@@ -215,6 +283,9 @@ def test_semantic_full_peer_contract_binds_required_tests():
     assert 'if [ -f tests/test_semantic_full_peer_expansion.py ] && [ -f tests/test_peer_candidate_prompt_contract.py ]; then' in run_cmd, (
         "semantic-full-peer-contract must require both future PR-4 tests before running"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "semantic-full-peer-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_market_validation_contract_binds_required_test():
@@ -230,6 +301,9 @@ def test_market_validation_contract_binds_required_test():
     )
     assert 'if [ -f tests/test_market_validation.py ]; then' in run_cmd, (
         "market-validation-contract must remain skip-if-missing until PR-5 lands"
+    )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "market-validation-contract skip messaging must explicitly declare support pre-binding only"
     )
 
 
@@ -263,6 +337,9 @@ def test_path_adjudicator_lite_contract_binds_required_test():
     assert 'if [ -f tests/test_path_adjudicator_lite.py ]; then' in run_cmd, (
         "path-adjudicator-lite-contract must remain skip-if-missing during support-only setup"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "path-adjudicator-lite-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_semantic_verdict_contract_binds_required_test():
@@ -278,6 +355,9 @@ def test_semantic_verdict_contract_binds_required_test():
     )
     assert 'if [ -f tests/test_semantic_verdict_fix.py ]; then' in run_cmd, (
         "semantic-verdict-contract must remain skip-if-missing during support-only setup"
+    )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "semantic-verdict-contract skip messaging must explicitly declare support pre-binding only"
     )
 
 
@@ -295,6 +375,9 @@ def test_output_adapter_contract_binds_required_test():
     assert 'if [ -f tests/test_output_adapter_v5.py ]; then' in run_cmd, (
         "output-adapter-contract must remain skip-if-missing during support-only setup"
     )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "output-adapter-contract skip messaging must explicitly declare support pre-binding only"
+    )
 
 
 def test_gate_diagnostics_contract_binds_required_test():
@@ -310,6 +393,9 @@ def test_gate_diagnostics_contract_binds_required_test():
     )
     assert 'if [ -f tests/test_gate_diagnostics.py ]; then' in run_cmd, (
         "gate-diagnostics-contract must remain skip-if-missing during support-only setup"
+    )
+    assert "support pre-binding only; not runtime closure" in run_cmd, (
+        "gate-diagnostics-contract skip messaging must explicitly declare support pre-binding only"
     )
 
 
@@ -338,4 +424,12 @@ def test_advisory_governance_contract_binds_required_tests():
     )
     assert "test -f tests/test_cross_news_crowding_governance.py" in run_cmd, (
         "advisory-governance-contract must fail fast when tests/test_cross_news_crowding_governance.py is missing"
+    )
+
+
+def test_compatibility_exit_contract_removed_until_real_surface_exists():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    assert "compatibility-exit-contract" not in steps, (
+        "compatibility-exit-contract should remain removed until a real runtime surface and test file exist"
     )

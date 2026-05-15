@@ -1,5 +1,11 @@
 # Stage 8-A Contract / Config / Test-Gate Matrix
 
+## 0. Document Status
+
+- `doc_status`: current_planning_contract_matrix
+- `updated_at`: 2026-05-16
+- Authority boundary: CI/config/test-gate planning contract only; not runtime authority.
+
 ## 1. Purpose
 
 This document freezes the contract, config, CI, and test-gate matrix for Stage 8-A planning.

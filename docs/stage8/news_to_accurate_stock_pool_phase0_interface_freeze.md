@@ -1,5 +1,11 @@
 # Stage 8-A Phase 0 Interface Freeze
 
+## 0. Document Status
+
+- `doc_status`: current_planning_interface_freeze
+- `updated_at`: 2026-05-16
+- Authority boundary: interface freeze policy only; not runtime authority.
+
 ## 1. Purpose
 
 This document freezes the Phase 0 interface boundaries for Stage 8-A News-to-Accurate-Stock-Pool Repair.

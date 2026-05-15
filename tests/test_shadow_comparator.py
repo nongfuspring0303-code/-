@@ -10,42 +10,30 @@ from shadow_comparator import compare_and_gate, compare_shadow, evaluate_shadow_
 def test_compare_shadow_reports_match_rates_and_p95_delta():
     a = [
         {
-            "trace_id": "t1",
-            "action": "TRADE",
-            "dominant_path": {"name": "p1"},
-            "sector_rankings": {"primary_sector": "technology"},
-            "score_100": 80,
-        },
-        {
-            "trace_id": "t2",
-            "action": "WATCH",
-            "dominant_path": {"name": "p2"},
-            "sector_rankings": {"primary_sector": "energy"},
-            "score_100": 60,
-        },
+            "trace_id": f"t{i}",
+            "action": "TRADE" if i % 2 == 0 else "WATCH",
+            "dominant_path": {"name": f"p{i % 3}"},
+            "sector_rankings": {"primary_sector": ["technology", "energy", "utilities"][i % 3]},
+            "score_100": 80 + i,
+        }
+        for i in range(20)
     ]
     b = [
         {
-            "trace_id": "t1",
-            "action": "TRADE",
-            "dominant_path": {"name": "p1"},
-            "sector_rankings": {"primary_sector": "technology"},
-            "score_100": 78,
-        },
-        {
-            "trace_id": "t2",
-            "action": "NO_ACTION",
-            "dominant_path": {"name": "p3"},
-            "sector_rankings": {"primary_sector": "utilities"},
-            "score_100": 55,
-        },
+            "trace_id": f"t{i}",
+            "action": "TRADE" if i % 2 == 0 else "WATCH",
+            "dominant_path": {"name": f"p{i % 3}"},
+            "sector_rankings": {"primary_sector": ["technology", "energy", "utilities"][i % 3]},
+            "score_100": 78 + i,
+        }
+        for i in range(20)
     ]
     out = compare_shadow(a, b)
-    assert out["samples"] == 2
-    assert out["action_match_rate"] == 0.5
-    assert out["path_match_rate"] == 0.5
-    assert out["sector_match_rate"] == 0.5
-    assert out["score_delta_p95"] >= 2.0
+    assert out["samples"] == 20
+    assert out["action_match_rate"] == 1.0
+    assert out["path_match_rate"] == 1.0
+    assert out["sector_match_rate"] == 1.0
+    assert out["score_delta_p95"] == 2.0
 
 
 def test_shadow_gate_passes_when_metrics_meet_thresholds():

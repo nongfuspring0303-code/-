@@ -53,7 +53,16 @@ def load_runtime_config(config_path: Path) -> dict:
         raise ValueError(f"Invalid runtime config: {config_path} ({exc})") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"Invalid runtime config root type: expected mapping, got {type(payload).__name__}")
-    return payload.get("runtime", {}) or {}
+    runtime_cfg = payload.get("runtime")
+    if runtime_cfg is None:
+        raise ValueError(f"Invalid runtime config: missing required runtime section in {config_path}")
+    if not isinstance(runtime_cfg, dict):
+        raise ValueError(
+            f"Invalid runtime config runtime type: expected mapping, got {type(runtime_cfg).__name__}"
+        )
+    if not runtime_cfg:
+        raise ValueError(f"Invalid runtime config: runtime section is empty in {config_path}")
+    return runtime_cfg
 
 
 def resolve_mock_producer_enabled(
@@ -80,7 +89,13 @@ def validate_mock_mode(mode: str) -> str:
 
 def resolve_history_file(runtime_cfg: dict, history_file: str | None = None) -> str | None:
     if not history_file:
-        stack_cfg = runtime_cfg.get("c_module_stack", {}) if isinstance(runtime_cfg, dict) else {}
+        stack_cfg = runtime_cfg.get("c_module_stack") if isinstance(runtime_cfg, dict) else {}
+        if stack_cfg is None:
+            stack_cfg = {}
+        if not isinstance(stack_cfg, dict):
+            raise ValueError(
+                f"Invalid runtime config c_module_stack type: expected mapping, got {type(stack_cfg).__name__}"
+            )
         history_file = stack_cfg.get("history_file")
     if not history_file:
         return None

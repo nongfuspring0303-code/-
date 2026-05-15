@@ -54,6 +54,7 @@ from theme_gate_policy import (
 
 
 STATUS_ORDER = {"GREEN": 0, "YELLOW": 1, "RED": 2}
+DEFAULT_COMMAND_TIMEOUT_SEC = 60
 
 # Dev mode policy (follow-up #81):
 # - CANARY_SOURCE_HEALTH=YELLOW is treated as non-blocking (normalized to GREEN)
@@ -93,8 +94,23 @@ def compile_source(path: Path) -> None:
     ast.parse(read_text(path), filename=str(path))
 
 
-def run_command(args: list[str], cwd: Path) -> tuple[int, str]:
-    proc = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace")
+def run_command(args: list[str], cwd: Path, timeout_sec: int = DEFAULT_COMMAND_TIMEOUT_SEC) -> tuple[int, str]:
+    try:
+        proc = subprocess.run(
+            args,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_sec,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return 124, f"command timed out after {timeout_sec}s: {' '.join(args)}"
+    except FileNotFoundError as exc:
+        return 127, f"command not found: {args[0]} ({exc})"
+    except OSError as exc:
+        return 1, f"command execution failed: {' '.join(args)} ({exc})"
     output = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, output.strip()
 

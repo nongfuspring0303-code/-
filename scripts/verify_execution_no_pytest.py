@@ -16,6 +16,7 @@ from workflow_runner import WorkflowRunner
 
 
 ROOT = Path(__file__).resolve().parent.parent
+GIT_LS_FILES_TIMEOUT_SEC = 15
 
 SAFE_PATH_PATTERNS = [
     ".env.example",
@@ -76,13 +77,23 @@ def _is_allowlisted_path(rel_path: str) -> bool:
 
 
 def _git_tracked_files(root: Path) -> list[str]:
-    completed = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=False,
-    )
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=False,
+            timeout=GIT_LS_FILES_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git ls-files timed out after {GIT_LS_FILES_TIMEOUT_SEC}s") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"git ls-files failed with exit code {exc.returncode}") from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError("git executable is not available") from exc
+    except OSError as exc:
+        raise RuntimeError(f"git ls-files failed to execute: {exc}") from exc
     entries = [entry for entry in completed.stdout.decode("utf-8", errors="replace").split("\0") if entry]
     return entries
 
@@ -136,7 +147,15 @@ def _scan_text_for_leaks(rel_path: str, text: str) -> list[LeakFinding]:
 
 
 def audit_repo_sensitive_leaks(root: Path = ROOT, tracked_files: list[str] | None = None) -> dict[str, object]:
-    paths = tracked_files if tracked_files is not None else _git_tracked_files(root)
+    scan_errors: list[str] = []
+    if tracked_files is not None:
+        paths = tracked_files
+    else:
+        try:
+            paths = _git_tracked_files(root)
+        except RuntimeError as exc:
+            scan_errors.append(str(exc))
+            paths = []
     warnings: list[LeakFinding] = []
     failures: list[LeakFinding] = []
     for rel_path in paths:
@@ -154,13 +173,14 @@ def audit_repo_sensitive_leaks(root: Path = ROOT, tracked_files: list[str] | Non
                 warnings.append(finding)
 
     status = "PASS"
-    if failures:
+    if failures or scan_errors:
         status = "FAIL"
     elif warnings:
         status = "WARN"
 
     return {
         "status": status,
+        "scan_errors": scan_errors,
         "warnings": [finding.__dict__ for finding in warnings],
         "failures": [finding.__dict__ for finding in failures],
     }
@@ -223,16 +243,19 @@ def main() -> None:
             "direction": "long",
         }
     )
-    _assert(out["final"]["action"] in ("EXECUTE", "WATCH", "BLOCK", "FORCE_CLOSE"), "Workflow output invalid")
+    final = out.get("final", {}) if isinstance(out, dict) else {}
+    _assert(final.get("action") in ("EXECUTE", "WATCH", "BLOCK", "FORCE_CLOSE"), "Workflow output invalid")
     print("OK: execution-layer fallback verification passed")
 
     audit = audit_repo_sensitive_leaks(ROOT)
     if audit["status"] == "FAIL":
         findings = audit["failures"]
+        scan_errors = audit.get("scan_errors", [])
         sample = findings[0] if findings else {}
         raise AssertionError(
             f"Repository sensitive-leak audit failed: {len(findings)} real leak(s) detected"
             + (f" (example: {sample.get('path')}:{sample.get('line')} {sample.get('kind')})" if sample else "")
+            + (f"; scan_errors={scan_errors}" if scan_errors else "")
         )
     if audit["status"] == "WARN":
         print(f"WARN: repository leak audit matched {len(audit['warnings'])} safe example(s)")

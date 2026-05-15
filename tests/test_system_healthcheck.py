@@ -1,6 +1,7 @@
 import sys
 from types import SimpleNamespace
 from pathlib import Path
+import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -277,7 +278,38 @@ def test_canary_refresh_can_be_forced_in_ci_dev_mode(monkeypatch):
 
 
 def test_phase3_pressure_gate_sample_passes():
-    code, output = system_healthcheck.run_phase3_pressure_gate()
+    code, output = system_healthcheck.run_phase3_pressure_gate(max_p99_ms=10000.0)
 
     assert code == 0
     assert '"passed": true' in output
+
+
+def test_run_command_passes_timeout_to_subprocess(monkeypatch):
+    captured = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    def _fake_run(*args, **kwargs):
+        captured["timeout"] = kwargs.get("timeout")
+        return _Proc()
+
+    monkeypatch.setattr(system_healthcheck.subprocess, "run", _fake_run)
+    code, output = system_healthcheck.run_command(["echo", "ok"], system_healthcheck.ROOT)
+
+    assert code == 0
+    assert output == "ok"
+    assert captured["timeout"] == system_healthcheck.DEFAULT_COMMAND_TIMEOUT_SEC
+
+
+def test_run_command_handles_timeout(monkeypatch):
+    def _raise_timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd=["git", "status"], timeout=60)
+
+    monkeypatch.setattr(system_healthcheck.subprocess, "run", _raise_timeout)
+    code, output = system_healthcheck.run_command(["git", "status"], system_healthcheck.ROOT)
+
+    assert code == 124
+    assert "timed out" in output

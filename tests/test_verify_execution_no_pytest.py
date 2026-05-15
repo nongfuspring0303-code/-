@@ -4,10 +4,12 @@ import tempfile
 from pathlib import Path
 
 import sys
+import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import verify_execution_no_pytest
 from verify_execution_no_pytest import audit_repo_sensitive_leaks
 
 
@@ -70,3 +72,39 @@ def test_audit_fails_real_secret_even_in_allowlisted_path() -> None:
 
         assert report["status"] == "FAIL"
         assert report["failures"]
+
+
+def test_audit_fails_when_git_ls_files_times_out(monkeypatch) -> None:
+    def _raise_timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd=["git", "ls-files", "-z"], timeout=15)
+
+    monkeypatch.setattr(verify_execution_no_pytest.subprocess, "run", _raise_timeout)
+
+    report = audit_repo_sensitive_leaks(Path("."), tracked_files=None)
+
+    assert report["status"] == "FAIL"
+    assert report["failures"] == []
+    assert report["scan_errors"]
+
+
+def test_main_uses_safe_final_action_access(monkeypatch) -> None:
+    class _Module:
+        def run(self, *_args, **_kwargs):
+            return type("Out", (), {"data": {"liquidity_state": "RED", "final_action": "FORCE_CLOSE", "score_tier": "G2", "final_notional": 50000.0, "take_profit_levels": [1, 2, 3], "hard_stop": 96.0}, "status": "success"})()
+
+    class _Workflow:
+        def run(self, *_args, **_kwargs):
+            return {"runtime_safety_gate": {"status": "blocked"}}
+
+    monkeypatch.setattr(verify_execution_no_pytest, "LiquidityChecker", lambda: _Module())
+    monkeypatch.setattr(verify_execution_no_pytest, "RiskGatekeeper", lambda: _Module())
+    monkeypatch.setattr(verify_execution_no_pytest, "PositionSizer", lambda: _Module())
+    monkeypatch.setattr(verify_execution_no_pytest, "ExitManager", lambda: _Module())
+    monkeypatch.setattr(verify_execution_no_pytest, "WorkflowRunner", lambda: _Workflow())
+    monkeypatch.setattr(verify_execution_no_pytest, "audit_repo_sensitive_leaks", lambda _root: {"status": "PASS", "warnings": [], "failures": [], "scan_errors": []})
+
+    try:
+        verify_execution_no_pytest.main()
+        assert False, "expected AssertionError"
+    except AssertionError as exc:
+        assert "Workflow output invalid" in str(exc)

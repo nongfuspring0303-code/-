@@ -54,6 +54,7 @@ def _required_ci_step_names():
     """All CI step names declared in the Stage 8-A contract matrix."""
     return {
         "pr-audit-1-runtime-safety-contract",
+        "pr-audit-2-support-scripts-stability-contract",
         "pipeline-order-contract",
         "candidate-envelope-contract",
         "resolver-merge-contract",
@@ -107,6 +108,27 @@ def test_pr_audit_1_runtime_safety_contract_binds_required_test():
     )
     assert "python -m pytest tests/test_pr_audit_1_runtime_safety.py -q" in run_cmd, (
         "pr-audit-1-runtime-safety-contract must run tests/test_pr_audit_1_runtime_safety.py"
+    )
+
+
+def test_pr_audit_2_support_scripts_stability_contract_binds_required_tests():
+    workflow = _load_workflow()
+    steps = _workflow_steps_by_name(workflow)
+    step = steps.get("pr-audit-2-support-scripts-stability-contract")
+
+    assert step, "pr-audit-2-support-scripts-stability-contract step missing from workflow"
+    run_cmd = str(step.get("run", ""))
+    assert "test -f tests/test_run_c_module_stack.py" in run_cmd, (
+        "pr-audit-2-support-scripts-stability-contract must fail fast if tests/test_run_c_module_stack.py is missing"
+    )
+    assert "test -f tests/test_system_healthcheck.py" in run_cmd, (
+        "pr-audit-2-support-scripts-stability-contract must fail fast if tests/test_system_healthcheck.py is missing"
+    )
+    assert "test -f tests/test_verify_execution_no_pytest.py" in run_cmd, (
+        "pr-audit-2-support-scripts-stability-contract must fail fast if tests/test_verify_execution_no_pytest.py is missing"
+    )
+    assert "python -m pytest tests/test_run_c_module_stack.py tests/test_system_healthcheck.py tests/test_verify_execution_no_pytest.py -q" in run_cmd, (
+        "pr-audit-2-support-scripts-stability-contract must run the three support-script regression tests"
     )
 
 

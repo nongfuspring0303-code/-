@@ -1,5 +1,11 @@
 # Stage 8-A Implementation Readiness Review
 
+## 0. Document Status
+
+- `doc_status`: current_planning_readiness_review
+- `updated_at`: 2026-05-16
+- Authority boundary: readiness review only; does not grant runtime authority.
+
 ## 1. Purpose
 
 This document records the implementation readiness review for Stage 8-A News-to-Accurate-Stock-Pool Repair.

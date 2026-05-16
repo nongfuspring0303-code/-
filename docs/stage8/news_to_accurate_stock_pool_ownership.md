@@ -1,5 +1,11 @@
 # Stage 8-A Ownership and Responsibility Model
 
+## 0. Document Status
+
+- `doc_status`: current_planning_governance
+- `updated_at`: 2026-05-16
+- Authority boundary: ownership and review contract only; not runtime authority.
+
 ## 1. Purpose
 
 This document freezes the Stage 8-A ownership model before any implementation begins.

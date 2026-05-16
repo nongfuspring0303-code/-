@@ -1,5 +1,11 @@
 # Stage 8-A Planning Baseline
 
+## 0. Document Status
+
+- `doc_status`: current_planning_baseline
+- `updated_at`: 2026-05-16
+- Authority boundary: planning contract only; not runtime authority.
+
 ## 1. Purpose
 
 This document defines the planning baseline for Stage 8-A, whose mainline is the repair of the news-to-accurate-stock-pool chain.

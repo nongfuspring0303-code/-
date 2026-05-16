@@ -49,7 +49,8 @@ Current routing:
 
 ## 5. Active Governance Issues
 
-- Issue #161 is the authoritative audit tracking hub for PR-Audit-0..14 execution and review boundaries.
+- Issue #161 is the authoritative tracking hub for the current audit stabilization window and its review boundaries.
+- Future PR-Audit-8..14 windows must be unlocked explicitly before execution.
 - Issue125 remains open as the docs governance backlog hub.
 - Issue127 is closed as completed after Stage 7.5 hardening closure.
 
